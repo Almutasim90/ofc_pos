@@ -10,4 +10,9 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      "/health": "http://127.0.0.1:5055",
+    },
+  },
 });
