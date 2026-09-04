@@ -1,5 +1,6 @@
 using OFC.Api;
 using OFC.Infrastructure;
+using OFC.Api.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,7 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
+app.MapSprintOneEndpoints();
 
 app.Run();
 

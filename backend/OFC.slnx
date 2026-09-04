@@ -1,6 +1,8 @@
 <Solution>
   <Project Path="src/OFC.Api/OFC.Api.csproj" />
   <Project Path="src/OFC.Infrastructure/OFC.Infrastructure.csproj" />
+  <Project Path="src/Modules/OFC.Modules.Identity/OFC.Modules.Identity.csproj" />
+  <Project Path="src/Modules/OFC.Modules.Organization/OFC.Modules.Organization.csproj" />
   <Project Path="src/OFC.SharedKernel/OFC.SharedKernel.csproj" />
   <Project Path="tests/OFC.SharedKernel.Tests/OFC.SharedKernel.Tests.csproj" />
 </Solution>

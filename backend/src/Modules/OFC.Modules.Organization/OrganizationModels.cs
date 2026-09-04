@@ -1,0 +1,6 @@
+namespace OFC.Modules.Organization;
+
+public sealed class Organization { public Guid Id { get; set; } = Guid.CreateVersion7(); public required string NameAr { get; set; } public required string NameEn { get; set; } public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow; }
+public sealed class Branch { public Guid Id { get; set; } = Guid.CreateVersion7(); public Guid OrganizationId { get; set; } public required string Code { get; set; } public required string NameAr { get; set; } public required string NameEn { get; set; } public required string TimeZone { get; set; } = "Asia/Muscat"; public bool IsActive { get; set; } = true; public ICollection<BranchSetting> Settings { get; set; } = []; }
+public sealed class PosDevice { public Guid Id { get; set; } = Guid.CreateVersion7(); public Guid BranchId { get; set; } public required string Name { get; set; } public required string RegistrationCode { get; set; } public bool IsActive { get; set; } = true; public DateTimeOffset? LastSeenAt { get; set; } }
+public sealed class BranchSetting { public Guid Id { get; set; } = Guid.CreateVersion7(); public Guid BranchId { get; set; } public required string Key { get; set; } public required string Value { get; set; } }

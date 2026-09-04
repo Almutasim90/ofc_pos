@@ -1,145 +1,40 @@
 import { useEffect, useState } from "react";
-import { Activity, CloudOff, Languages, RefreshCw, Wifi } from "lucide-react";
+import { Building2, Languages, Monitor, RefreshCw, ShieldCheck, Users } from "lucide-react";
 
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
-type HealthStatus = "loading" | "online" | "offline" | "error";
+type View = "branches" | "devices" | "users";
+type Overview = { branches: number; users: number; devices: Array<{ id: string; name: string; branchId: string; isActive: boolean; lastSeenAt: string | null }> };
 
 const copy = {
-  ar: {
-    brand: "منصة OFC",
-    eyebrow: "أساسيات التشغيل",
-    title: "مساحة عمل واضحة، تبدأ متصلة.",
-    description: "هذه الواجهة جاهزة لرحلة فريقك. ستظهر الأدوات والعمليات هنا مع استمرار بناء المنصة.",
-    health: "حالة الخدمة",
-    loading: "جارٍ التحقق من الاتصال",
-    online: "الخدمة متصلة وجاهزة",
-    offline: "أنت غير متصل بالإنترنت",
-    error: "تعذر الوصول إلى الخدمة",
-    retry: "إعادة المحاولة",
-    workspace: "مساحة العمل",
-    comingSoon: "ستتوفر وحدات العمل هنا قريباً.",
-    language: "English",
-  },
-  en: {
-    brand: "OFC Platform",
-    eyebrow: "Operations foundation",
-    title: "A clear workspace, connected from the start.",
-    description: "This interface is ready for your team's journey. Tools and workflows will appear here as the platform grows.",
-    health: "Service status",
-    loading: "Checking connection",
-    online: "Service is connected and ready",
-    offline: "You are offline",
-    error: "Unable to reach the service",
-    retry: "Try again",
-    workspace: "Workspace",
-    comingSoon: "Work modules will be available here soon.",
-    language: "العربية",
-  },
+  ar: { brand: "OFC إدارة التشغيل", login: "تسجيل الدخول", email: "البريد الإلكتروني", password: "كلمة المرور", enter: "دخول آمن", logout: "تسجيل الخروج", welcome: "إدارة الهوية والفروع", subtitle: "راقب الوصول والأجهزة والفروع من مساحة عمل واحدة.", branches: "الفروع", devices: "الأجهزة", users: "المستخدمون", activeDevices: "أجهزة نشطة", noDevices: "لا توجد أجهزة مسجلة", lastSeen: "آخر ظهور", never: "لم يتصل بعد", retry: "إعادة المحاولة", loading: "جارٍ تحميل بيانات الإدارة", error: "تعذر تحميل البيانات. تحقق من اتصالك وصلاحياتك.", access: "الوصول محمي بصلاحيات الخادم", language: "English", online: "متصل", offline: "غير متصل", status: "الحالة" },
+  en: { brand: "OFC Operations", login: "Sign in", email: "Email", password: "Password", enter: "Secure sign in", logout: "Sign out", welcome: "Identity & branch administration", subtitle: "Monitor access, devices, and branches from one workspace.", branches: "Branches", devices: "Devices", users: "Users", activeDevices: "Active devices", noDevices: "No devices registered", lastSeen: "Last seen", never: "Never connected", retry: "Retry", loading: "Loading administration data", error: "Unable to load data. Check your connection and permissions.", access: "Access is protected by server permissions", language: "العربية", online: "Online", offline: "Offline", status: "Status" },
 } as const;
 
-function initialLanguage(): Language {
-  const saved = store.get<Language>("language");
-  return saved === "en" || saved === "ar" ? saved : "ar";
-}
+function initialLanguage(): Language { const saved = store.get<Language>("language"); return saved === "en" || saved === "ar" ? saved : "ar"; }
 
 export function App() {
   const [language, setLanguage] = useState<Language>(initialLanguage);
-  const [health, setHealth] = useState<HealthStatus>("loading");
+  const [token, setToken] = useState(() => store.get<string>("session-token") ?? "");
+  const [view, setView] = useState<View>("branches");
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [credentials, setCredentials] = useState({ email: "", password: "" });
+  const [loginError, setLoginError] = useState("");
   const text = copy[language];
 
-  useEffect(() => {
-    document.documentElement.lang = language;
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-    document.title = text.brand;
-    store.set("language", language);
-  }, [language, text.brand]);
+  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; document.title = text.brand; store.set("language", language); }, [language, text.brand]);
+  async function load() { if (!token) return; setState("loading"); try { const response = await fetch("/api/v1/admin/overview", { headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) throw new Error(); setOverview(await response.json() as Overview); setState("idle"); } catch { setState("error"); } }
+  useEffect(() => { void load(); }, [token]);
+  async function login(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); setLoginError(""); try { const response = await fetch("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials) }); if (!response.ok) throw new Error(); const result = await response.json() as { token: string }; store.set("session-token", result.token); setToken(result.token); } catch { setLoginError(text.error); } }
+  function logout() { store.remove("session-token"); setToken(""); setOverview(null); }
 
-  async function checkHealth() {
-    if (!navigator.onLine) {
-      setHealth("offline");
-      return;
-    }
+  if (!token) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2] p-4"><form onSubmit={login} className="w-full max-w-md rounded-2xl border border-[#d9dfd7] bg-white p-6 shadow-[0_20px_60px_-34px_rgba(12,50,42,.55)] sm:p-8"><div className="flex items-center justify-between"><span className="grid size-11 place-items-center rounded-xl bg-[#0e5a4f] font-bold text-white">O</span><button type="button" onClick={() => setLanguage(language === "ar" ? "en" : "ar")} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#0e5a4f] hover:bg-[#edf5f1]"><Languages size={18} />{text.language}</button></div><h1 className="mt-8 text-2xl font-semibold text-[#17211f]">{text.login}</h1><p className="mt-2 text-sm leading-6 text-[#66736d]">{text.access}</p><label className="mt-7 block text-sm font-medium">{text.email}<input required type="email" value={credentials.email} onChange={(e) => setCredentials({ ...credentials, email: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label><label className="mt-4 block text-sm font-medium">{text.password}<input required type="password" minLength={12} value={credentials.password} onChange={(e) => setCredentials({ ...credentials, password: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>{loginError && <p role="alert" className="mt-4 text-sm text-[#b4322a]">{loginError}</p>}<button className="mt-6 min-h-12 w-full rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]">{text.enter}</button></form></main>;
 
-    setHealth("loading");
-    try {
-      const response = await fetch("/health", { cache: "no-store" });
-      setHealth(response.ok ? "online" : "error");
-    } catch {
-      setHealth(navigator.onLine ? "error" : "offline");
-    }
-  }
-
-  useEffect(() => {
-    void checkHealth();
-    const markOffline = () => setHealth("offline");
-    const reconnect = () => void checkHealth();
-    window.addEventListener("offline", markOffline);
-    window.addEventListener("online", reconnect);
-    return () => {
-      window.removeEventListener("offline", markOffline);
-      window.removeEventListener("online", reconnect);
-    };
-  }, []);
-
-  const isAvailable = health === "online";
-  const isRetryable = health === "offline" || health === "error";
-  const StatusIcon = isAvailable ? Wifi : health === "offline" ? CloudOff : Activity;
-  const statusText = health === "loading" ? text.loading : health === "online" ? text.online : health === "offline" ? text.offline : text.error;
-
-  return (
-    <main className="min-h-screen bg-[#f7f7f5] px-4 py-4 sm:px-8 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-3xl border border-[#dce2dc] bg-white shadow-[0_24px_80px_-38px_rgba(18,44,37,0.35)] sm:min-h-[calc(100vh-4rem)]">
-        <header className="flex items-center justify-between border-b border-[#e8ece8] px-5 py-4 sm:px-8">
-          <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#0e5a4f] text-sm font-bold text-white">O</span>
-            <span className="font-semibold tracking-tight">{text.brand}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#d7dfd9] px-3 py-2 text-sm font-medium transition hover:border-[#0e5a4f] hover:text-[#0e5a4f] focus:outline-none focus:ring-2 focus:ring-[#0e5a4f]/30"
-          >
-            <Languages size={17} aria-hidden="true" />
-            {text.language}
-          </button>
-        </header>
-
-        <section className="flex flex-1 items-center px-5 py-14 sm:px-12 lg:px-20">
-          <div className="grid w-full gap-12 lg:grid-cols-[1.3fr_0.7fr] lg:items-center">
-            <div className="max-w-2xl">
-              <p className="mb-5 text-sm font-semibold tracking-wide text-[#0e5a4f]">{text.eyebrow}</p>
-              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-[#17211f] sm:text-6xl">{text.title}</h1>
-              <p className="mt-6 max-w-xl text-base leading-8 text-[#5b6863] sm:text-lg">{text.description}</p>
-            </div>
-
-            <aside className="rounded-2xl border border-[#e0e7e1] bg-[#fbfcfa] p-6">
-              <p className="text-sm font-semibold text-[#35443e]">{text.health}</p>
-              <div className="mt-5 flex items-start gap-3">
-                <span className={`grid size-10 shrink-0 place-items-center rounded-full ${isAvailable ? "bg-[#dff4e9] text-[#137347]" : health === "loading" ? "bg-[#fff3d6] text-[#a26000]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>
-                  <StatusIcon className={health === "loading" ? "animate-pulse" : ""} size={19} aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="font-medium text-[#17211f]" aria-live="polite">{statusText}</p>
-                  {isRetryable && (
-                    <button type="button" onClick={() => void checkHealth()} className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#0e5a4f] hover:underline">
-                      <RefreshCw size={15} aria-hidden="true" />
-                      {text.retry}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </aside>
-          </div>
-        </section>
-
-        <footer className="border-t border-[#e8ece8] px-5 py-4 text-sm text-[#73807a] sm:px-8">
-          <span className="font-medium text-[#35443e]">{text.workspace}</span>
-          <span className="px-2" aria-hidden="true">/</span>
-          {text.comingSoon}
-        </footer>
-      </div>
-    </main>
-  );
+  const navigation: Array<[View, string, typeof Building2]> = [["branches", text.branches, Building2], ["devices", text.devices, Monitor], ["users", text.users, Users]];
+  return <main className="min-h-screen bg-[#f5f6f2] text-[#17211f]"><header className="border-b border-[#dfe5df] bg-white px-4 py-3 sm:px-6"><div className="mx-auto flex max-w-7xl items-center justify-between"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-[#0e5a4f] text-sm font-bold text-white">O</span><strong>{text.brand}</strong></div><div className="flex items-center gap-1"><button onClick={() => setLanguage(language === "ar" ? "en" : "ar")} className="min-h-11 rounded-lg px-3 text-sm text-[#0e5a4f] hover:bg-[#edf5f1]"><Languages className="inline" size={17} /> <span className="hidden sm:inline">{text.language}</span></button><button onClick={logout} className="min-h-11 rounded-lg px-3 text-sm font-medium text-[#0e5a4f] hover:bg-[#edf5f1]">{text.logout}</button></div></div></header><div className="mx-auto grid max-w-7xl lg:grid-cols-[220px_1fr]"><nav className="flex gap-1 overflow-x-auto border-b border-[#dfe5df] bg-white p-3 lg:min-h-[calc(100vh-65px)] lg:flex-col lg:border-b-0 lg:border-e">{navigation.map(([key, label, Icon]) => <button key={key} onClick={() => setView(key)} className={`flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-3 text-sm font-medium ${view === key ? "bg-[#e6f1ec] text-[#08483f]" : "text-[#53615b] hover:bg-[#f2f5f2]"}`}><Icon size={18} />{label}</button>)}</nav><section className="p-4 sm:p-7"><p className="text-sm font-semibold text-[#0e5a4f]">{text.access}</p><h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{text.welcome}</h1><p className="mt-2 max-w-2xl text-[#64716b]">{text.subtitle}</p>{state === "loading" && <div className="mt-10 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{text.loading}</div>}{state === "error" && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{text.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{text.retry}</button></div>}{state === "idle" && overview && <><div className="mt-7 grid gap-3 sm:grid-cols-3"><Metric icon={<Building2 />} label={text.branches} value={overview.branches} /><Metric icon={<Users />} label={text.users} value={overview.users} /><Metric icon={<Monitor />} label={text.activeDevices} value={overview.devices.filter((d) => d.isActive).length} /></div><section className="mt-8 rounded-xl border border-[#dfe5df] bg-white"><div className="flex items-center justify-between border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{view === "devices" ? text.devices : view === "users" ? text.users : text.branches}</h2><span className="text-sm text-[#6a7771]">{view === "devices" ? overview.devices.length : view === "users" ? overview.users : overview.branches}</span></div>{view === "devices" ? overview.devices.length ? <div className="divide-y divide-[#e8ece8]">{overview.devices.map((device) => <div key={device.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><p className="font-medium">{device.name}</p><p className="mt-1 text-sm text-[#69766f]">{text.lastSeen}: {device.lastSeenAt ? new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(device.lastSeenAt)) : text.never}</p></div><span className={`rounded-full px-3 py-1 text-xs font-semibold ${device.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{device.isActive ? text.online : text.offline}</span></div>)}</div> : <Empty text={text.noDevices} /> : <Empty text={`${view === "users" ? text.users : text.branches}: ${view === "users" ? overview.users : overview.branches}`} />}</section></>}</section></div></main>;
 }
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) { return <div className="rounded-xl border border-[#dfe5df] bg-white p-4"><div className="flex items-center gap-2 text-[#0e5a4f]">{icon}<span className="text-sm font-medium text-[#66736d]">{label}</span></div><p className="mt-4 text-3xl font-semibold">{value}</p></div>; }
+function Empty({ text }: { text: string }) { return <div className="p-8 text-center text-sm text-[#69766f]"><ShieldCheck className="mx-auto mb-3 text-[#0e5a4f]" />{text}</div>; }
