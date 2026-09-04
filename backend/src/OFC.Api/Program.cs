@@ -9,6 +9,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddHealthChecks();
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 
 var app = builder.Build();
 
@@ -18,6 +19,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapSprintOneEndpoints();
+app.MapSprintTwoEndpoints();
 
 app.Run();
 

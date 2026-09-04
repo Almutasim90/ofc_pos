@@ -12,5 +12,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/OFC.SharedKernel/OFC.SharedKernel.csproj" />
     <ProjectReference Include="../../src/OFC.Infrastructure/OFC.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Catalog/OFC.Modules.Catalog.csproj" />
   </ItemGroup>
 </Project>

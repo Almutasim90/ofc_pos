@@ -3,6 +3,7 @@
     <ProjectReference Include="..\OFC.Infrastructure\OFC.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Identity\OFC.Modules.Identity.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Organization\OFC.Modules.Organization.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Catalog\OFC.Modules.Catalog.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">

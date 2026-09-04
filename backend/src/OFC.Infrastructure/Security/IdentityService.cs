@@ -9,7 +9,7 @@ namespace OFC.Infrastructure.Security;
 
 public sealed class IdentityService(OFCDbContext db, TimeProvider timeProvider)
 {
-    public static readonly string[] PermissionCodes = ["users.manage", "roles.manage", "branches.manage", "devices.manage", "settings.manage"];
+    public static readonly string[] PermissionCodes = ["users.manage", "roles.manage", "branches.manage", "devices.manage", "settings.manage", "catalog.categories.manage", "catalog.products.manage"];
 
     public async Task<(string Token, User User, Guid? BranchId, Guid? DeviceId)?> LoginAsync(string email, string password, Guid? branchId, Guid? deviceId, string correlationId, CancellationToken cancellationToken)
     {
