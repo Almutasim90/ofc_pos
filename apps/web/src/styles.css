@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    background: #f7f7f5;
+  }
+
+  body {
+    min-width: 320px;
+    margin: 0;
+    background: #f7f7f5;
+    color: #17211f;
+  }
+
+  button {
+    font: inherit;
+  }
+}
