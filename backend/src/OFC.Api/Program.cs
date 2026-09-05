@@ -15,6 +15,8 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
@@ -36,6 +38,12 @@ app.MapSprintFifteenEndpoints();
 app.MapSprintSixteenEndpoints();
 app.MapSprintSeventeenEndpoints();
 app.MapSprintEighteenEndpoints();
+
+var indexFile = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "index.html");
+if (File.Exists(indexFile))
+{
+    app.MapFallbackToFile("index.html");
+}
 
 app.Run();
 
