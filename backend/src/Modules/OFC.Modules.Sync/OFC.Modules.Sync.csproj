@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\OFC.Modules.Organization\OFC.Modules.Organization.csproj" />
+  </ItemGroup>
+</Project>

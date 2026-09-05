@@ -4,6 +4,14 @@
     <ProjectReference Include="..\Modules\OFC.Modules.Identity\OFC.Modules.Identity.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Organization\OFC.Modules.Organization.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Catalog\OFC.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Ordering\OFC.Modules.Ordering.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Payments\OFC.Modules.Payments.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Shifts\OFC.Modules.Shifts.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Printing\OFC.Modules.Printing.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Kitchen\OFC.Modules.Kitchen.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Inventory\OFC.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Sync\OFC.Modules.Sync.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Reporting\OFC.Modules.Reporting.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">

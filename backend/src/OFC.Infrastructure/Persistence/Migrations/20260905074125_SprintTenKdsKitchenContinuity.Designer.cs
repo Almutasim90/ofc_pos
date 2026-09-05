@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OFC.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using OFC.Infrastructure.Persistence;
 namespace OFC.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(OFCDbContext))]
-    partial class OFCDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260905074125_SprintTenKdsKitchenContinuity")]
+    partial class SprintTenKdsKitchenContinuity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -786,301 +789,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("user_roles", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.InventoryItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Barcode")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<Guid>("BaseUnitId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DescriptionAr")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("DescriptionEn")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("NameAr")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("NameEn")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("Sku")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<decimal?>("StockOnHand")
-                        .HasPrecision(19, 6)
-                        .HasColumnType("numeric(19,6)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("UnitCost")
-                        .HasPrecision(19, 6)
-                        .HasColumnType("numeric(19,6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Barcode")
-                        .IsUnique();
-
-                    b.HasIndex("BaseUnitId");
-
-                    b.HasIndex("Sku")
-                        .IsUnique();
-
-                    b.HasIndex("Type");
-
-                    b.ToTable("inventory_items", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.InventoryMovement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ClientMovementId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("InventoryItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("OrderId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("OrderLineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(19, 6)
-                        .HasColumnType("numeric(19,6)");
-
-                    b.Property<string>("Reason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid?>("RecipeVersionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reference")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("ShiftId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("UnitId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("InventoryItemId");
-
-                    b.HasIndex("RecipeVersionId");
-
-                    b.HasIndex("UnitId");
-
-                    b.HasIndex("BranchId", "InventoryItemId", "OccurredAt");
-
-                    b.HasIndex("BranchId", "Type", "OccurredAt");
-
-                    b.ToTable("inventory_movements", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.RecipeLine", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("InventoryItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(19, 6)
-                        .HasColumnType("numeric(19,6)");
-
-                    b.Property<Guid>("RecipeVersionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("UnitId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InventoryItemId");
-
-                    b.HasIndex("UnitId");
-
-                    b.HasIndex("RecipeVersionId", "InventoryItemId");
-
-                    b.ToTable("recipe_lines", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.RecipeVersion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("EffectiveFrom")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("NameAr")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("NameEn")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<int>("VersionNumber")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("ProductId", "Status");
-
-                    b.HasIndex("ProductId", "VersionNumber")
-                        .IsUnique();
-
-                    b.ToTable("recipe_versions", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.UnitConversion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("Factor")
-                        .HasPrecision(19, 9)
-                        .HasColumnType("numeric(19,9)");
-
-                    b.Property<Guid>("FromUnitId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("ToUnitId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ToUnitId");
-
-                    b.HasIndex("FromUnitId", "ToUnitId")
-                        .IsUnique();
-
-                    b.ToTable("unit_conversions", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.UnitOfMeasure", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("NameAr")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("NameEn")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Symbol")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("IsActive", "SortOrder");
-
-                    b.ToTable("units_of_measure", "ofc");
                 });
 
             modelBuilder.Entity("OFC.Modules.Kitchen.KitchenTicket", b =>
@@ -2286,69 +1994,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.ToTable("printer_routes", "ofc");
                 });
 
-            modelBuilder.Entity("OFC.Modules.Reporting.ReportExport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Format")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset>("From")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ReportCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<int>("RowCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Summary")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset>("To")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("ReportCode");
-
-                    b.HasIndex("BranchId", "CreatedAt");
-
-                    b.ToTable("report_exports", "ofc");
-                });
-
             modelBuilder.Entity("OFC.Modules.Shifts.Shift", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2536,95 +2181,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.HasIndex("ShiftId", "CreatedAt");
 
                     b.ToTable("shift_movements", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Sync.SyncOperation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("AppliedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("BaseCatalogVersion")
-                        .HasColumnType("integer");
-
-                    b.Property<long?>("BaseVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("ClientOccurredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ConflictReason")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Error")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<Guid>("IdempotencyKey")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("OperationType")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("Payload")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Result")
-                        .HasColumnType("jsonb");
-
-                    b.Property<long?>("ServerVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("DeviceId", "CreatedAt");
-
-                    b.HasIndex("BranchId", "DeviceId", "IdempotencyKey")
-                        .IsUnique();
-
-                    b.HasIndex("BranchId", "Status", "CreatedAt");
-
-                    b.ToTable("sync_operations", "ofc");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Sync.SyncState", b =>
-                {
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("CurrentVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("BranchId");
-
-                    b.ToTable("sync_states", "ofc");
                 });
 
             modelBuilder.Entity("OFC.Modules.Catalog.CatalogVersion", b =>
@@ -2830,99 +2386,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.InventoryItem", b =>
-                {
-                    b.HasOne("OFC.Modules.Inventory.UnitOfMeasure", "BaseUnit")
-                        .WithMany()
-                        .HasForeignKey("BaseUnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("BaseUnit");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.InventoryMovement", b =>
-                {
-                    b.HasOne("OFC.Modules.Organization.Branch", null)
-                        .WithMany()
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Identity.User", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("OFC.Modules.Inventory.InventoryItem", null)
-                        .WithMany()
-                        .HasForeignKey("InventoryItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Inventory.RecipeVersion", null)
-                        .WithMany()
-                        .HasForeignKey("RecipeVersionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("OFC.Modules.Inventory.UnitOfMeasure", null)
-                        .WithMany()
-                        .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.RecipeLine", b =>
-                {
-                    b.HasOne("OFC.Modules.Inventory.InventoryItem", null)
-                        .WithMany()
-                        .HasForeignKey("InventoryItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Inventory.RecipeVersion", null)
-                        .WithMany("Lines")
-                        .HasForeignKey("RecipeVersionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Inventory.UnitOfMeasure", null)
-                        .WithMany()
-                        .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.RecipeVersion", b =>
-                {
-                    b.HasOne("OFC.Modules.Identity.User", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Catalog.Product", null)
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.UnitConversion", b =>
-                {
-                    b.HasOne("OFC.Modules.Inventory.UnitOfMeasure", null)
-                        .WithMany()
-                        .HasForeignKey("FromUnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Inventory.UnitOfMeasure", null)
-                        .WithMany()
-                        .HasForeignKey("ToUnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("OFC.Modules.Kitchen.KitchenTicket", b =>
@@ -3307,21 +2770,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("OFC.Modules.Reporting.ReportExport", b =>
-                {
-                    b.HasOne("OFC.Modules.Organization.Branch", null)
-                        .WithMany()
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Identity.User", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("OFC.Modules.Shifts.Shift", b =>
                 {
                     b.HasOne("OFC.Modules.Organization.Branch", null)
@@ -3371,35 +2819,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("OFC.Modules.Sync.SyncOperation", b =>
-                {
-                    b.HasOne("OFC.Modules.Organization.Branch", null)
-                        .WithMany()
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Identity.User", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("OFC.Modules.Organization.PosDevice", null)
-                        .WithMany()
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OFC.Modules.Sync.SyncState", b =>
-                {
-                    b.HasOne("OFC.Modules.Organization.Branch", null)
-                        .WithMany()
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("OFC.Modules.Catalog.Category", b =>
                 {
                     b.Navigation("Children");
@@ -3435,11 +2854,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.Navigation("Branches");
 
                     b.Navigation("Roles");
-                });
-
-            modelBuilder.Entity("OFC.Modules.Inventory.RecipeVersion", b =>
-                {
-                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("OFC.Modules.Kitchen.KitchenTicket", b =>

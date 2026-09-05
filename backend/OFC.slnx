@@ -3,7 +3,15 @@
   <Project Path="src/OFC.Infrastructure/OFC.Infrastructure.csproj" />
   <Project Path="src/Modules/OFC.Modules.Identity/OFC.Modules.Identity.csproj" />
   <Project Path="src/Modules/OFC.Modules.Organization/OFC.Modules.Organization.csproj" />
-  <Project Path="src/Modules/OFC.Modules.Catalog/OFC.Modules.Catalog.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Catalog/OFC.Modules.Catalog.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Ordering/OFC.Modules.Ordering.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Payments/OFC.Modules.Payments.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Shifts/OFC.Modules.Shifts.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Printing/OFC.Modules.Printing.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Kitchen/OFC.Modules.Kitchen.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Inventory/OFC.Modules.Inventory.csproj" />
+    <Project Path="src/Modules/OFC.Modules.Sync/OFC.Modules.Sync.csproj" />
+  <Project Path="src/Modules/OFC.Modules.Reporting/OFC.Modules.Reporting.csproj" />
   <Project Path="src/OFC.SharedKernel/OFC.SharedKernel.csproj" />
   <Project Path="tests/OFC.SharedKernel.Tests/OFC.SharedKernel.Tests.csproj" />
 </Solution>

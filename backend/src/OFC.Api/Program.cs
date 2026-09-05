@@ -20,6 +20,17 @@ app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapSprintOneEndpoints();
 app.MapSprintTwoEndpoints();
+app.MapSprintThreeEndpoints();
+app.MapSprintFourEndpoints();
+app.MapSprintFiveEndpoints();
+app.MapSprintSixEndpoints();
+app.MapSprintSevenEndpoints();
+app.MapSprintEightEndpoints();
+app.MapSprintNineEndpoints();
+app.MapSprintTenEndpoints();
+app.MapSprintElevenEndpoints();
+app.MapSprintTwelveEndpoints();
+app.MapSprintThirteenEndpoints();
 
 app.Run();
 

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OFC.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using OFC.Infrastructure.Persistence;
 namespace OFC.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(OFCDbContext))]
-    partial class OFCDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260905082548_AddSprintTwelveOfflineSync")]
+    partial class AddSprintTwelveOfflineSync
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2286,69 +2289,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.ToTable("printer_routes", "ofc");
                 });
 
-            modelBuilder.Entity("OFC.Modules.Reporting.ReportExport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BranchId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Format")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset>("From")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastError")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ReportCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<int>("RowCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Summary")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset>("To")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedByUserId");
-
-                    b.HasIndex("ReportCode");
-
-                    b.HasIndex("BranchId", "CreatedAt");
-
-                    b.ToTable("report_exports", "ofc");
-                });
-
             modelBuilder.Entity("OFC.Modules.Shifts.Shift", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3303,21 +3243,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.HasOne("OFC.Modules.Printing.PrinterConfiguration", null)
                         .WithMany()
                         .HasForeignKey("PrinterConfigurationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("OFC.Modules.Reporting.ReportExport", b =>
-                {
-                    b.HasOne("OFC.Modules.Organization.Branch", null)
-                        .WithMany()
-                        .HasForeignKey("BranchId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OFC.Modules.Identity.User", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
