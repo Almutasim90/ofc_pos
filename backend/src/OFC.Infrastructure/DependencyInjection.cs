@@ -18,11 +18,15 @@ public static class DependencyInjection
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException(
-                "The ConnectionStrings__DefaultConnection environment variable must be configured.");
+            Console.Error.WriteLine(
+                "[OFC] Warning: no PostgreSQL connection string configured (ConnectionStrings__DefaultConnection). " +
+                "The API will start, but database-backed endpoints will fail until it is set.");
+        }
+        else
+        {
+            services.AddDbContext<OFCDbContext>(options => options.UseNpgsql(connectionString));
         }
 
-        services.AddDbContext<OFCDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IdentityService>();
         services.AddAuthentication(SessionAuthenticationHandler.SchemeName)
             .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionAuthenticationHandler.SchemeName, null);
