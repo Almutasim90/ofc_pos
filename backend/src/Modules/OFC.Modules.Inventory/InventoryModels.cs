@@ -105,6 +105,8 @@ public sealed class InventoryMovement
     public Guid? OrderLineId { get; set; }
     public string? Reference { get; set; }
     public string? Reason { get; set; }
+    public Guid? SupplierId { get; set; }
+    public Guid? PurchaseOrderId { get; set; }
     public Guid? CreatedByUserId { get; set; }
     public Guid? DeviceId { get; set; }
     public Guid ClientMovementId { get; set; } = Guid.CreateVersion7();

@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Modules\OFC.Modules.Inventory\OFC.Modules.Inventory.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Sync\OFC.Modules.Sync.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Reporting\OFC.Modules.Reporting.csproj" />
+    <ProjectReference Include="..\Modules\OFC.Modules.Procurement\OFC.Modules.Procurement.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">

@@ -12,6 +12,7 @@
     <Project Path="src/Modules/OFC.Modules.Inventory/OFC.Modules.Inventory.csproj" />
     <Project Path="src/Modules/OFC.Modules.Sync/OFC.Modules.Sync.csproj" />
   <Project Path="src/Modules/OFC.Modules.Reporting/OFC.Modules.Reporting.csproj" />
+  <Project Path="src/Modules/OFC.Modules.Procurement/OFC.Modules.Procurement.csproj" />
   <Project Path="src/OFC.SharedKernel/OFC.SharedKernel.csproj" />
   <Project Path="tests/OFC.SharedKernel.Tests/OFC.SharedKernel.Tests.csproj" />
 </Solution>

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\OFC.Modules.Inventory\OFC.Modules.Inventory.csproj" />
+  </ItemGroup>
+</Project>
