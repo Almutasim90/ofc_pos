@@ -13,5 +13,13 @@
     <ProjectReference Include="../../src/OFC.SharedKernel/OFC.SharedKernel.csproj" />
     <ProjectReference Include="../../src/OFC.Infrastructure/OFC.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Modules/OFC.Modules.Catalog/OFC.Modules.Catalog.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Ordering/OFC.Modules.Ordering.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Payments/OFC.Modules.Payments.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Shifts/OFC.Modules.Shifts.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Printing/OFC.Modules.Printing.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Kitchen/OFC.Modules.Kitchen.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Inventory/OFC.Modules.Inventory.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Sync/OFC.Modules.Sync.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Reporting/OFC.Modules.Reporting.csproj" />
   </ItemGroup>
 </Project>
