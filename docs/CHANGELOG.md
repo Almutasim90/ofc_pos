@@ -6,6 +6,14 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- STORY-18-01/02/09 Optional extension points & preferences: `OFC.Modules.Integrations` (adapter contracts `IExternalIntegrationAdapter`/`IAiAssistProvider`, `IntegrationRules`) with loyalty, customer CRM, online ordering, delivery, notifications, AI assist, and external-billing placeholder adapters. Preferences are read from the existing `branch_settings` table at query time (keys `integration.<kind>.enabled`, `ai.assist.enabled`), all disabled by default.
+- STORY-18-05 Notification/webhook outbox foundation: durable `ExternalOutboxEntry` (`external_outbox`) with idempotency key, statuses (Queued/Dispatching/Dispatched/Failed/Skipped/Deferred), exponential retry/backoff, and a unique `(BranchId, IdempotencyKey)` index. Safe dispatch records a benign outcome instead of throwing.
+- STORY-18-06/07/08 Non-blocking AI assist: `POST /api/v1/integrations/ai/suggest` returns advisory suggestions flagged `requiresReview: true`; `IntegrationRules.SuggestionAcceptsWithoutReview` always returns `false`, and the endpoint degrades to `mode = "degraded"` with `safeFallback = true` on any failure, never posting or mutating an order.
+- New `/api/v1/integrations` endpoints (`preferences`, `preferences/{kind}/test`, `outbox`, `outbox/{id}/dispatch`, `ai/suggest`) with server-side authorization (`integrations.view`/`integrations.manage`/`integrations.ai` with `settings.manage` fallback), validation, and audit of sensitive operations.
+- `ExternalIntegrationContract` documentation (`docs/INTEGRATIONS-CONTRACT.md`) and bilingual responsive `IntegrationsSection` UI (extension point toggles/test, outbox foundation, AI assist panel).
+- `IntegrationRulesTests` covering preference keys, enabled parsing, outbox validation, retry/backoff and attempt gating, AI safety, and sensitive/review classification; migration `20260905104237_AddSprintEighteenIntegrationsAi`.
+
+
 - STORY-15-01 Physical inventory counts: `InventoryCount`/`InventoryCountLine` sessions capture system quantity, counted quantity, and variance.
 - STORY-15-02 Count variance: posting an approved count emits `CountAdjustment` ledger movements; variance lines require a reason and a dedicated approval step.
 - STORY-15-03 Stock transfer: `StockTransfer`/`StockTransferLine` with ship/receive flow; the destination branch does not increase until receipt (`TransferOut` on ship, `TransferIn` on receive).

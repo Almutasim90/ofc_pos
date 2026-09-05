@@ -12,6 +12,7 @@ using OFC.Modules.Sync;
 using OFC.Modules.Reporting;
 using OFC.Modules.Procurement;
 using OFC.Modules.QrOrdering;
+using OFC.Modules.Integrations;
 
 namespace OFC.Infrastructure.Persistence;
 
@@ -89,6 +90,7 @@ public sealed class OFCDbContext(DbContextOptions<OFCDbContext> options) : DbCon
     public DbSet<QrContext> QrContexts => Set<QrContext>();
     public DbSet<QrOrderApproval> QrOrderApprovals => Set<QrOrderApproval>();
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<ExternalOutboxEntry> ExternalOutboxEntries => Set<ExternalOutboxEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -163,5 +165,6 @@ public sealed class OFCDbContext(DbContextOptions<OFCDbContext> options) : DbCon
         modelBuilder.Entity<Customer>(entity => { entity.ToTable("customers"); entity.HasIndex(x => x.Phone); entity.HasIndex(x => x.ExternalId); entity.HasIndex(x => x.LoyaltyReference); entity.Property(x => x.NameAr).HasMaxLength(QrRules.NameMax); entity.Property(x => x.NameEn).HasMaxLength(QrRules.NameMax); entity.Property(x => x.Phone).HasMaxLength(QrRules.PhoneMax); entity.Property(x => x.ExternalId).HasMaxLength(QrRules.ExternalIdMax); entity.Property(x => x.LoyaltyReference).HasMaxLength(QrRules.LoyaltyReferenceMax); });
         modelBuilder.Entity<QrContext>(entity => { entity.ToTable("qr_contexts"); entity.HasIndex(x => new { x.BranchId, x.Code }).IsUnique(); entity.HasIndex(x => new { x.BranchId, x.IsActive, x.Kind }); entity.Property(x => x.Code).HasMaxLength(QrRules.CodeMax); entity.Property(x => x.NameAr).HasMaxLength(QrRules.NameMax); entity.Property(x => x.NameEn).HasMaxLength(QrRules.NameMax); entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20); entity.Property(x => x.ApprovalMode).HasConversion<string>().HasMaxLength(20); entity.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict); entity.HasOne<SalesChannel>().WithMany().HasForeignKey(x => x.SalesChannelId).OnDelete(DeleteBehavior.Restrict); });
         modelBuilder.Entity<QrOrderApproval>(entity => { entity.ToTable("qr_order_approvals"); entity.HasIndex(x => x.OrderId).IsUnique(); entity.HasIndex(x => new { x.QrContextId, x.Status, x.CreatedAt }); entity.HasIndex(x => new { x.Status, x.CreatedAt }); entity.Property(x => x.Note).HasMaxLength(QrRules.NoteMax); entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20); entity.HasOne<Order>().WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict); entity.HasOne<QrContext>().WithMany().HasForeignKey(x => x.QrContextId).OnDelete(DeleteBehavior.Restrict); entity.HasOne<Customer>().WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.SetNull); entity.HasOne<User>().WithMany().HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.SetNull); });
+        modelBuilder.Entity<ExternalOutboxEntry>(entity => { entity.ToTable("external_outbox"); entity.HasIndex(x => new { x.BranchId, x.IdempotencyKey }).IsUnique(); entity.HasIndex(x => new { x.BranchId, x.Status, x.CreatedAt }); entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20); entity.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20); entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(20); entity.Property(x => x.Type).HasMaxLength(IntegrationRules.MaxOutboxTypeLength); entity.Property(x => x.Payload).HasColumnType("jsonb"); entity.Property(x => x.CorrelationId).HasMaxLength(IntegrationRules.MaxCorrelationIdLength); entity.Property(x => x.IdempotencyKey).HasMaxLength(100); entity.Property(x => x.ReferenceType).HasMaxLength(80); entity.Property(x => x.LastError).HasMaxLength(IntegrationRules.MaxErrorLength); entity.HasOne<Branch>().WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.SetNull); });
     }
 }

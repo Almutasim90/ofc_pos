@@ -23,5 +23,6 @@
     <ProjectReference Include="../../src/Modules/OFC.Modules.Reporting/OFC.Modules.Reporting.csproj" />
     <ProjectReference Include="../../src/Modules/OFC.Modules.Procurement/OFC.Modules.Procurement.csproj" />
     <ProjectReference Include="../../src/Modules/OFC.Modules.QrOrdering/OFC.Modules.QrOrdering.csproj" />
+    <ProjectReference Include="../../src/Modules/OFC.Modules.Integrations/OFC.Modules.Integrations.csproj" />
   </ItemGroup>
 </Project>
