@@ -32,6 +32,7 @@ app.MapSprintElevenEndpoints();
 app.MapSprintTwelveEndpoints();
 app.MapSprintThirteenEndpoints();
 app.MapSprintFourteenEndpoints();
+app.MapSprintFifteenEndpoints();
 
 app.Run();
 

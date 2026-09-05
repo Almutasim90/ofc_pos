@@ -2,26 +2,20 @@
 
 ## Current Sprint
 
-Sprint 13 - Audit & Core Reports (implemented, awaiting review gate).
+Sprint 15 - Advanced Inventory, Waste & Costing (implemented, awaiting review gate).
 
 ## Completed Stories
 
 - STORY-00-01 through STORY-00-10: Engineering foundation, identity/org/branches/devices.
 - STORY-01-01 through STORY-11-xx: Catalog, combos/modifiers, pricing/tax, POS ordering, payments, cancellation/void/refund, shifts/cash, printing/hardware, KDS/kitchen continuity, inventory/UOM/BOM.
 - STORY-12-01 through STORY-12-08: Offline sync & recovery (local queue, idempotency, retry/backoff, conflict states, server acknowledgement, recovery UI, stale pricing, negative stock).
-- STORY-13-01: Unified audit log query/api with retention principles.
-- STORY-13-02: Sales reports.
-- STORY-13-03: Payment reports.
-- STORY-13-04: Refund/void/cancel reports.
-- STORY-13-05: Shift variance.
-- STORY-13-06: Low stock and inventory movement.
-- STORY-13-07: Basic KDS metrics.
-- STORY-13-08: Dashboard and channel/price breakdown.
-- Sprint 13 export foundation (auditable CSV) and bilingual responsive Reports & Audit UI.
+- STORY-13-01 through STORY-13-08: Audit & core reports (audit log, sales, payments, cancellations, shift variance, low stock/inventory, KDS metrics, dashboard), export foundation and Reports & Audit UI.
+- Sprint 14: Procurement & Suppliers (suppliers, purchase orders workflow, goods receipts, supplier history, procurement costing via weighted average cost).
+- STORY-15-01 through STORY-15-09: Physical counts, count variance, stock transfer, waste categories, cancelled-order waste, weighted average cost, recipe cost, food cost %, gross margin.
 
 ## Current Story
 
-Sprint 13 review gate.
+Sprint 15 review gate.
 
 ## Implemented Modules
 
@@ -30,14 +24,16 @@ Sprint 13 review gate.
 - `OFC.SharedKernel`: business-neutral shared assembly (offline ids).
 - `OFC.Modules.Sync`: offline sync entities and rules (`SyncOperation`, `SyncState`, `SyncRules`).
 - `OFC.Modules.Reporting`: report export entity (auditable CSV) and reporting/retention rules (`ReportExport`, `ReportingRules`).
-- Business modules: Identity, Organization, Catalog, Ordering, Payments, Shifts, Printing, Kitchen, Inventory.
-- `apps/web`: Vite React TypeScript application with a bilingual, responsive shell, POS, inventory, sync recovery, and a Reports & Audit section.
+- `OFC.Modules.Inventory` advanced: inventory count sessions, stock transfers, waste records, and costing rules (variance, state machines, reproducible recipe cost, food cost %, gross margin).
+- Business modules: Identity, Organization, Catalog, Ordering, Payments, Shifts, Printing, Kitchen, Inventory, Reporting, Sync, Procurement.
+- `apps/web`: Vite React TypeScript application with a bilingual, responsive shell, POS, inventory, sync recovery, Procurement, and a Reports & Audit section, plus an Advanced Inventory (counts, waste, costing) section.
 - Offline sync foundation: browser outbox, idempotent batch sync endpoint (`POST /api/v1/sync`), sync state (`GET /api/v1/sync/state`), retry/backoff, and recover-on-reconnect.
 - Core reports foundation: audit log (`GET /api/v1/audit-logs`), sales, payments, cancellations/voids/refunds, shift cash variance, inventory movement/low stock, kitchen metrics, channel/price breakdown, dashboard, and CSV export.
+- Sprint 15 endpoints under `/api/v1/inventory`: `/counts*` (create/approve/post/cancel), `/transfers*` (create/ship/receive/cancel), `/waste*` (record/list/categories), `/costing*` (valuation, recipe cost, food-cost/gross-margin summary), all server-authorized, audited, and offline idempotent.
 
 ## Latest Migration
 
-`20260905084845_AddSprintThirteenAuditCoreReports` (applied to the development database; all Sprint 00-13 migrations applied).
+`20260905093141_AddSprintFifteenAdvancedInventoryWasteCosting` (migration file generated; not applied to the database — no working `ConnectionStrings__DefaultConnection` was configured in this environment).
 
 ## Architecture Decisions
 
@@ -55,7 +51,7 @@ Sprint 13 review gate.
 
 ## Next Recommended Story
 
-Begin Sprint 14: Procurement & Suppliers.
+Begin Sprint 16: QR Ordering & Customer Flow.
 
 ## Do-Not-Change Rules
 

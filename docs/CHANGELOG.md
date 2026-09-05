@@ -6,6 +6,19 @@ All notable project changes are recorded in this file.
 
 ### Added
 
+- STORY-15-01 Physical inventory counts: `InventoryCount`/`InventoryCountLine` sessions capture system quantity, counted quantity, and variance.
+- STORY-15-02 Count variance: posting an approved count emits `CountAdjustment` ledger movements; variance lines require a reason and a dedicated approval step.
+- STORY-15-03 Stock transfer: `StockTransfer`/`StockTransferLine` with ship/receive flow; the destination branch does not increase until receipt (`TransferOut` on ship, `TransferIn` on receive).
+- STORY-15-04 Waste categories: auditable `WasteRecord` (Expired, Damaged, PreparationWaste, FinishedProductWaste, CancelledOrderWaste) linked to a `Waste` ledger movement, with reason, optional note and photo.
+- STORY-15-05 Cancelled-order waste: record waste against an order/order line (`OrderId`, `OrderLineId`) and the cancelled-order category.
+- STORY-15-06 Weighted average cost: inventory valuation uses current weighted-average unit cost; goods-receipt posting already blends stock (procurement costing) and is exposed as branch valuation.
+- STORY-15-07 Recipe cost: reproducible recipe cost via `InventoryRules.TryComputeRecipeCost` over ingredient quantities, conversions, and weighted-average unit costs.
+- STORY-15-08 Food cost %: `InventoryRules.FoodCostPercent` (recipe cost / selling price).
+- STORY-15-09 Gross margin: `InventoryRules.GrossMargin` and `GrossMarginPercent`.
+- New endpoints under `/api/v1/inventory`: `/counts*`, `/transfers*`, `/waste*`, `/costing*` with server-side authorization, validation, audit, and idempotency keys (`ClientCountId`, `ClientTransferId`, `ClientRecordId`).
+- `OFC.Modules.Inventory` advanced entities/rules, advanced inventory permissions in `IdentityService`, migration `20260905093141_AddSprintFifteenAdvancedInventoryWasteCosting`, and bilingual responsive `AdvancedInventorySection` UI.
+- `InventoryAdvancedRulesTests` covering count variance, count/transfer state machines, waste quantity, reproducible recipe cost, food cost %, and gross margin.
+
 - STORY-13-01 Unified audit log query: `GET /api/v1/audit-logs` with filters (branch, user, action, entity type/id, range) and pagination, plus retention principles (`ReportingRules`).
 - STORY-13-02 Sales reports: `GET /api/v1/reports/sales` with daily, by-branch, by-product, by-category, by-channel, by-cashier, by-payment-method breakdowns plus discount and tax totals.
 - STORY-13-03 Payment reports: `GET /api/v1/reports/payments` by method/status and refund totals.
