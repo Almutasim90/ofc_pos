@@ -11,9 +11,10 @@ public sealed class IdentityService(OFCDbContext db, TimeProvider timeProvider)
 {
     public static readonly string[] PermissionCodes = ["users.manage", "roles.manage", "branches.manage", "devices.manage", "settings.manage", "catalog.categories.manage", "catalog.products.manage", "catalog.selection-groups.manage", "pricing.manage", "pricing.override", "orders.manage", "payments.manage", "payment-methods.manage", "cancellations.manage", "cancellations.cancel", "cancellations.void", "cancellations.refund", "cancellations.approve", "cancellations.report", "shifts.open", "shifts.manage", "shifts.close", "shifts.approve", "shifts.view-variance", "shifts.report", "printing.configs.manage", "printing.templates.manage", "printing.routes.manage", "printing.jobs.manage", "printing.view", "kitchen.view", "kitchen.manage", "kitchen.acknowledge", "kitchen.cancel", "inventory.view", "inventory.uoms.manage", "inventory.items.manage", "inventory.recipes.manage", "inventory.movements.manage", "inventory.counts.manage", "inventory.transfers.manage", "inventory.waste.manage", "inventory.costing.view", "reports.view", "reports.export", "audit.view", "audit.manage", "procurement.view", "procurement.suppliers.manage", "procurement.purchase-orders.manage", "procurement.goods-receipt.manage", "procurement.approve", "qr.manage", "qr.approve", "integrations.view", "integrations.manage", "integrations.ai"];
 
-    public async Task<(string Token, User User, Guid? BranchId, Guid? DeviceId)?> LoginAsync(string email, string password, Guid? branchId, Guid? deviceId, string correlationId, CancellationToken cancellationToken)
+    public async Task<(string Token, User User, Guid? BranchId, Guid? DeviceId)?> LoginAsync(string username, string password, Guid? branchId, Guid? deviceId, string correlationId, CancellationToken cancellationToken)
     {
-        var user = await db.Users.Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).Include(x => x.Branches).SingleOrDefaultAsync(x => x.Email == email.Trim().ToLowerInvariant(), cancellationToken);
+        var normalized = username.Trim().ToLowerInvariant();
+        var user = await db.Users.Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).Include(x => x.Branches).SingleOrDefaultAsync(x => x.Username.ToLower() == normalized, cancellationToken);
         if (user is null || !user.IsActive || !Verify(password, user.PasswordSalt, user.PasswordHash) || (branchId.HasValue && !user.Branches.Any(x => x.BranchId == branchId))) return null;
         if (deviceId.HasValue && !await db.PosDevices.AnyAsync(x => x.Id == deviceId && x.BranchId == branchId && x.IsActive, cancellationToken)) return null;
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -24,13 +25,13 @@ public sealed class IdentityService(OFCDbContext db, TimeProvider timeProvider)
         return (token, user, branchId, deviceId);
     }
 
-    public async Task<User> BootstrapAsync(string organizationNameAr, string organizationNameEn, string branchNameAr, string branchNameEn, string email, string displayName, string password, string correlationId, CancellationToken cancellationToken)
+    public async Task<User> BootstrapAsync(string organizationNameAr, string organizationNameEn, string branchNameAr, string branchNameEn, string username, string displayName, string password, string correlationId, CancellationToken cancellationToken)
     {
         if (await db.Users.AnyAsync(cancellationToken)) throw new InvalidOperationException("Bootstrap has already been completed.");
         var organization = new Organization { NameAr = organizationNameAr.Trim(), NameEn = organizationNameEn.Trim() };
         var branch = new Branch { OrganizationId = organization.Id, Code = "MAIN", NameAr = branchNameAr.Trim(), NameEn = branchNameEn.Trim(), TimeZone = "Asia/Muscat" };
         var (salt, hash) = Hash(password);
-        var admin = new User { Email = email.Trim().ToLowerInvariant(), DisplayName = displayName.Trim(), PasswordSalt = salt, PasswordHash = hash };
+        var admin = new User { Username = username.Trim(), DisplayName = displayName.Trim(), PasswordSalt = salt, PasswordHash = hash };
         var permissions = PermissionCodes.Select(code => new Permission { Code = code, Name = code }).ToArray();
         var role = new Role { Name = "Admin", Permissions = permissions.Select(permission => new RolePermission { Permission = permission }).ToList() };
         admin.Roles.Add(new UserRole { Role = role }); admin.Branches.Add(new UserBranch { BranchId = branch.Id });

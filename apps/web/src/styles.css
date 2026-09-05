@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-sans: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
 }
 
 @layer base {

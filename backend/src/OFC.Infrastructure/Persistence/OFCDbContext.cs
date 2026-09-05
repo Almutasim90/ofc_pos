@@ -95,7 +95,7 @@ public sealed class OFCDbContext(DbContextOptions<OFCDbContext> options) : DbCon
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
-        modelBuilder.Entity<User>(entity => { entity.ToTable("users"); entity.HasIndex(x => x.Email).IsUnique(); entity.Property(x => x.Email).HasMaxLength(320); entity.Property(x => x.DisplayName).HasMaxLength(160); entity.HasMany(x => x.Roles).WithOne(x => x.User).HasForeignKey(x => x.UserId); entity.HasMany(x => x.Branches).WithOne(x => x.User).HasForeignKey(x => x.UserId); });
+        modelBuilder.Entity<User>(entity => { entity.ToTable("users"); entity.HasIndex(x => x.Email).IsUnique(); entity.HasIndex(x => x.Username).IsUnique(); entity.Property(x => x.Email).HasMaxLength(320); entity.Property(x => x.Username).HasMaxLength(40); entity.Property(x => x.DisplayName).HasMaxLength(160); entity.HasMany(x => x.Roles).WithOne(x => x.User).HasForeignKey(x => x.UserId); entity.HasMany(x => x.Branches).WithOne(x => x.User).HasForeignKey(x => x.UserId); });
         modelBuilder.Entity<Role>(entity => { entity.ToTable("roles"); entity.HasIndex(x => x.Name).IsUnique(); entity.Property(x => x.Name).HasMaxLength(100); });
         modelBuilder.Entity<Permission>(entity => { entity.ToTable("permissions"); entity.HasIndex(x => x.Code).IsUnique(); entity.Property(x => x.Code).HasMaxLength(100); entity.Property(x => x.Name).HasMaxLength(160); });
         modelBuilder.Entity<UserRole>(entity => { entity.ToTable("user_roles"); entity.HasKey(x => new { x.UserId, x.RoleId }); entity.HasOne(x => x.Role).WithMany().HasForeignKey(x => x.RoleId); });
