@@ -79,7 +79,7 @@ public static class SprintThirteenEndpoints
         var categories = categoryIds.Count == 0 ? new Dictionary<Guid, Category>() : await db.Categories.AsNoTracking().Where(x => categoryIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var channelIds = salesOrders.Select(x => x.SalesChannelId).Distinct().ToList();
         var channels = channelIds.Count == 0 ? new Dictionary<Guid, SalesChannel>() : await db.SalesChannels.AsNoTracking().Where(x => channelIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
-        var cashierIds = salesOrders.Select(x => x.CreatedByUserId).Distinct().ToList();
+        var cashierIds = salesOrders.Select(x => x.CreatedByUserId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList();
         var cashiers = cashierIds.Count == 0 ? new Dictionary<Guid, User>() : await db.Users.AsNoTracking().Where(x => cashierIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var orderIds = salesOrders.Select(x => x.Id).ToList();
         var payments = orderIds.Count == 0 ? new List<Payment>() : await db.Payments.AsNoTracking().Where(x => orderIds.Contains(x.OrderId)).ToListAsync(ct);
@@ -88,7 +88,7 @@ public static class SprintThirteenEndpoints
 
         var daily = salesOrders.GroupBy(x => x.CreatedAt.Date).OrderBy(g => g.Key).Select(g => new { date = g.Key, orderCount = g.Count(), netSales = Round(g.Sum(x => x.NetAmount)), taxAmount = Round(g.Sum(x => x.TaxAmount)), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byBranch = salesOrders.GroupBy(x => x.BranchId).Select(g => new { branchId = g.Key, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
-        var byCashier = salesOrders.GroupBy(x => x.CreatedByUserId).Select(g => new { userId = g.Key, name = cashiers.TryGetValue(g.Key, out var u) ? u.DisplayName : null, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
+        var byCashier = salesOrders.GroupBy(x => x.CreatedByUserId).Select(g => new { userId = g.Key, name = g.Key.HasValue && cashiers.TryGetValue(g.Key.Value, out var u) ? u.DisplayName : null, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byChannel = salesOrders.GroupBy(x => x.SalesChannelId).Select(g => new { channelId = g.Key, channelNameAr = channels.TryGetValue(g.Key, out var c) ? c.NameAr : null, channelNameEn = channels.TryGetValue(g.Key, out var c2) ? c2.NameEn : null, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byProduct = lines.GroupBy(x => x.ProductId).Select(g => new { productId = g.Key, sku = products.TryGetValue(g.Key, out var p) ? p.Sku : null, nameAr = products.TryGetValue(g.Key, out var p2) ? p2.NameAr : null, nameEn = products.TryGetValue(g.Key, out var p3) ? p3.NameEn : null, quantity = g.Sum(EffectiveQty), netSales = Round(g.Sum(x => x.UnitNetAmount * EffectiveQty(x))), taxAmount = Round(g.Sum(x => x.UnitTaxAmount * EffectiveQty(x))), grossSales = Round(g.Sum(x => x.UnitGrossAmount * EffectiveQty(x))), discountAmount = Round(g.Sum(x => x.UnitDiscountAmount * EffectiveQty(x))) }).OrderByDescending(x => x.grossSales);
         var byCategory = lines.GroupBy(x => products.TryGetValue(x.ProductId, out var p) ? p.CategoryId : Guid.Empty).Select(g => new { categoryId = g.Key, categoryNameAr = categories.TryGetValue(g.Key, out var c) ? c.NameAr : null, categoryNameEn = categories.TryGetValue(g.Key, out var c2) ? c2.NameEn : null, quantity = g.Sum(EffectiveQty), grossSales = Round(g.Sum(x => x.UnitGrossAmount * EffectiveQty(x))) }).OrderByDescending(x => x.grossSales);
@@ -313,7 +313,7 @@ public static class SprintThirteenEndpoints
     private static async Task<(string[] Header, List<string[]> Rows, string Summary)> SalesCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
         var rows = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new { x.BranchId, x.SalesChannelId, x.CreatedByUserId, x.CreatedAt, x.NetAmount, x.TaxAmount, x.GrossAmount }).ToListAsync(ct);
-        var lines = rows.Select(x => new string[] { x.BranchId.ToString(), x.SalesChannelId.ToString(), x.CreatedByUserId.ToString(), DateStr(x.CreatedAt), Money(x.NetAmount), Money(x.TaxAmount), Money(x.GrossAmount) }).ToList();
+        var lines = rows.Select(x => new string[] { x.BranchId.ToString(), x.SalesChannelId.ToString(), x.CreatedByUserId?.ToString() ?? "", DateStr(x.CreatedAt), Money(x.NetAmount), Money(x.TaxAmount), Money(x.GrossAmount) }).ToList();
         return (["BranchId", "ChannelId", "CashierId", "CreatedAt", "Net", "Tax", "Gross"], lines, $"{rows.Count} orders");
     }
 

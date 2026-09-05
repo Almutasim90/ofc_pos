@@ -57,26 +57,17 @@ public static class SprintFiveEndpoints
         if (existing is not null) return Results.Ok(OrderResponse(existing));
         if (!await db.SalesChannels.AnyAsync(x => x.Id == request.SalesChannelId && x.IsActive, ct)) return Validation("salesChannelId", "The sales channel is invalid.");
         var productIds = request.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == request.BranchId && a.IsAvailable)).ToListAsync(ct);
+        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == request.BranchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
         if (products.Count != productIds.Count) return Validation("lines", "One or more products are unavailable at this branch.");
         var at = DateTimeOffset.UtcNow;
         var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
         var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || productIds.Contains(x.ProductId.Value)).ToListAsync(ct);
-        var taxIds = products.Where(x => x.TaxCategoryId.HasValue).Select(x => x.TaxCategoryId!.Value).Distinct().ToList();
+        var taxIds = products.Values.Where(x => x.TaxCategoryId.HasValue).Select(x => x.TaxCategoryId!.Value).Distinct().ToList();
         var taxes = await db.TaxRules.AsNoTracking().Where(x => taxIds.Contains(x.TaxCategoryId)).ToListAsync(ct);
         var version = await db.CatalogVersions.AsNoTracking().OrderByDescending(x => x.Number).FirstOrDefaultAsync(ct);
-        var order = new Order { BranchId = request.BranchId, SalesChannelId = request.SalesChannelId, DeviceId = DeviceId(user), CreatedByUserId = UserId(user), ClientRequestId = request.ClientRequestId, Source = request.Source, Note = request.Note?.Trim() };
-        foreach (var requestLine in request.Lines)
-        {
-            if (requestLine.Quantity is < 1 or > 99 || requestLine.Note?.Trim().Length > OrderRules.NoteMax) return Validation("lines", "Line quantity must be between 1 and 99 and notes must be valid.");
-            var product = products.Single(x => x.Id == requestLine.ProductId);
-            var selection = ValidateSelections(product, requestLine.Selections, request.BranchId);
-            if (selection.Error is not null) return Validation("selections", selection.Error);
-            var snapshot = PricingRules.Resolve(product, request.BranchId, request.SalesChannelId, at, prices, promotions, taxes, version, selectionAdjustment: selection.Adjustment);
-            var line = new OrderLine { ProductId = product.Id, ProductNameAr = product.NameAr, ProductNameEn = product.NameEn, Quantity = requestLine.Quantity, Note = requestLine.Note?.Trim(), SelectionsSnapshot = JsonSerializer.Serialize(selection.Snapshot), UnitListAmount = snapshot.ListPrice, UnitDiscountAmount = snapshot.DiscountAmount, UnitNetAmount = snapshot.UnitNetAmount, UnitTaxAmount = snapshot.UnitTaxAmount, UnitGrossAmount = snapshot.UnitGrossAmount, TaxRate = snapshot.TaxRate, TaxCalculationMode = snapshot.TaxCalculationMode, PriceSource = snapshot.PriceSource, PriceRuleId = snapshot.PriceRuleId, PromotionId = snapshot.PromotionId, TaxRuleId = snapshot.TaxRuleId, CatalogVersionId = snapshot.CatalogVersionId, CatalogVersionNumber = snapshot.CatalogVersionNumber };
-            order.Lines.Add(line); order.NetAmount += line.UnitNetAmount * line.Quantity; order.TaxAmount += line.UnitTaxAmount * line.Quantity; order.GrossAmount += line.UnitGrossAmount * line.Quantity;
-        }
-        order.NetAmount = PricingRules.RoundMoney(order.NetAmount); order.TaxAmount = PricingRules.RoundMoney(order.TaxAmount); order.GrossAmount = PricingRules.RoundMoney(order.GrossAmount);
+        var built = OrderingEngine.Build(request.BranchId, request.SalesChannelId, request.Source, UserId(user), null, DeviceId(user), request.Note, request.ClientRequestId, at, request.Lines.Select(x => new OrderLineInput(x.ProductId, x.Quantity, x.Note, x.Selections?.Select(s => new GroupSelectionInput(s.SelectionGroupId, s.Choices.Select(c => new ChoiceInput(c.OptionId, c.Quantity)).ToList())).ToList())).ToList(), products, prices, promotions, taxes, version);
+        if (!built.Succeeded) return Validation(built.Field!, built.Error!);
+        var order = built.Order!;
         order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = OrderStatus.Draft, ChangedByUserId = UserId(user), Note = "Created" });
         db.Orders.Add(order); identity.Audit(UserId(user), request.BranchId, DeviceId(user), "order.create", "order", order.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { order.ClientRequestId, order.Source, order.GrossAmount }));
         try { await db.SaveChangesAsync(ct); } catch (DbUpdateException) { var duplicate = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientRequestId == request.ClientRequestId, ct); if (duplicate is not null) return Results.Ok(OrderResponse(duplicate)); throw; }
@@ -90,23 +81,6 @@ public static class SprintFiveEndpoints
         if (!OrderRules.CanTransition(order.Status, request.Status) || request.Note?.Trim().Length > OrderRules.NoteMax) return Validation("status", "This status transition or note is invalid.");
         var from = order.Status; order.Status = request.Status; order.UpdatedAt = DateTimeOffset.UtcNow; order.StatusHistory.Add(new OrderStatusHistory { FromStatus = from, ToStatus = request.Status, ChangedByUserId = UserId(user), Note = request.Note?.Trim() });
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.status.change", "order", order.Id.ToString(), context.TraceIdentifier, JsonSerializer.Serialize(from), JsonSerializer.Serialize(request.Status)); await db.SaveChangesAsync(ct); return Results.Ok(OrderResponse(order));
-    }
-
-    private static (decimal Adjustment, object Snapshot, string? Error) ValidateSelections(Product product, List<GroupSelection>? requested, Guid branchId)
-    {
-        requested ??= []; var configured = product.SelectionGroups.Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))).Select(x => x.SelectionGroup!).ToDictionary(x => x.Id);
-        if (requested.Select(x => x.SelectionGroupId).Distinct().Count() != requested.Count || requested.Any(x => !configured.ContainsKey(x.SelectionGroupId))) return (0m, Array.Empty<object>(), "An invalid selection group was supplied.");
-        var snapshots = new List<object>(); decimal adjustment = 0;
-        foreach (var group in configured.Values)
-        {
-            var choices = requested.SingleOrDefault(x => x.SelectionGroupId == group.Id)?.Choices ?? (group.IsRequired ? null : []);
-            if (choices is null) return (0m, Array.Empty<object>(), "A required selection group is missing.");
-            var calculated = CatalogRules.Calculate(group, choices.Select(x => new SelectionChoice(x.OptionId, x.Quantity)));
-            if (!calculated.IsValid) return (0m, Array.Empty<object>(), calculated.Error);
-            adjustment += calculated.PriceAdjustment;
-            snapshots.Add(new { group.Id, group.Kind, group.NameAr, group.NameEn, choices = choices.Select(choice => new { choice.OptionId, choice.Quantity, priceAdjustment = group.Options.Single(x => x.Id == choice.OptionId).PriceAdjustment }) });
-        }
-        return (adjustment, snapshots, null);
     }
 
     private static async Task<bool> CanOperate(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationToken ct) => user.HasClaim("permission", "orders.manage") && (user.FindFirstValue("branch_id") == branchId.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId, ct));

@@ -11,7 +11,8 @@ public sealed class Order
     public Guid BranchId { get; set; }
     public Guid SalesChannelId { get; set; }
     public Guid? DeviceId { get; set; }
-    public Guid CreatedByUserId { get; set; }
+    public Guid? CreatedByUserId { get; set; }
+    public Guid? CustomerId { get; set; }
     public Guid ClientRequestId { get; set; }
     public OrderSource Source { get; set; } = OrderSource.Pos;
     public OrderStatus Status { get; set; } = OrderStatus.Draft;
@@ -57,7 +58,7 @@ public sealed class OrderStatusHistory
     public Guid OrderId { get; set; }
     public OrderStatus FromStatus { get; set; }
     public OrderStatus ToStatus { get; set; }
-    public Guid ChangedByUserId { get; set; }
+    public Guid? ChangedByUserId { get; set; }
     public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.UtcNow;
     public string? Note { get; set; }
 }
