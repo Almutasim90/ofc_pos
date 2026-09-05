@@ -23,3 +23,7 @@ appsettings.Development.json
 *.suo
 Thumbs.db
 .DS_Store
+
+# AI coding tooling and installed agent skills
+.agents/
+.claude/
