@@ -10,11 +10,20 @@ public static class ReportingRules
     public const int ExportRetentionDays = 30;
     public const decimal LowStockDefaultThreshold = 5m;
     public const int DashboardDefaultDays = 1;
+    public const int InventoryTrendDefaultDays = 30;
+    public const int KitchenOnTimeTargetMinutes = 15;
+    public const int KitchenOnTimeTargetPercent = 80;
+    public const int FoodCostTargetPercent = 35;
+    public const decimal CancellationRateCaution = 0.10m;
+    public const decimal WasteCautionPercent = 2m;
+    public const decimal ShiftVarianceTolerance = 0.01m;
 
     public static readonly string[] ReportCodes =
     [
         "sales", "discounts", "taxes", "payments", "cancellations", "voids", "refunds",
-        "shifts-cash", "inventory", "low-stock", "kitchen", "channels", "dashboard"
+        "shifts-cash", "inventory", "low-stock", "kitchen", "channels", "dashboard",
+        "branch-comparison", "cancellation-analytics", "kitchen-performance", "food-cost",
+        "inventory-trends", "profit-loss", "alerts"
     ];
 
     public static readonly string[] ExportFormats = ["csv"];
@@ -49,4 +58,28 @@ public static class ReportingRules
     public static bool IsExpiredForRetention(DateTimeOffset occurredAt, DateTimeOffset now) => occurredAt < AuditRetentionCutoff(now);
 
     public static bool IsExpiredExport(DateTimeOffset createdAt, DateTimeOffset now) => createdAt < ExportRetentionCutoff(now);
+
+    public static DateTimeOffset DayStart(DateTimeOffset value) => new(value.Year, value.Month, value.Day, 0, 0, 0, value.Offset);
+
+    public static string DayKey(DateTimeOffset value) => value.ToString("yyyy-MM-dd");
+
+    public static bool IsOnTime(int? prepMinutes, int? targetMinutes) =>
+        prepMinutes.HasValue && targetMinutes.HasValue && prepMinutes.Value <= targetMinutes.Value;
+
+    public static decimal RatePercent(int numerator, int denominator) =>
+        denominator == 0 ? 0m : RoundMoney((decimal)numerator / denominator * 100m);
+
+    public static decimal Percent(decimal numerator, decimal denominator) =>
+        denominator == 0 ? 0m : RoundMoney(numerator / denominator * 100m);
+
+    public static decimal ChangePercent(decimal current, decimal previous) =>
+        previous == 0m ? (current == 0m ? 0m : 100m) : RoundMoney((current - previous) / previous * 100m);
+
+    public static bool IsCautionRate(decimal rate) => rate > CancellationRateCaution;
+
+    public static bool ExceedsFoodCostTarget(decimal foodCostPercent) => foodCostPercent > FoodCostTargetPercent;
+
+    public static bool ExceedsWasteCaution(decimal wastePercent) => wastePercent > WasteCautionPercent;
+
+    public static bool IsSignificantShiftVariance(decimal? variance) => variance.HasValue && Math.Abs(variance.Value) > ShiftVarianceTolerance;
 }

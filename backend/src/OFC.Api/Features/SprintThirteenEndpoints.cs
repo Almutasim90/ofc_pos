@@ -291,7 +291,7 @@ public static class SprintThirteenEndpoints
                 "sales" => await SalesCsv(db, branchId, start, end, ct),
                 "payments" => await PaymentsCsv(db, branchId, start, end, ct),
                 "audit" or "audit-logs" => await AuditCsv(db, branchId, start, end, ct),
-                _ => throw new InvalidOperationException("unsupported")
+                _ => await SprintSeventeenEndpoints.BuildExport(db, report, branchId, start, end, ct) ?? throw new InvalidOperationException("unsupported")
             };
             export.Status = ReportExportStatus.Generated;
             export.RowCount = rows.Count;

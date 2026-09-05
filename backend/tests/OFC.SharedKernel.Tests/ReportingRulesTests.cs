@@ -82,7 +82,62 @@ public sealed class ReportingRulesTests
     [Fact]
     public void The_report_catalog_is_a_stable_known_set()
     {
-        var expected = new[] { "sales", "discounts", "taxes", "payments", "cancellations", "voids", "refunds", "shifts-cash", "inventory", "low-stock", "kitchen", "channels", "dashboard" };
+        var expected = new[] { "sales", "discounts", "taxes", "payments", "cancellations", "voids", "refunds", "shifts-cash", "inventory", "low-stock", "kitchen", "channels", "dashboard", "branch-comparison", "cancellation-analytics", "kitchen-performance", "food-cost", "inventory-trends", "profit-loss", "alerts" };
         Assert.Equal(expected, ReportingRules.ReportCodes);
+    }
+
+    [Fact]
+    public void Sprint_seventeen_reports_are_known_and_exportable()
+    {
+        Assert.True(ReportingRules.IsKnownReport("branch-comparison"));
+        Assert.True(ReportingRules.IsKnownReport("food-cost"));
+        Assert.True(ReportingRules.IsKnownReport("profit-loss"));
+        Assert.True(ReportingRules.IsKnownReport("alerts"));
+        Assert.True(ReportingRules.ValidFormat("csv"));
+    }
+
+    [Fact]
+    public void Day_start_and_day_key_are_normalised_utc()
+    {
+        var value = new DateTimeOffset(2026, 9, 5, 15, 30, 0, TimeSpan.Zero);
+        Assert.Equal("2026-09-05", ReportingRules.DayKey(value));
+        Assert.Equal(new DateTimeOffset(2026, 9, 5, 0, 0, 0, TimeSpan.Zero), ReportingRules.DayStart(value));
+    }
+
+    [Fact]
+    public void On_time_detection_compares_prep_minutes_to_target()
+    {
+        Assert.True(ReportingRules.IsOnTime(10, 15));
+        Assert.True(ReportingRules.IsOnTime(15, 15));
+        Assert.False(ReportingRules.IsOnTime(16, 15));
+        Assert.False(ReportingRules.IsOnTime(null, 15));
+        Assert.False(ReportingRules.IsOnTime(10, null));
+    }
+
+    [Fact]
+    public void Rates_and_percent_change_are_computed_safely()
+    {
+        Assert.Equal(0m, ReportingRules.RatePercent(0, 0));
+        Assert.Equal(80m, ReportingRules.RatePercent(8, 10));
+        Assert.Equal(0m, ReportingRules.Percent(0m, 0m));
+        Assert.Equal(50m, ReportingRules.Percent(5m, 10m));
+        Assert.Equal(0m, ReportingRules.ChangePercent(0m, 0m));
+        Assert.Equal(100m, ReportingRules.ChangePercent(10m, 0m));
+        Assert.Equal(50m, ReportingRules.ChangePercent(150m, 100m));
+        Assert.Equal(-50m, ReportingRules.ChangePercent(50m, 100m));
+    }
+
+    [Fact]
+    public void Operational_threshold_rules_flag_issues()
+    {
+        Assert.True(ReportingRules.IsCautionRate(0.11m));
+        Assert.False(ReportingRules.IsCautionRate(0.09m));
+        Assert.True(ReportingRules.ExceedsFoodCostTarget(36m));
+        Assert.False(ReportingRules.ExceedsFoodCostTarget(35m));
+        Assert.True(ReportingRules.ExceedsWasteCaution(2.1m));
+        Assert.False(ReportingRules.ExceedsWasteCaution(1.9m));
+        Assert.True(ReportingRules.IsSignificantShiftVariance(0.05m));
+        Assert.False(ReportingRules.IsSignificantShiftVariance(0.001m));
+        Assert.False(ReportingRules.IsSignificantShiftVariance(null));
     }
 }
