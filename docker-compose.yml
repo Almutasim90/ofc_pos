@@ -10,8 +10,9 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      # Npgsql connection string. Set DATABASE_URL in .env (see .env.example).
-      ConnectionStrings__DefaultConnection: ${DATABASE_URL}
+      # Npgsql connection string, .NET env format. Set
+      # ConnectionStrings__DefaultConnection in .env or the platform env.
+      ConnectionStrings__DefaultConnection: ${ConnectionStrings__DefaultConnection}
     expose:
       - "8080"
     healthcheck:
