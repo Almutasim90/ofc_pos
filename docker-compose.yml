@@ -1,18 +1,35 @@
 name: ofc
 
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ofc-demo-password}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
     image: ofc-api
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      # Npgsql connection string, .NET env format. Set
-      # ConnectionStrings__DefaultConnection in .env or the platform env.
-      ConnectionStrings__DefaultConnection: ${ConnectionStrings__DefaultConnection}
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=postgres;Username=postgres;Password=${DB_PASSWORD:-ofc-demo-password};SSL Mode=Disable
     expose:
       - "8080"
     healthcheck:
@@ -20,7 +37,21 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 30s
+
+  # One-shot: applies the seed once the API has migrated the schema.
+  seed:
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-ofc-demo-password}
+    volumes:
+      - ./seed-dev-data.sql:/seed.sql:ro
+    entrypoint: ["sh", "-c"]
+    command: ["until pg_isready -h db -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done; psql -h db -U postgres -d postgres -v ON_ERROR_STOP=1 -f /seed.sql"]
 
   web:
     build:
@@ -39,6 +70,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    # No host port published. In Dokploy, add the domain and set the app's
-    # target port to 80; Traefik routes https://newofc.almutasim.site to this
-    # web container, which proxies /api and /health to the api service.
+    # No host port published: Dokploy/Traefik routes the newofc.almutasim.site
+    # domain to this web container's port 80.
+
+volumes:
+  db-data:
