@@ -70,8 +70,26 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    # No host port published: Dokploy/Traefik routes the newofc.almutasim.site
-    # domain to this web container's port 80.
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.ofc-web.rule=Host(`newofc.almutasim.site`)"
+      - "traefik.http.routers.ofc-web.entrypoints=web"
+      - "traefik.http.routers.ofc-web.middlewares=redirect-to-https@file"
+      - "traefik.http.routers.ofc-web.service=ofc-web"
+      - "traefik.http.routers.ofc-websecure.rule=Host(`newofc.almutasim.site`)"
+      - "traefik.http.routers.ofc-websecure.entrypoints=websecure"
+      - "traefik.http.routers.ofc-websecure.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.ofc-websecure.service=ofc-websecure"
+      - "traefik.http.services.ofc-web.loadbalancer.server.port=80"
+      - "traefik.http.services.ofc-websecure.loadbalancer.server.port=80"
+
+networks:
+  dokploy-network:
+    external: true
 
 volumes:
   db-data:
