@@ -49,18 +49,16 @@ if (File.Exists(indexFile))
 
 // Best-effort migration at startup; the API still boots if the DB is
 // unavailable so the health endpoint keeps working.
-using (var scope = app.Services.CreateScope())
+try
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<OFCDbContext>();
-    try
-    {
-        await db.Database.MigrateAsync();
-        app.Logger.LogInformation("Database migrations applied.");
-    }
-    catch (Exception ex)
-    {
-        app.Logger.LogWarning("Could not apply database migrations: {Message}", ex.Message);
-    }
+    await db.Database.MigrateAsync();
+    app.Logger.LogInformation("Database migrations applied.");
+}
+catch (Exception ex)
+{
+    app.Logger.LogWarning("Could not apply database migrations: {Message}", ex.Message);
 }
 
 app.Run();

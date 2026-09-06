@@ -8,6 +8,9 @@ RUN dotnet publish src/OFC.Api/OFC.Api.csproj -c Release -o /app /p:UseAppHost=f
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+# Install curl so the Docker healthcheck can probe /health (the default
+# aspnet runtime image does not ship it).
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app .
 
 ENV ASPNETCORE_ENVIRONMENT=Production
