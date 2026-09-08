@@ -33,10 +33,10 @@ services:
     expose:
       - "8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/health || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 10
       start_period: 30s
 
   # One-shot: applies the seed once the API has migrated the schema.
@@ -76,11 +76,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.ofc-web.rule=Host(`newofc.almutasim.site`)"
+      - "traefik.http.routers.ofc-web.rule=Host(`pos.almutasim.site`)"
       - "traefik.http.routers.ofc-web.entrypoints=web"
       - "traefik.http.routers.ofc-web.middlewares=redirect-to-https@file"
       - "traefik.http.routers.ofc-web.service=ofc-web"
-      - "traefik.http.routers.ofc-websecure.rule=Host(`newofc.almutasim.site`)"
+      - "traefik.http.routers.ofc-websecure.rule=Host(`pos.almutasim.site`)"
       - "traefik.http.routers.ofc-websecure.entrypoints=websecure"
       - "traefik.http.routers.ofc-websecure.tls.certresolver=letsencrypt"
       - "traefik.http.routers.ofc-websecure.service=ofc-websecure"
