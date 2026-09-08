@@ -19,4 +19,5 @@
   <Project Path="src/OFC.PrintAgent/OFC.PrintAgent.csproj" />
   <Project Path="tests/OFC.SharedKernel.Tests/OFC.SharedKernel.Tests.csproj" />
   <Project Path="tests/OFC.PrintAgent.Tests/OFC.PrintAgent.Tests.csproj" />
+  <Project Path="tests/OFC.Api.IntegrationTests/OFC.Api.IntegrationTests.csproj" />
 </Solution>

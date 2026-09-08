@@ -20,6 +20,27 @@ public static class SprintTwoEndpoints
         api.MapPost("/products", CreateProduct).RequireAuthorization();
         api.MapPut("/products/{id:guid}", UpdateProduct).RequireAuthorization();
         api.MapPut("/products/{id:guid}/availability", SetProductAvailability).RequireAuthorization();
+        api.MapGet("/preparation-stations", ListStations).RequireAuthorization();
+        api.MapPost("/preparation-stations", CreateStation).RequireAuthorization();
+    }
+
+    // Products could reference a PreparationStationId from the start, but nothing could ever create
+    // one — the field was only ever populated by seeding the database directly (audit finding).
+    private static async Task<IResult> ListStations(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (!Has(user, "catalog.products.manage")) return Forbidden();
+        return Results.Ok(await db.PreparationStations.AsNoTracking().OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn, x.IsActive }).ToListAsync(ct));
+    }
+    private static async Task<IResult> CreateStation(StationRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!Has(user, "catalog.products.manage")) return Forbidden();
+        var error = Validate(request.Code, "code", CatalogRules.CodeMax) ?? Validate(request.NameAr, "nameAr", CatalogRules.NameMax) ?? Validate(request.NameEn, "nameEn", CatalogRules.NameMax);
+        if (error is not null) return error;
+        var station = new PreparationStation { Code = request.Code.Trim().ToUpperInvariant(), NameAr = request.NameAr.Trim(), NameEn = request.NameEn.Trim() };
+        db.PreparationStations.Add(station);
+        identity.Audit(UserId(user), null, null, "create", "preparation_station", station.Id.ToString(), Correlation(context), newValue: JsonSerializer.Serialize(station));
+        try { await db.SaveChangesAsync(ct); } catch (DbUpdateException) { return Validation("code", "A preparation station with this code already exists."); }
+        return Results.Created($"/api/v1/preparation-stations/{station.Id}", new { station.Id, station.Code, station.NameAr, station.NameEn, station.IsActive });
     }
 
     private static async Task<IResult> ListCategories(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
@@ -131,4 +152,5 @@ public static class SprintTwoEndpoints
     private sealed record ProductRequest(string Sku, string? Barcode, string NameAr, string NameEn, string? DescriptionAr, string? DescriptionEn, Guid CategoryId, ProductType Type, Guid? TaxCategoryId, Guid? PreparationStationId, decimal? BasePrice, bool? IsActive, List<ProductImageDto>? Images, List<AvailabilityDto>? Availability);
     private sealed record ProductImageDto(string Url, int SortOrder);
     private sealed record AvailabilityDto(Guid BranchId, bool IsAvailable);
+    private sealed record StationRequest(string Code, string NameAr, string NameEn);
 }

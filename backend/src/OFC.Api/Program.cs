@@ -39,7 +39,11 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.MapHealthChecks("/health").AllowAnonymous();
+// /health is a liveness probe and must stay OK while migrations are still retrying in the background
+// (see the comment below) — without this predicate it silently included the "ready"-tagged
+// db-migrations check by default (MapHealthChecks with no predicate runs every registered check),
+// contradicting that stated intent and flapping a load balancer's liveness probe during every deploy.
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = check => !check.Tags.Contains("ready") }).AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
     Predicate = check => check.Tags.Contains("ready")

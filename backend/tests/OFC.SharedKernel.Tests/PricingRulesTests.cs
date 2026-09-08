@@ -30,6 +30,19 @@ public sealed class PricingRulesTests
     }
 
     [Fact]
+    public void Resolve_applies_effective_exclusive_tax()
+    {
+        // The exclusive branch is a separate code path from inclusive (Resolve recomputes gross/tax
+        // differently per CalculationMode) and previously had no dedicated coverage of its own.
+        var taxCategory = Guid.CreateVersion7(); var product = Product(taxCategory); var branch = Guid.CreateVersion7(); var channel = Guid.CreateVersion7();
+        var result = PricingRules.Resolve(product, branch, channel, At, [], [], [new TaxRule { TaxCategoryId = taxCategory, Rate = 5m, CalculationMode = TaxCalculationMode.Exclusive, EffectiveFrom = At.AddDays(-1) }], null);
+
+        Assert.Equal(10m, result.UnitNetAmount);
+        Assert.Equal(.5m, result.UnitTaxAmount);
+        Assert.Equal(10.5m, result.UnitGrossAmount);
+    }
+
+    [Fact]
     public void Resolve_uses_manual_override_without_promotion()
     {
         var product = Product(); var result = PricingRules.Resolve(product, Guid.CreateVersion7(), Guid.CreateVersion7(), At, [], [new Promotion { Code = "HALF", NameAr = "خصم", NameEn = "Discount", DiscountType = PromotionDiscountType.Percentage, DiscountValue = 50m, EffectiveFrom = At.AddDays(-1) }], [], null, 7m, "Manager approval");
