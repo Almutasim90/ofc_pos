@@ -110,14 +110,29 @@ export function storeConflicts(items: SyncConflict[]): void {
   store.set(Conflicts, [...merged, ...items]);
 }
 
+// Clears the conflict banner only. A genuine conflict/failed operation is never removed from the
+// outbox by applyResults (only "applied"/"duplicate" results are — see below), so its real payload is
+// still queued and will be resent on the next flush; an already-*applied*-but-flagged operation
+// (stale-pricing/negative-stock) has nothing left in the outbox to touch either way.
 export function dismissConflicts(keys: string[]): void {
   store.set(Conflicts, conflicts().filter((item) => !keys.includes(item.idempotencyKey)));
 }
 
+// Abandons an operation entirely: clears the banner AND removes it from the outbox so it stops being
+// resent. Use this for a conflict/failed operation the user has decided not to retry (e.g. stale data
+// that can't resolve itself) — dismissConflicts alone would leave it silently retrying forever.
+export function cancelPending(keys: string[]): void {
+  dismissConflicts(keys);
+  store.set(Outbox, pending().filter((item) => !keys.includes(item.idempotencyKey)));
+}
+
+// The original payload was never lost (see dismissConflicts) — retrying just needs to clear the
+// conflict banner and let the next flush resend the real, unmodified operation still sitting in the
+// outbox. Building a fresh empty-payload operation here used to be dead code anyway: enqueue()'s
+// idempotency-key dedup silently dropped it, since the original operation with the same key was
+// already queued.
 export function retryConflict(key: string): void {
-  const item = conflicts().find((conflict) => conflict.idempotencyKey === key);
   dismissConflicts([key]);
-  if (item) enqueue({ idempotencyKey: item.idempotencyKey, operationType: item.operationType, baseVersion: null, baseCatalogVersion: null, occurredAt: item.occurredAt, payload: {} });
 }
 
 export function flush(token: string): Promise<SyncBatchResponse> {

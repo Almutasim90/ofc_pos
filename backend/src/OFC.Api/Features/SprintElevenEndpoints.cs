@@ -229,9 +229,9 @@ public static class SprintElevenEndpoints
         var at = DateTimeOffset.UtcNow;
         var movement = new InventoryMovement { BranchId = request.BranchId, InventoryItemId = item.Id, Type = request.Type, Quantity = baseQuantity, UnitId = item.BaseUnitId, Reference = request.Reference?.Trim(), Reason = request.Reason?.Trim(), CreatedByUserId = UserId(user), DeviceId = DeviceId(user), ClientMovementId = request.ClientMovementId, OccurredAt = request.OccurredAt ?? at };
         db.InventoryMovements.Add(movement);
-        item.StockOnHand = InventoryRules.RoundQuantity((await db.InventoryMovements.Where(x => x.BranchId == request.BranchId && x.InventoryItemId == item.Id).SumAsync(x => (decimal?)x.Quantity, ct).ConfigureAwait(false) ?? 0m) + baseQuantity);
         identity.Audit(UserId(user), request.BranchId, DeviceId(user), "inventory.movement.post", "inventory_movement", movement.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { movement.Type, movement.Quantity, movement.Reference, itemBaseUnit = item.BaseUnitId, suppliedUnit = request.UnitId }));
         await db.SaveChangesAsync(ct);
+        await InventoryStock.ApplyDelta(db, item.Id, baseQuantity, ct);
         return Results.Created($"/api/v1/inventory/movements/{movement.Id}", MovementResponse(movement, item));
     }
 
@@ -278,6 +278,7 @@ public static class SprintElevenEndpoints
         var items = itemIds.Count == 0 ? new Dictionary<Guid, InventoryItem>() : await db.InventoryItems.AsNoTracking().Where(x => itemIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var at = DateTimeOffset.UtcNow;
         var posted = new List<InventoryMovement>();
+        var deltas = new Dictionary<Guid, decimal>();
         foreach (var requestItem in request.Items)
         {
             if (requestItem.Quantity is <= 0 or > 999) return Validation("items", "A product quantity must be between 1 and 999.");
@@ -294,11 +295,12 @@ public static class SprintElevenEndpoints
                 } else { baseQuantity = converted; }
                 var movement = new InventoryMovement { BranchId = request.BranchId, InventoryItemId = ingredient.Id, Type = InventoryMovementType.SaleDeduction, Quantity = InventoryRules.RoundQuantity(-baseQuantity), UnitId = ingredient.BaseUnitId, RecipeVersionId = current.Id, OrderId = request.OrderId, Reference = request.Reference?.Trim(), CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = at };
                 db.InventoryMovements.Add(movement); posted.Add(movement);
-                ingredient.StockOnHand = InventoryRules.RoundQuantity((await db.InventoryMovements.Where(x => x.BranchId == request.BranchId && x.InventoryItemId == ingredient.Id).SumAsync(x => (decimal?)x.Quantity, ct).ConfigureAwait(false) ?? 0m) + movement.Quantity);
+                deltas[ingredient.Id] = deltas.GetValueOrDefault(ingredient.Id) + movement.Quantity;
             }
         }
         identity.Audit(UserId(user), request.BranchId, DeviceId(user), "inventory.sale-deduction.post", "inventory_movement", request.Reference!, context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { movementCount = posted.Count, products = request.Items.Select(x => new { x.ProductId, x.Quantity }) }));
         await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
         return Results.Created($"/api/v1/inventory/movements", new { batchReference = request.Reference, duplicate = false, movementCount = posted.Count, movements = posted.Select(x => MovementResponse(x, null)) });
     }
 

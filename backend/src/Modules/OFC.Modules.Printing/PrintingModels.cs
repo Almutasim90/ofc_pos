@@ -16,6 +16,10 @@ public sealed class PrinterConfiguration
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    // Reported by the Local Print Agent polling this printer's job queue (see OFC.PrintAgent). Absent or
+    // stale (older than PrintingRules.HealthStaleAfter) means no agent is currently watching this printer.
+    public DateTimeOffset? LastSeenAt { get; set; }
+    public string? LastHealthError { get; set; }
 }
 
 public sealed class PrintTemplate
@@ -80,6 +84,8 @@ public static class PrintingRules
     public const int SortOrderMax = 9999;
     public const int RouteCountMax = 200;
     public const int JobCountMax = 500;
+    public static readonly TimeSpan HealthStaleAfter = TimeSpan.FromSeconds(20);
+    public static bool IsHealthy(DateTimeOffset? lastSeenAt, DateTimeOffset now) => lastSeenAt.HasValue && now - lastSeenAt.Value <= HealthStaleAfter;
 
     public static bool CanTransition(PrintJobStatus from, PrintJobStatus to) => from == to || (from, to) switch
     {

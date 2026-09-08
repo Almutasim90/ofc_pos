@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChefHat, RefreshCw, Send } from "lucide-react";
+import * as signalR from "@microsoft/signalr";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -47,7 +48,7 @@ export function KitchenSection({ language }: { language: Language }) {
   const [stationId, setStationId] = useState("");
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [kdsOnline, setKdsOnline] = useState(true);
+  const [live, setLive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -74,6 +75,25 @@ export function KitchenSection({ language }: { language: Language }) {
 
   useEffect(() => { void loadContext(); }, []);
   useEffect(() => { if (branchId) void refresh(); }, [branchId, stationId]);
+
+  // SignalR is realtime transport only, not the source of truth (docs/01-ARCHITECTURE-GUARDRAILS.md):
+  // the hub just tells this screen something changed for the branch, and it re-fetches the ticket list
+  // over the existing REST endpoint below instead of trusting ticket state carried over the socket.
+  const loadTicketsRef = useRef(loadTickets);
+  loadTicketsRef.current = loadTickets;
+  useEffect(() => {
+    if (!branchId) return;
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl("/hubs/kitchen", { accessTokenFactory: () => store.get<string>("session-token") ?? "" })
+      .withAutomaticReconnect()
+      .build();
+    connection.on("ticketChanged", (payload: { branchId: string }) => { if (payload.branchId === branchId) void loadTicketsRef.current(); });
+    connection.onreconnected(() => { setLive(true); void loadTicketsRef.current(); });
+    connection.onreconnecting(() => setLive(false));
+    connection.onclose(() => setLive(false));
+    connection.start().then(() => { setLive(true); return connection.invoke("JoinBranch", branchId); }).catch(() => setLive(false));
+    return () => { setLive(false); void connection.stop(); };
+  }, [branchId]);
 
   async function refresh() {
     setMsg("");
@@ -109,7 +129,7 @@ export function KitchenSection({ language }: { language: Language }) {
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
       <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ChefHat size={18} /><span>{t.isolated}</span><button onClick={() => setKdsOnline(!kdsOnline)} className={`min-h-9 rounded-full px-3 text-xs font-semibold ${kdsOnline ? "bg-[#0e5a4f] text-white" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{kdsOnline ? t.kdsOn : t.kdsOff}</button></div>
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ChefHat size={18} /><span>{t.isolated}</span><span className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-semibold ${live ? "bg-[#0e5a4f] text-white" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{live ? t.kdsOn : t.kdsOff}</span></div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="block flex-1 text-sm font-medium">{t.branch}<select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
@@ -174,7 +194,7 @@ export function KitchenSection({ language }: { language: Language }) {
 
             <div className="mt-4 flex flex-wrap gap-2">
               {ticket.dispatchStatus === "Pending" && <button onClick={() => void act(ticket, "send")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.send}</button>}
-              {ticket.dispatchStatus === "SentToKds" && !kdsOnline && <button onClick={() => void act(ticket, "fallback")} className="min-h-10 rounded-lg bg-[#8a6d1f] px-3 text-sm font-semibold text-white">{t.fallback}</button>}
+              {ticket.dispatchStatus === "SentToKds" && <button onClick={() => void act(ticket, "fallback")} className="min-h-10 rounded-lg bg-[#8a6d1f] px-3 text-sm font-semibold text-white">{t.fallback}</button>}
               {ticket.dispatchStatus === "PrintFallbackPending" && <button onClick={() => void act(ticket, "printed")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.printed}</button>}
               {ticket.dispatchStatus === "PrintFallbackPending" && <button onClick={() => void act(ticket, "fail")} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.fail}</button>}
               {ticket.dispatchStatus === "SentToKds" && <button onClick={() => void act(ticket, "ack")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.ack}</button>}

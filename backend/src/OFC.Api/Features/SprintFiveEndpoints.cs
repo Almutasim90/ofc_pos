@@ -34,7 +34,38 @@ public static class SprintFiveEndpoints
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
         if (!await db.SalesChannels.AnyAsync(x => x.Id == salesChannelId && x.IsActive, ct)) return Validation("salesChannelId", "The sales channel is invalid.");
         var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable)).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
-        return Results.Ok(products.Select(product => new { product.Id, product.CategoryId, categoryNameAr = product.Category!.NameAr, categoryNameEn = product.Category.NameEn, product.Sku, product.NameAr, product.NameEn, product.Type, product.BasePrice, imageUrl = product.Images.OrderBy(x => x.SortOrder).Select(x => x.Url).FirstOrDefault(), selectionGroups = product.SelectionGroups.OrderBy(x => x.SortOrder).Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))).Select(x => new { x.SelectionGroup!.Id, x.SelectionGroup.Kind, x.SelectionGroup.NameAr, x.SelectionGroup.NameEn, x.SelectionGroup.IsRequired, x.SelectionGroup.MinSelections, x.SelectionGroup.MaxSelections, options = x.SelectionGroup.Options.OrderBy(o => o.SortOrder).Select(o => new { o.Id, o.ProductId, nameAr = o.Product!.NameAr, nameEn = o.Product.NameEn, o.PriceAdjustment, o.IsDefault, o.MaxQuantity }) }) }));
+        var productIds = products.Select(x => x.Id).ToList();
+        var at = DateTimeOffset.UtcNow;
+        var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
+        var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || productIds.Contains(x.ProductId.Value)).ToListAsync(ct);
+        var taxIds = products.Where(x => x.TaxCategoryId.HasValue).Select(x => x.TaxCategoryId!.Value).Distinct().ToList();
+        var taxes = await db.TaxRules.AsNoTracking().Where(x => taxIds.Contains(x.TaxCategoryId)).ToListAsync(ct);
+        var version = await db.CatalogVersions.AsNoTracking().OrderByDescending(x => x.Number).FirstOrDefaultAsync(ct);
+        // Every product carries a resolved price/tax snapshot so the offline POS client can build a
+        // correctly-taxed order while disconnected instead of guessing or zeroing tax (see PricingRules.Resolve).
+        return Results.Ok(products.Select(product =>
+        {
+            var snapshot = PricingRules.Resolve(product, branchId, salesChannelId, at, prices, promotions, taxes, version);
+            return new
+            {
+                product.Id, product.CategoryId, categoryNameAr = product.Category!.NameAr, categoryNameEn = product.Category.NameEn, product.Sku, product.NameAr, product.NameEn, product.Type, product.BasePrice,
+                imageUrl = product.Images.OrderBy(x => x.SortOrder).Select(x => x.Url).FirstOrDefault(),
+                pricing = new
+                {
+                    listPrice = snapshot.ListPrice,
+                    discountRate = snapshot.ListPrice == 0m ? 0m : PricingRules.RoundMoney(snapshot.DiscountAmount / snapshot.ListPrice),
+                    taxRate = snapshot.TaxRate,
+                    taxCalculationMode = snapshot.TaxCalculationMode,
+                    priceSource = snapshot.PriceSource,
+                    priceRuleId = snapshot.PriceRuleId,
+                    promotionId = snapshot.PromotionId,
+                    taxRuleId = snapshot.TaxRuleId,
+                    catalogVersionId = snapshot.CatalogVersionId,
+                    catalogVersionNumber = snapshot.CatalogVersionNumber
+                },
+                selectionGroups = product.SelectionGroups.OrderBy(x => x.SortOrder).Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))).Select(x => new { x.SelectionGroup!.Id, x.SelectionGroup.Kind, x.SelectionGroup.NameAr, x.SelectionGroup.NameEn, x.SelectionGroup.IsRequired, x.SelectionGroup.MinSelections, x.SelectionGroup.MaxSelections, options = x.SelectionGroup.Options.OrderBy(o => o.SortOrder).Select(o => new { o.Id, o.ProductId, nameAr = o.Product!.NameAr, nameEn = o.Product.NameEn, o.PriceAdjustment, o.IsDefault, o.MaxQuantity }) })
+            };
+        }));
     }
 
     private static async Task<IResult> List(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)

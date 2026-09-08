@@ -16,5 +16,7 @@
   <Project Path="src/Modules/OFC.Modules.QrOrdering/OFC.Modules.QrOrdering.csproj" />
   <Project Path="src/Modules/OFC.Modules.Integrations/OFC.Modules.Integrations.csproj" />
   <Project Path="src/OFC.SharedKernel/OFC.SharedKernel.csproj" />
+  <Project Path="src/OFC.PrintAgent/OFC.PrintAgent.csproj" />
   <Project Path="tests/OFC.SharedKernel.Tests/OFC.SharedKernel.Tests.csproj" />
+  <Project Path="tests/OFC.PrintAgent.Tests/OFC.PrintAgent.Tests.csproj" />
 </Solution>

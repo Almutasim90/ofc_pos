@@ -71,7 +71,7 @@ public static class SprintSevenEndpoints
 
     private static async Task<IResult> Cancel(Guid id, CancelRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
-        var order = await db.Orders.Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.Id == id, ct);
+        var order = await db.Orders.Include(x => x.StatusHistory).Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (order is null) return Results.NotFound();
         if (!CanOperate(user, CancellationOperation.Cancel) || !await HasBranch(db, user, order.BranchId, ct)) return Forbidden();
         if (order.Status is OrderStatus.Paid or OrderStatus.PartiallyRefunded or OrderStatus.Refunded or OrderStatus.Cancelled || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Captured, ct)) return Validation("order", "Paid or already cancelled orders must be refunded instead.");
@@ -80,7 +80,14 @@ public static class SprintSevenEndpoints
         var from = order.Status; order.Status = OrderStatus.Cancelled; order.UpdatedAt = DateTimeOffset.UtcNow; order.StatusHistory.Add(new OrderStatusHistory { FromStatus = from, ToStatus = OrderStatus.Cancelled, ChangedByUserId = UserId(user), Note = request.Note?.Trim() });
         var entry = new OrderCancellation { OrderId = id, CancellationReasonId = reason.Value!.Id, BranchId = order.BranchId, CancelledByUserId = UserId(user), DeviceId = DeviceId(user), ShiftId = await CurrentShiftId(db, order.BranchId, ct), Note = request.Note?.Trim(), OrderTotal = order.GrossAmount, OrderStatusAtCancellation = from, WasSentToKitchen = CancellationRules.WasSentToKitchen(from), ReturnInventory = request.ReturnInventory, ApprovedByUserId = approval.ApprovedBy };
         db.OrderCancellations.Add(entry); identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.cancel", "order_cancellation", entry.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { id, entry.OrderTotal, reason.Value.Code, entry.ReturnInventory, entry.WasSentToKitchen }));
-        await db.SaveChangesAsync(ct); return Results.Ok(new { order.Id, order.Status, cancellationId = entry.Id });
+        // Food already sent to the kitchen and not returned to stock is real waste, not a sale that
+        // never happened — record it automatically instead of relying on a manual waste entry.
+        var deltas = entry.WasSentToKitchen && !request.ReturnInventory
+            ? await SprintFifteenEndpoints.CreateCancelledOrderWaste(db, order, UserId(user), DeviceId(user), ct)
+            : [];
+        await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
+        return Results.Ok(new { order.Id, order.Status, cancellationId = entry.Id });
     }
 
     private static async Task<IResult> Refund(Guid id, RefundRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
@@ -116,7 +123,9 @@ public static class SprintSevenEndpoints
     }
 
     private static async Task<(CancellationReason? Value, string? Error)> Reason(OFCDbContext db, Guid branchId, Guid reasonId, string? note, CancellationToken ct) { var reason = await db.CancellationReasons.SingleOrDefaultAsync(x => x.Id == reasonId && x.BranchId == branchId && x.IsActive, ct); return reason is null ? (null, "Select an active cancellation reason.") : note?.Trim().Length > CancellationRules.NoteMax ? (null, "The note is too long.") : CancellationRules.RequiresNote(reason) && string.IsNullOrWhiteSpace(note) ? (null, "A note is required for this reason.") : (reason, null); }
-    private static async Task<(Guid? ApprovedBy, string? Error)> Approval(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationOperation operation, decimal amount, CancellationToken ct) { var threshold = await db.CancellationApprovalThresholds.AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == branchId && x.Operation == operation, ct); return threshold is not null && amount >= threshold.Amount && !user.HasClaim("permission", "cancellations.approve") ? (null, "This amount requires supervisor approval.") : (threshold is not null && amount >= threshold.Amount ? UserId(user) : null, null); }
+    // Fail closed: a branch with no configured threshold requires supervisor approval for every
+    // void/cancel/refund, rather than silently granting cashiers unlimited unsupervised authority.
+    private static async Task<(Guid? ApprovedBy, string? Error)> Approval(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationOperation operation, decimal amount, CancellationToken ct) { var threshold = await db.CancellationApprovalThresholds.AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == branchId && x.Operation == operation, ct); var requiresApproval = threshold is null || amount >= threshold.Amount; return requiresApproval && !user.HasClaim("permission", "cancellations.approve") ? (null, threshold is null ? "No approval threshold is configured for this branch; supervisor approval is required." : "This amount requires supervisor approval.") : (requiresApproval ? UserId(user) : null, null); }
     private static bool CanManage(ClaimsPrincipal user) => user.HasClaim("permission", "cancellations.manage");
     private static async Task<Guid?> CurrentShiftId(OFCDbContext db, Guid branchId, CancellationToken ct) => await db.Shifts.AsNoTracking().Where(x => x.BranchId == branchId && x.Status == ShiftStatus.Open).OrderByDescending(x => x.OpenedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
     private static bool CanOperate(ClaimsPrincipal user, CancellationOperation operation) => user.HasClaim("permission", operation switch { CancellationOperation.Void => "cancellations.void", CancellationOperation.Cancel => "cancellations.cancel", _ => "cancellations.refund" });

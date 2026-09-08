@@ -105,7 +105,7 @@ export function ProcurementSection({ language }: { language: Language }) {
     if (!poForm.supplierId || poLines.some((l) => !l.inventoryItemId || !l.unitId || !l.quantity || !l.unitCost)) { setMsg(t.failed, true); return; }
     try {
       const lines = poLines.map((l) => ({ inventoryItemId: l.inventoryItemId, unitId: l.unitId, quantity: Number(l.quantity), unitCost: Number(l.unitCost) }));
-      const r = await auth("/api/v1/procurement/purchase-orders", { method: "POST", body: JSON.stringify({ supplierId: poForm.supplierId, branchId, expectedDate: poForm.expectedDate ? new Date(poForm.expectedDate).toISOString() : null, notes: null, reference: poForm.reference.trim() || null, lines }) });
+      const r = await auth("/api/v1/procurement/purchase-orders", { method: "POST", body: JSON.stringify({ supplierId: poForm.supplierId, branchId, clientOrderId: createId(), expectedDate: poForm.expectedDate ? new Date(poForm.expectedDate).toISOString() : null, notes: null, reference: poForm.reference.trim() || null, lines }) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.lines?.[0] ?? p?.errors?.supplierId?.[0] ?? t.failed); }
       setMsg(t.saved); setPoForm({ supplierId: "", expectedDate: "", reference: "" }); setPoLines([LineDef()]); await loadOrders();
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }

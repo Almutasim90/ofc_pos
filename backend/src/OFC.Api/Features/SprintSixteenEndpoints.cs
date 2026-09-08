@@ -16,10 +16,12 @@ public static class SprintSixteenEndpoints
     public static void MapSprintSixteenEndpoints(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api/v1/qr");
-        api.MapGet("/{code}", ResolveContext);
-        api.MapGet("/{code}/menu", CustomerMenu);
-        api.MapPost("/{code}/orders", SubmitOrder);
-        api.MapGet("/{code}/orders/{clientRequestId:guid}", TrackOrder);
+        // These four routes are the only unauthenticated, anonymous endpoints in the whole API — rate
+        // limited per client IP so they can't be scraped or flooded (docs/04-Sprint-Audit P1).
+        api.MapGet("/{code}", ResolveContext).RequireRateLimiting("qr-anonymous");
+        api.MapGet("/{code}/menu", CustomerMenu).RequireRateLimiting("qr-anonymous");
+        api.MapPost("/{code}/orders", SubmitOrder).RequireRateLimiting("qr-anonymous");
+        api.MapGet("/{code}/orders/{clientRequestId:guid}", TrackOrder).RequireRateLimiting("qr-anonymous");
         api.MapGet("/contexts", ListContexts).RequireAuthorization();
         api.MapPost("/contexts", CreateContext).RequireAuthorization();
         api.MapPost("/contexts/{id:guid}/toggle", ToggleContext).RequireAuthorization();

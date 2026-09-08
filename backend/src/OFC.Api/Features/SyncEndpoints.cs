@@ -7,6 +7,8 @@ using OFC.Infrastructure.Security;
 using OFC.Modules.Catalog;
 using OFC.Modules.Inventory;
 using OFC.Modules.Ordering;
+using OFC.Modules.Payments;
+using OFC.Modules.Shifts;
 using OFC.Modules.Sync;
 
 namespace OFC.Api.Features;
@@ -122,6 +124,15 @@ public static class SyncEndpoints
         if (orderRequest.SalesChannelId == Guid.Empty) return OperationResult(key, OrderType, "failed", error: "A sales channel is required.");
         if (orderRequest.Lines is not { Count: > 0 } || orderRequest.Lines.Count > 100) return OperationResult(key, OrderType, "failed", error: "An offline order must contain between 1 and 100 lines.");
         if (!await db.SalesChannels.AsNoTracking().AnyAsync(x => x.Id == orderRequest.SalesChannelId && x.IsActive, ct)) return OperationResult(key, OrderType, "conflict", conflictReason: "entity-conflict", error: "The sales channel is no longer active.");
+        // An offline device may only hand back an order it could have legally reached from Draft in one
+        // uninterrupted flow: held (Draft), sent for payment (Pending), cancelled, or already paid (Paid) —
+        // the last of which must be backed by a real, validated payment (below), never a bare status flag.
+        if (orderRequest.Status is not (OrderStatus.Draft or OrderStatus.Pending or OrderStatus.Paid or OrderStatus.Cancelled))
+            return OperationResult(key, OrderType, "failed", error: "An offline order may only be created as Draft, Pending, Paid, or Cancelled.");
+        if (orderRequest.Status == OrderStatus.Paid && !OrderRules.CanTransition(OrderStatus.Pending, OrderStatus.Paid))
+            return OperationResult(key, OrderType, "failed", error: "The order status transition is not permitted.");
+        if (orderRequest.Status is OrderStatus.Pending or OrderStatus.Cancelled && !OrderRules.CanTransition(OrderStatus.Draft, orderRequest.Status))
+            return OperationResult(key, OrderType, "failed", error: "The order status transition is not permitted.");
 
         var existingOrder = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == branchId && x.ClientRequestId == key, ct);
         if (existingOrder is not null)
@@ -180,9 +191,36 @@ public static class SyncEndpoints
         order.NetAmount = PricingRules.RoundMoney(order.NetAmount);
         order.TaxAmount = PricingRules.RoundMoney(order.TaxAmount);
         order.GrossAmount = PricingRules.RoundMoney(order.GrossAmount);
-        order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = order.Status, ChangedByUserId = userId, Note = "Synced offline" });
+
+        Payment? payment = null;
+        if (order.Status == OrderStatus.Paid)
+        {
+            var paymentRequest = orderRequest.Payment;
+            if (paymentRequest is null) return OperationResult(key, OrderType, "failed", error: "A Paid offline order must include its payment.");
+            var method = await db.PaymentMethods.AsNoTracking().SingleOrDefaultAsync(x => x.Id == paymentRequest.PaymentMethodId && x.BranchId == branchId && x.IsActive, ct);
+            if (method is null) return OperationResult(key, OrderType, "failed", error: "The offline payment method is unavailable at this branch.");
+            var isCash = PaymentRules.IsCash(method.Kind);
+            var tendered = PaymentRules.RoundMoney(paymentRequest.TenderedAmount);
+            var applied = PaymentRules.RoundMoney(paymentRequest.Amount);
+            if ((isCash && tendered < applied) || (!isCash && tendered != applied) || Math.Abs(applied - order.GrossAmount) > PaymentRules.MoneyTolerance)
+                return OperationResult(key, OrderType, "failed", error: "The offline payment does not cover the order total.");
+            payment = new Payment { OrderId = order.Id, BranchId = branchId, PaymentMethodId = method.Id, ClientRequestId = paymentRequest.ClientRequestId, Amount = applied, TenderedAmount = tendered, ChangeAmount = isCash ? tendered - applied : 0m, Status = PaymentStatus.Captured, CreatedByUserId = userId, DeviceId = deviceId };
+            payment.StatusHistory.Add(new PaymentStatusHistory { FromStatus = PaymentStatus.Pending, ToStatus = PaymentStatus.Captured, ChangedByUserId = userId, Note = isCash ? "Cash accepted offline" : "Captured offline" });
+            order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = OrderStatus.Pending, ChangedByUserId = userId, Note = "Synced offline" });
+            order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Pending, ToStatus = OrderStatus.Paid, ChangedByUserId = userId, Note = "Payment captured offline" });
+        }
+        else
+        {
+            order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = order.Status, ChangedByUserId = userId, Note = "Synced offline" });
+        }
 
         db.Orders.Add(order);
+        if (payment is not null)
+        {
+            db.Payments.Add(payment);
+            var shiftId = await db.Shifts.AsNoTracking().Where(x => x.BranchId == branchId && x.Status == ShiftStatus.Open).OrderByDescending(x => x.OpenedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
+            db.FinancialTransactions.Add(new FinancialTransaction { OrderId = order.Id, PaymentId = payment.Id, BranchId = branchId, PaymentMethodId = payment.PaymentMethodId, DeviceId = deviceId, ShiftId = shiftId, Amount = payment.Amount, Reference = payment.Id.ToString(), CreatedByUserId = userId });
+        }
         syncState.CurrentVersion += 1;
         var resultObj = new { orderId = order.Id, order.ClientRequestId, status = order.Status.ToString(), order.GrossAmount, stalePricing };
         db.SyncOperations.Add(NewSyncOperation(branchId, deviceId, userId, key, OrderType, operation, SyncOperationStatus.Applied, resultObj, syncState.CurrentVersion, stalePricing ? SyncRules.ConflictReasonStalePricing : null));
@@ -250,8 +288,10 @@ public static class SyncEndpoints
             OccurredAt = operation.OccurredAt ?? at
         };
         db.InventoryMovements.Add(movement);
+        // The response's "balance"/"negative" flag is a ledger snapshot for display, distinct from the
+        // persisted cache (see InventoryStock.ApplyDelta below, applied atomically after SaveChanges to
+        // avoid the read-then-write race two concurrent syncs on the same item used to hit).
         var balance = InventoryRules.RoundQuantity((await db.InventoryMovements.Where(x => x.BranchId == branchId && x.InventoryItemId == item.Id).SumAsync(x => (decimal?)x.Quantity, ct) ?? 0m) + movement.Quantity);
-        item.StockOnHand = balance;
         var negative = balance < 0m;
 
         syncState.CurrentVersion += 1;
@@ -266,6 +306,7 @@ public static class SyncEndpoints
             if (duplicate is not null) return OperationResult(key, MovementType, "duplicate", result: MovementResponseJson(duplicate, item), serverVersion: syncState.CurrentVersion);
             throw;
         }
+        await InventoryStock.ApplyDelta(db, item.Id, movement.Quantity, ct);
 
         var flags = negative ? new[] { SyncRules.ConflictReasonNegativeStock } : Array.Empty<string>();
         return ResultsOkOperation(key, MovementType, "applied", flags, null, null, resultObj, syncState.CurrentVersion);
@@ -343,7 +384,8 @@ public static class SyncEndpoints
 
     private sealed record SyncBatchRequest(Guid BranchId, Guid DeviceId, long LastSyncVersion, int? BaseCatalogVersion, List<SyncOperationRequest> Operations);
     private sealed record SyncOperationRequest(Guid IdempotencyKey, string OperationType, long? BaseVersion, int? BaseCatalogVersion, DateTimeOffset? OccurredAt, JsonElement Payload);
-    private sealed record OfflineOrderRequest(Guid SalesChannelId, OrderSource Source, OrderStatus Status, string? Note, List<OfflineOrderLineRequest> Lines);
+    private sealed record OfflineOrderRequest(Guid SalesChannelId, OrderSource Source, OrderStatus Status, string? Note, List<OfflineOrderLineRequest> Lines, OfflineOrderPaymentRequest? Payment);
+    private sealed record OfflineOrderPaymentRequest(Guid ClientRequestId, Guid PaymentMethodId, decimal Amount, decimal TenderedAmount);
     private sealed record OfflineOrderLineRequest(Guid ProductId, string? ProductNameAr, string? ProductNameEn, int Quantity, string? Note, string? SelectionsSnapshot, decimal UnitListAmount, decimal UnitDiscountAmount, decimal UnitNetAmount, decimal UnitTaxAmount, decimal UnitGrossAmount, decimal TaxRate, TaxCalculationMode TaxCalculationMode, string? PriceSource, Guid? PriceRuleId, Guid? PromotionId, Guid? TaxRuleId, Guid? CatalogVersionId, int? CatalogVersionNumber);
     private sealed record OfflineMovementRequest(Guid BranchId, Guid ItemId, Guid UnitId, InventoryMovementType Type, decimal Quantity, string? Reference, string? Reason, Guid? OrderId);
 }

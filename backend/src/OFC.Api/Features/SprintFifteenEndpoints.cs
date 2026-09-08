@@ -88,6 +88,10 @@ public static class SprintFifteenEndpoints
         if (!await CanOperate(db, user, count.BranchId, ct, "inventory.counts.manage")) return Forbidden();
         if (!InventoryRules.CanApproveCount(count.Status)) return Validation("status", "Only a draft count can be approved.");
         if (count.Lines.Any(l => InventoryRules.IsSignificantVariance(l.Variance) && string.IsNullOrWhiteSpace(l.Reason))) return Validation("reason", "Every line with a count variance must record a reason before approval.");
+        // Maker-checker: the person who entered the counted quantities cannot also be the one who
+        // approves the resulting adjustment — otherwise a single actor can fabricate and self-approve
+        // an inventory write-off with no independent review, despite the audit trail looking complete.
+        if (count.CreatedByUserId == UserId(user)) return Forbidden("A count must be approved by someone other than the person who created it.");
         count.ApprovedByUserId = UserId(user); count.ApprovedAt = DateTimeOffset.UtcNow;
         identity.Audit(UserId(user), count.BranchId, DeviceId(user), "inventory.count.approve", "inventory_count", count.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { count.Number, count.ApprovedByUserId, adjustedLines = count.Lines.Count(l => InventoryRules.IsSignificantVariance(l.Variance)) }));
         await db.SaveChangesAsync(ct);
@@ -106,6 +110,7 @@ public static class SprintFifteenEndpoints
         var items = await db.InventoryItems.Include(x => x.BaseUnit).Where(x => count.Lines.Select(l => l.InventoryItemId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var now = DateTimeOffset.UtcNow;
         var adjusted = 0;
+        var deltas = new Dictionary<Guid, decimal>();
         foreach (var line in count.Lines.Where(l => InventoryRules.IsSignificantVariance(l.Variance)))
         {
             if (!items.TryGetValue(line.InventoryItemId, out var item)) return Validation("lines", $"Item {line.InventoryItemId} is not a known inventory item.");
@@ -116,12 +121,13 @@ public static class SprintFifteenEndpoints
             }
             var movement = new InventoryMovement { BranchId = count.BranchId, InventoryItemId = item.Id, Type = InventoryMovementType.CountAdjustment, Quantity = baseVariance, UnitId = item.BaseUnitId, Reference = count.Number, Reason = line.Reason, CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = now };
             db.InventoryMovements.Add(movement);
-            item.StockOnHand = InventoryRules.RoundQuantity(await SystemBalance(db, count.BranchId, item.Id, ct) + baseVariance);
+            deltas[item.Id] = deltas.GetValueOrDefault(item.Id) + baseVariance;
             adjusted++;
         }
         count.Status = InventoryCountStatus.Posted; count.PostedByUserId = UserId(user); count.PostedAt = now;
         identity.Audit(UserId(user), count.BranchId, DeviceId(user), "inventory.count.post", "inventory_count", count.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { count.Number, movementCount = adjusted, count.Status }));
         await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
         return Results.Ok(CountDetail(count, await LoadCountItems(db, count, ct)));
     }
 
@@ -197,6 +203,8 @@ public static class SprintFifteenEndpoints
         var items = await db.InventoryItems.Include(x => x.BaseUnit).Where(x => transfer.Lines.Select(l => l.InventoryItemId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var now = DateTimeOffset.UtcNow;
         var posted = 0;
+        var deltas = new Dictionary<Guid, decimal>();
+        var runningBalance = new Dictionary<Guid, decimal>();
         foreach (var line in transfer.Lines)
         {
             if (!items.TryGetValue(line.InventoryItemId, out var item)) return Validation("lines", $"Item {line.InventoryItemId} is not a known inventory item.");
@@ -205,16 +213,18 @@ public static class SprintFifteenEndpoints
             {
                 if (line.UnitId != item.BaseUnitId) return Validation("lines", $"There is no conversion path for item {item.NameAr}.");
             } else { baseQty = InventoryRules.RoundQuantity(converted); }
-            var balance = await SystemBalance(db, transfer.SourceBranchId, item.Id, ct);
+            if (!runningBalance.TryGetValue(item.Id, out var balance)) balance = await SystemBalance(db, transfer.SourceBranchId, item.Id, ct);
             if (InventoryRules.RoundQuantity(balance - baseQty) < 0m) return Validation("lines", $"Insufficient stock at the source branch for item {item.NameAr}.");
             var movement = new InventoryMovement { BranchId = transfer.SourceBranchId, InventoryItemId = item.Id, Type = InventoryMovementType.TransferOut, Quantity = InventoryRules.RoundQuantity(-baseQty), UnitId = item.BaseUnitId, Reference = transfer.Number, Reason = "stock-transfer", CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = now };
             db.InventoryMovements.Add(movement);
-            item.StockOnHand = InventoryRules.RoundQuantity(balance - baseQty);
+            runningBalance[item.Id] = InventoryRules.RoundQuantity(balance - baseQty);
+            deltas[item.Id] = deltas.GetValueOrDefault(item.Id) - baseQty;
             posted++;
         }
         transfer.Status = StockTransferStatus.InTransit; transfer.ShippedAt = now;
         identity.Audit(UserId(user), transfer.SourceBranchId, DeviceId(user), "inventory.transfer.ship", "stock_transfer", transfer.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { transfer.Number, movementCount = posted, transfer.Status, transfer.DestinationBranchId }));
         await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
         return Results.Ok(TransferDetail(transfer, await LoadTransferItems(db, transfer, ct)));
     }
 
@@ -228,6 +238,7 @@ public static class SprintFifteenEndpoints
         var items = await db.InventoryItems.Include(x => x.BaseUnit).Where(x => transfer.Lines.Select(l => l.InventoryItemId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var now = DateTimeOffset.UtcNow;
         var posted = 0;
+        var deltas = new Dictionary<Guid, decimal>();
         foreach (var line in transfer.Lines)
         {
             if (!items.TryGetValue(line.InventoryItemId, out var item)) return Validation("lines", $"Item {line.InventoryItemId} is not a known inventory item.");
@@ -236,15 +247,15 @@ public static class SprintFifteenEndpoints
             {
                 if (line.UnitId != item.BaseUnitId) return Validation("lines", $"There is no conversion path for item {item.NameAr}.");
             } else { baseQty = InventoryRules.RoundQuantity(converted); }
-            var balance = await SystemBalance(db, transfer.DestinationBranchId, item.Id, ct);
             var movement = new InventoryMovement { BranchId = transfer.DestinationBranchId, InventoryItemId = item.Id, Type = InventoryMovementType.TransferIn, Quantity = InventoryRules.RoundQuantity(baseQty), UnitId = item.BaseUnitId, Reference = transfer.Number, Reason = "stock-transfer-receipt", CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = now };
             db.InventoryMovements.Add(movement);
-            item.StockOnHand = InventoryRules.RoundQuantity(balance + baseQty);
+            deltas[item.Id] = deltas.GetValueOrDefault(item.Id) + baseQty;
             posted++;
         }
         transfer.Status = StockTransferStatus.Received; transfer.ReceivedByUserId = UserId(user); transfer.ReceivedAt = now;
         identity.Audit(UserId(user), transfer.DestinationBranchId, DeviceId(user), "inventory.transfer.receive", "stock_transfer", transfer.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { transfer.Number, movementCount = posted, transfer.Status, transfer.SourceBranchId }));
         await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
         return Results.Ok(TransferDetail(transfer, await LoadTransferItems(db, transfer, ct)));
     }
 
@@ -303,11 +314,11 @@ public static class SprintFifteenEndpoints
         var number = await NextWasteNumber(db, request.BranchId, ct);
         var movement = new InventoryMovement { BranchId = request.BranchId, InventoryItemId = item.Id, Type = InventoryMovementType.Waste, Quantity = InventoryRules.RoundQuantity(-baseQty), UnitId = item.BaseUnitId, Reference = number, Reason = request.Reason, OrderId = request.OrderId, ShiftId = request.ShiftId, CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = now };
         db.InventoryMovements.Add(movement);
-        item.StockOnHand = InventoryRules.RoundQuantity(await SystemBalance(db, request.BranchId, item.Id, ct) - baseQty);
         var record = new WasteRecord { Number = number, BranchId = request.BranchId, InventoryItemId = item.Id, Category = request.Category, Quantity = InventoryRules.RoundQuantity(baseQty), UnitId = item.BaseUnitId, Reason = request.Reason?.Trim(), Note = request.Note?.Trim(), PhotoUrl = request.PhotoUrl?.Trim(), Reference = request.Reference?.Trim(), OrderId = request.OrderId, OrderLineId = request.OrderLineId, ShiftId = request.ShiftId, InventoryMovementId = movement.Id, CreatedByUserId = UserId(user), DeviceId = DeviceId(user), ClientRecordId = request.ClientRecordId, OccurredAt = now };
         db.WasteRecords.Add(record);
         identity.Audit(UserId(user), request.BranchId, DeviceId(user), "inventory.waste.create", "waste_record", record.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { record.Number, record.Category, record.Quantity, record.InventoryItemId, orderId = record.OrderId }));
         await db.SaveChangesAsync(ct);
+        await InventoryStock.ApplyDelta(db, item.Id, -baseQty, ct);
         return Results.Created($"/api/v1/inventory/waste/{record.Id}", WasteDetail(record, item));
     }
 
@@ -374,6 +385,45 @@ public static class SprintFifteenEndpoints
     private static async Task<string> NextCountNumber(OFCDbContext db, Guid branchId, CancellationToken ct) => $"CNT-{DateTimeOffset.UtcNow:yyyyMMdd}-{await db.InventoryCounts.CountAsync(x => x.BranchId == branchId, ct) + 1:D4}";
     private static async Task<string> NextTransferNumber(OFCDbContext db, Guid branchId, CancellationToken ct) => $"TRF-{DateTimeOffset.UtcNow:yyyyMMdd}-{await db.StockTransfers.CountAsync(x => x.SourceBranchId == branchId, ct) + 1:D4}";
     private static async Task<string> NextWasteNumber(OFCDbContext db, Guid branchId, CancellationToken ct) => $"WST-{DateTimeOffset.UtcNow:yyyyMMdd}-{await db.WasteRecords.CountAsync(x => x.BranchId == branchId, ct) + 1:D4}";
+
+    // Called from SprintSevenEndpoints.Cancel when an order that already reached the kitchen is
+    // cancelled without returning stock: the prepared ingredients are real food waste, not a sale that
+    // never happened, so this records it automatically instead of relying on someone remembering to log
+    // it by hand (the only path that existed before — the audit's "cancelled-order waste" finding).
+    // Returns the net stock delta per item for the caller to apply atomically after SaveChanges.
+    internal static async Task<Dictionary<Guid, decimal>> CreateCancelledOrderWaste(OFCDbContext db, Order order, Guid userId, Guid? deviceId, CancellationToken ct)
+    {
+        var deltas = new Dictionary<Guid, decimal>();
+        var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
+        if (productIds.Count == 0) return deltas;
+        var activeRecipes = await db.RecipeVersions.AsNoTracking().Include(x => x.Lines).Where(x => productIds.Contains(x.ProductId) && x.Status == RecipeStatus.Active).ToListAsync(ct);
+        if (activeRecipes.Count == 0) return deltas;
+        var conversions = await db.UnitConversions.AsNoTracking().Where(x => x.IsActive).ToListAsync(ct);
+        var itemIds = activeRecipes.SelectMany(x => x.Lines.Select(l => l.InventoryItemId)).Distinct().ToList();
+        var items = itemIds.Count == 0 ? new Dictionary<Guid, InventoryItem>() : await db.InventoryItems.AsNoTracking().Where(x => itemIds.Contains(x.Id)).Include(x => x.BaseUnit).ToDictionaryAsync(x => x.Id, x => x, ct);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var line in order.Lines.Where(x => x.VoidedQuantity < x.Quantity))
+        {
+            var current = activeRecipes.Where(x => x.ProductId == line.ProductId).OrderByDescending(x => x.VersionNumber).FirstOrDefault();
+            if (current is null) continue;
+            var remaining = line.Quantity - line.VoidedQuantity;
+            foreach (var (inventoryItemId, unitId, quantity) in InventoryRules.PlanDeductions(current.Lines, remaining))
+            {
+                if (!items.TryGetValue(inventoryItemId, out var item)) continue;
+                var baseQty = quantity;
+                if (!InventoryRules.TryConvert(quantity, unitId, item.BaseUnitId, conversions, out var converted)) { if (unitId != item.BaseUnitId) continue; }
+                else baseQty = converted;
+                baseQty = InventoryRules.RoundQuantity(baseQty);
+                var number = await NextWasteNumber(db, order.BranchId, ct);
+                var movement = new InventoryMovement { BranchId = order.BranchId, InventoryItemId = item.Id, Type = InventoryMovementType.Waste, Quantity = InventoryRules.RoundQuantity(-baseQty), UnitId = item.BaseUnitId, Reference = number, Reason = "cancelled-order", OrderId = order.Id, CreatedByUserId = userId, DeviceId = deviceId, OccurredAt = now };
+                db.InventoryMovements.Add(movement);
+                var record = new WasteRecord { Number = number, BranchId = order.BranchId, InventoryItemId = item.Id, Category = WasteCategory.CancelledOrderWaste, Quantity = baseQty, UnitId = item.BaseUnitId, Reason = "Order cancelled after kitchen dispatch", OrderId = order.Id, OrderLineId = line.Id, InventoryMovementId = movement.Id, CreatedByUserId = userId, DeviceId = deviceId, ClientRecordId = Guid.CreateVersion7(), OccurredAt = now };
+                db.WasteRecords.Add(record);
+                deltas[item.Id] = deltas.GetValueOrDefault(item.Id) - baseQty;
+            }
+        }
+        return deltas;
+    }
 
     private static object CountRow(InventoryCount count, Dictionary<Guid, InventoryItem> items) => new { count.Id, count.Number, count.BranchId, status = count.Status.ToString(), count.CreatedByUserId, count.ApprovedByUserId, count.ApprovedAt, count.PostedByUserId, count.PostedAt, count.CreatedAt, lineCount = count.Lines.Count, varianceLineCount = count.Lines.Count(l => InventoryRules.IsSignificantVariance(l.Variance)) };
     private static object CountDetail(InventoryCount count, Dictionary<Guid, InventoryItem> items) => new { count.Id, count.Number, count.BranchId, status = count.Status.ToString(), count.Note, count.CreatedByUserId, count.ApprovedByUserId, count.ApprovedAt, count.PostedByUserId, count.PostedAt, count.CreatedAt, lines = count.Lines.Select(x => new { x.Id, x.InventoryItemId, itemNameAr = items.TryGetValue(x.InventoryItemId, out var item) ? item.NameAr : null, itemNameEn = items.TryGetValue(x.InventoryItemId, out var item2) ? item2.NameEn : null, x.SystemQuantity, x.CountedQuantity, x.Variance, x.Reason, x.UnitId, adjusted = InventoryRules.IsSignificantVariance(x.Variance) }).ToList() };

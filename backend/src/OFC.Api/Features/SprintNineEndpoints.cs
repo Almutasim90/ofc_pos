@@ -18,6 +18,7 @@ public static class SprintNineEndpoints
         api.MapGet("/print/configs", ListConfigs).RequireAuthorization();
         api.MapPost("/print/configs", CreateConfig).RequireAuthorization();
         api.MapPut("/print/configs/{id:guid}", UpdateConfig).RequireAuthorization();
+        api.MapPost("/print/configs/{id:guid}/heartbeat", Heartbeat).RequireAuthorization();
         api.MapGet("/print/templates", ListTemplates).RequireAuthorization();
         api.MapPost("/print/templates", CreateTemplate).RequireAuthorization();
         api.MapPut("/print/templates/{id:guid}", UpdateTemplate).RequireAuthorization();
@@ -41,7 +42,24 @@ public static class SprintNineEndpoints
     private static async Task<IResult> ListConfigs(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanPrintAt(db, user, branchId, ct) || !user.HasClaim("permission", "printing.view")) return Forbidden();
-        return Results.Ok(await db.PrinterConfigurations.AsNoTracking().Where(x => x.BranchId == branchId).OrderBy(x => x.SortOrder).ThenBy(x => x.Code).Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn, x.Kind, x.DeviceName, x.IsActive, x.SortOrder }).ToListAsync(ct));
+        var configs = await db.PrinterConfigurations.AsNoTracking().Where(x => x.BranchId == branchId).OrderBy(x => x.SortOrder).ThenBy(x => x.Code).ToListAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        return Results.Ok(configs.Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn, x.Kind, x.DeviceName, x.IsActive, x.SortOrder, x.LastSeenAt, x.LastHealthError, online = PrintingRules.IsHealthy(x.LastSeenAt, now) }));
+    }
+
+    // The Local Print Agent (OFC.PrintAgent) calls this once per poll cycle for every printer
+    // configuration it's watching, whether or not there was a job to print — that's what turns "online"
+    // from a stale toggle into a real, timed-out heartbeat (docs/04-Sprint-Audit P1).
+    private static async Task<IResult> Heartbeat(Guid id, HeartbeatRequest request, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        var config = await db.PrinterConfigurations.SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (config is null) return Results.NotFound();
+        if (!await CanPrintAt(db, user, config.BranchId, ct) || !user.HasClaim("permission", "printing.jobs.manage")) return Forbidden();
+        if (request.Error?.Trim().Length is > PrintingRules.JobErrorMax) return Validation("error", "The health error is too long.");
+        config.LastSeenAt = DateTimeOffset.UtcNow;
+        config.LastHealthError = request.Error?.Trim();
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { config.Id, config.LastSeenAt, online = true });
     }
 
     private static async Task<IResult> CreateConfig(ConfigRequest request, Guid branchId, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
@@ -282,4 +300,5 @@ public static class SprintNineEndpoints
     private sealed record RouteUpdateRequest(Guid? PreparationStationId, Guid? PrinterConfigurationId, Guid? PrintTemplateId, int? Priority, bool? IsActive);
     private sealed record EnqueueRequest(Guid BranchId, Guid? OrderId, Guid ClientRequestId, PrintJobKind Kind, Guid? PreparationStationId, string? TemplateCode, JsonElement? Payload);
     private sealed record FailRequest(string? Error);
+    private sealed record HeartbeatRequest(string? Error);
 }

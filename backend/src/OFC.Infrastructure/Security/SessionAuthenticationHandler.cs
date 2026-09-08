@@ -15,8 +15,14 @@ public sealed class SessionAuthenticationHandler(IOptionsMonitor<AuthenticationS
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var value = Request.Headers.Authorization.ToString();
-        if (!value.StartsWith("Bearer ", StringComparison.Ordinal)) return AuthenticateResult.NoResult();
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value[7..]));
+        // A browser WebSocket/SSE connection to a SignalR hub cannot set a custom Authorization header,
+        // so the SignalR client instead appends the token as ?access_token=... on the negotiate/connect
+        // request; only the /hubs path accepts that form, everything else still requires the header.
+        string? token = value.StartsWith("Bearer ", StringComparison.Ordinal) ? value[7..]
+            : Request.Path.StartsWithSegments("/hubs") && Request.Query.TryGetValue("access_token", out var qs) ? qs.ToString()
+            : null;
+        if (string.IsNullOrEmpty(token)) return AuthenticateResult.NoResult();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         var session = await db.Sessions.SingleOrDefaultAsync(x => x.TokenHash == hash && x.ExpiresAt > timeProvider.GetUtcNow(), Context.RequestAborted);
         if (session is null) return AuthenticateResult.Fail("Invalid session.");
         var user = await db.Users.Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Id == session.UserId && x.IsActive, Context.RequestAborted);

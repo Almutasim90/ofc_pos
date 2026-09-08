@@ -46,6 +46,7 @@ public sealed class PurchaseOrder
     public Guid? ApprovedByUserId { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset? ReceivedAt { get; set; }
+    public Guid ClientOrderId { get; set; } = Guid.CreateVersion7();
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<PurchaseOrderLine> Lines { get; set; } = [];
 }

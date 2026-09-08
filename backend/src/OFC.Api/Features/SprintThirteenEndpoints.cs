@@ -277,7 +277,9 @@ public static class SprintThirteenEndpoints
 
     private static async Task<IResult> ExportReport(string report, string? format, Guid? branchId, DateTimeOffset? from, DateTimeOffset? to, Guid? userId, string? entityType, string? entityId, string? action, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
-        if (!user.HasClaim("permission", "reports.export")) return Forbidden();
+        // Mirrors every other report endpoint's CanView check — a user scoped to one branch could
+        // otherwise export another branch's report just by passing a different branchId.
+        if (!await CanView(db, user, branchId, "reports.export", ct)) return Forbidden();
         if (!ReportingRules.IsKnownReport(report)) return Validation("report", "The requested report is not available for export.");
         var fmt = format ?? "csv";
         if (!ReportingRules.ValidFormat(fmt)) return Validation("format", "Only CSV export is supported.");

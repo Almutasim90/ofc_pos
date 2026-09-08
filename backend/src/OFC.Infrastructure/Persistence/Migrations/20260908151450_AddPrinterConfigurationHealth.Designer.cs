@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OFC.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using OFC.Infrastructure.Persistence;
 namespace OFC.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(OFCDbContext))]
-    partial class OFCDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260908151450_AddPrinterConfigurationHealth")]
+    partial class AddPrinterConfigurationHealth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2821,9 +2824,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("BranchId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ClientOrderId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2860,9 +2860,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ApprovedByUserId");
-
-                    b.HasIndex("ClientOrderId")
-                        .IsUnique();
 
                     b.HasIndex("CreatedByUserId");
 
@@ -3301,11 +3298,6 @@ namespace OFC.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BranchId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_shifts_one_open_per_branch")
-                        .HasFilter("\"Status\" = 'Open'");
 
                     b.HasIndex("ClosedByUserId");
 

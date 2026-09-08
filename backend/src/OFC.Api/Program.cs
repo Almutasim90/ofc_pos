@@ -1,4 +1,6 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OFC.Api;
 using OFC.Infrastructure;
@@ -15,6 +17,18 @@ builder.Services.AddSingleton<MigrationReadiness>();
 builder.Services.AddHealthChecks()
     .AddCheck<MigrationReadinessCheck>("db-migrations", tags: ["ready"]);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IKitchenBroadcaster, KitchenBroadcaster>();
+builder.Services.AddHostedService<KitchenFallbackWatcher>();
+// The QR customer endpoints (/api/v1/qr/{code}...) are the only anonymous, unauthenticated routes in
+// the API — open to menu-scraping and order-submission flooding with nothing else standing in the way.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("qr-anonymous", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 var app = builder.Build();
 
@@ -24,6 +38,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
@@ -47,6 +62,7 @@ app.MapSprintFifteenEndpoints();
 app.MapSprintSixteenEndpoints();
 app.MapSprintSeventeenEndpoints();
 app.MapSprintEighteenEndpoints();
+app.MapHub<KitchenHub>("/hubs/kitchen");
 
 var indexFile = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "index.html");
 if (File.Exists(indexFile))

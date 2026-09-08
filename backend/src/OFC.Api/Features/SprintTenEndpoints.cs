@@ -35,7 +35,7 @@ public static class SprintTenEndpoints
         return Results.Ok(await db.PreparationStations.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn }).ToListAsync(ct));
     }
 
-    private static async Task<IResult> Dispatch(DispatchRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Dispatch(DispatchRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!await CanOperate(db, user, request.BranchId, ct, "kitchen.manage")) return Forbidden();
         if (request.OrderId == Guid.Empty || request.ClientDispatchId == Guid.Empty) return Validation("request", "Provide an order id and a deterministic client dispatch id.");
@@ -68,6 +68,7 @@ public static class SprintTenEndpoints
         }
         if (created.Count == 0) return Results.Ok(Array.Empty<object>());
         await db.SaveChangesAsync(ct);
+        foreach (var ticket in created) await broadcaster.TicketChanged(request.BranchId, ticket.Id, "dispatched");
         return Results.Created($"/api/v1/kitchen/tickets/{created[0].Id}", created.Select(x => TicketResponse(x, null)).ToList());
     }
 
@@ -98,7 +99,7 @@ public static class SprintTenEndpoints
         return Results.Ok(TicketResponse(ticket, station, DateTimeOffset.UtcNow));
     }
 
-    private static async Task<IResult> SendToKds(Guid id, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> SendToKds(Guid id, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -107,10 +108,11 @@ public static class SprintTenEndpoints
         ticket.DispatchStatus = KitchenDispatchStatus.SentToKds; ticket.KdsAttempts += 1; ticket.UpdatedAt = DateTimeOffset.UtcNow;
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.send", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.KdsAttempts }));
         await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "sent");
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), DateTimeOffset.UtcNow));
     }
 
-    private static async Task<IResult> Acknowledge(Guid id, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Acknowledge(Guid id, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -124,31 +126,25 @@ public static class SprintTenEndpoints
         }
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.ack", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.AcknowledgedAt, ticket.Status }));
         await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "acknowledged");
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
-    private static async Task<IResult> Fallback(Guid id, FallbackRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Fallback(Guid id, FallbackRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
         if (!await CanOperate(db, user, ticket.BranchId, ct, "kitchen.manage")) return Forbidden();
-        if (!KitchenRules.CanDispatchTransition(ticket.DispatchStatus, KitchenDispatchStatus.PrintFallbackPending)) return Validation("ticket", "This ticket cannot fall back to a kitchen printer in its current state.");
         if (request.Error?.Trim().Length > KitchenRules.ErrorMax) return Validation("error", "The fallback reason is too long.");
-        var now = DateTimeOffset.UtcNow; var route = await ResolveRoute(db, ticket, ct);
-        var payload = FallbackPayload(ticket, request.Error?.Trim());
-        var existingJob = await db.PrintJobs.AsNoTracking().AnyAsync(x => x.BranchId == ticket.BranchId && x.ClientRequestId == ticket.DispatchId && x.Kind == PrintJobKind.Kitchen, ct);
-        if (!existingJob)
-        {
-            var job = new PrintJob { BranchId = ticket.BranchId, DeviceId = DeviceId(user), OrderId = ticket.OrderId, ClientRequestId = ticket.DispatchId, Kind = PrintJobKind.Kitchen, Status = PrintJobStatus.Pending, PrinterConfigurationId = route?.PrinterConfigurationId, TemplateCode = route is null ? request.TemplateCode?.Trim() : null, Payload = JsonSerializer.Serialize(payload), CreatedByUserId = UserId(user) };
-            db.PrintJobs.Add(job);
-        }
-        ticket.DispatchStatus = KitchenDispatchStatus.PrintFallbackPending; ticket.Channel = request.Manual == true ? KitchenExecutionChannel.ManualFallback : KitchenExecutionChannel.PrintFallback; ticket.KdsAttempts += 1; ticket.LastError = request.Error?.Trim(); ticket.UpdatedAt = now;
+        var (ok, existingJob) = await ApplyFallback(db, ticket, request.Error?.Trim(), request.TemplateCode?.Trim(), request.Manual == true ? KitchenExecutionChannel.ManualFallback : KitchenExecutionChannel.PrintFallback, DeviceId(user), UserId(user), ct);
+        if (!ok) return Validation("ticket", "This ticket cannot fall back to a kitchen printer in its current state.");
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.fallback", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.Channel, ticket.KdsAttempts, jobClientRequestId = ticket.DispatchId, duplicatePrint = existingJob }));
         await db.SaveChangesAsync(ct);
-        return Results.Ok(new { ticket = TicketResponse(ticket, await Station(db, ticket, ct), now), duplicatePrint = existingJob });
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "fallback");
+        return Results.Ok(new { ticket = TicketResponse(ticket, await Station(db, ticket, ct), DateTimeOffset.UtcNow), duplicatePrint = existingJob });
     }
 
-    private static async Task<IResult> MarkPrintedFallback(Guid id, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> MarkPrintedFallback(Guid id, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -158,10 +154,11 @@ public static class SprintTenEndpoints
         ticket.DispatchStatus = KitchenDispatchStatus.PrintedFallback; ticket.FallbackPrinted = true; ticket.FallbackPrintedAt = now; ticket.Status = KitchenTicketStatus.Preparing; ticket.StartedAt ??= now; ticket.UpdatedAt = now;
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.printed-fallback", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.FallbackPrintedAt }));
         await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "printed-fallback");
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
-    private static async Task<IResult> Fail(Guid id, FailRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Fail(Guid id, FailRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -171,10 +168,11 @@ public static class SprintTenEndpoints
         ticket.DispatchStatus = KitchenDispatchStatus.Failed; ticket.LastError = request.Error?.Trim(); ticket.UpdatedAt = DateTimeOffset.UtcNow;
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.fail", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.LastError }));
         await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "failed");
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), DateTimeOffset.UtcNow));
     }
 
-    private static async Task<IResult> SetItemStatus(Guid id, Guid itemId, ItemStatusRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> SetItemStatus(Guid id, Guid itemId, ItemStatusRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -191,10 +189,11 @@ public static class SprintTenEndpoints
         ApplyTicketProgress(ticket, now);
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.item.update", "kitchen_ticket_item", item.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticketId = ticket.Id, itemStatus = item.Status }));
         await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "item-updated");
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
-    private static async Task<IResult> Cancel(Guid id, CancelRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Cancel(Guid id, CancelRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -205,7 +204,10 @@ public static class SprintTenEndpoints
         ticket.WasPrepStartedBeforeCancellation = ticket.Status != KitchenTicketStatus.New || ticket.StartedAt.HasValue;
         ticket.DispatchStatus = KitchenDispatchStatus.Cancelled; ticket.Status = KitchenTicketStatus.Cancelled; ticket.CancelledAt = now; ticket.Note = request.Note?.Trim(); ticket.UpdatedAt = now;
         foreach (var item in ticket.Items.Where(x => x.Status is not (KitchenItemStatus.Completed or KitchenItemStatus.Cancelled))) item.Status = KitchenItemStatus.Cancelled;
-        if (ticket.FallbackPrinted && !ticket.CancellationNotified)
+        // A cancelled ticket must alert whoever is preparing it even when nothing has printed yet: a
+        // KDS-only ticket previously got no notification at all (audit finding), so it now falls back
+        // to a printed alert exactly like an already-printed ticket does.
+        if (!ticket.CancellationNotified)
         {
             ticket.CancellationNotified = true;
             var alert = new PrintJob { BranchId = ticket.BranchId, DeviceId = DeviceId(user), OrderId = ticket.OrderId, ClientRequestId = Guid.CreateVersion7(), Kind = PrintJobKind.Kitchen, Status = PrintJobStatus.Pending, TemplateCode = request.TemplateCode?.Trim(), Payload = JsonSerializer.Serialize(CancellationPayload(ticket, request.Note?.Trim())), CreatedByUserId = UserId(user) };
@@ -213,6 +215,7 @@ public static class SprintTenEndpoints
         }
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.cancel", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.Status, ticket.WasPrepStartedBeforeCancellation, ticket.CancellationNotified }));
         await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "cancelled");
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
@@ -240,6 +243,23 @@ public static class SprintTenEndpoints
             ticket.Status = KitchenTicketStatus.New;
         }
         ticket.UpdatedAt = now;
+    }
+
+    // Shared by the manual "Print fallback" action and KitchenFallbackWatcher's automatic trigger, so an
+    // unacknowledged ticket falls back the same way whether a human notices or the system notices first.
+    internal static async Task<(bool Ok, bool DuplicatePrint)> ApplyFallback(OFCDbContext db, KitchenTicket ticket, string? error, string? templateCode, KitchenExecutionChannel channel, Guid? deviceId, Guid createdByUserId, CancellationToken ct)
+    {
+        if (!KitchenRules.CanDispatchTransition(ticket.DispatchStatus, KitchenDispatchStatus.PrintFallbackPending)) return (false, false);
+        var route = await ResolveRoute(db, ticket, ct);
+        var payload = FallbackPayload(ticket, error);
+        var existingJob = await db.PrintJobs.AsNoTracking().AnyAsync(x => x.BranchId == ticket.BranchId && x.ClientRequestId == ticket.DispatchId && x.Kind == PrintJobKind.Kitchen, ct);
+        if (!existingJob)
+        {
+            var job = new PrintJob { BranchId = ticket.BranchId, DeviceId = deviceId, OrderId = ticket.OrderId, ClientRequestId = ticket.DispatchId, Kind = PrintJobKind.Kitchen, Status = PrintJobStatus.Pending, PrinterConfigurationId = route?.PrinterConfigurationId, TemplateCode = route is null ? templateCode : null, Payload = JsonSerializer.Serialize(payload), CreatedByUserId = createdByUserId };
+            db.PrintJobs.Add(job);
+        }
+        ticket.DispatchStatus = KitchenDispatchStatus.PrintFallbackPending; ticket.Channel = channel; ticket.KdsAttempts += 1; ticket.LastError = error; ticket.UpdatedAt = DateTimeOffset.UtcNow;
+        return (true, existingJob);
     }
 
     private static async Task<PreparationStation?> Station(OFCDbContext db, KitchenTicket ticket, CancellationToken ct) => ticket.StationId is Guid sid ? await db.PreparationStations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == sid, ct) : null;

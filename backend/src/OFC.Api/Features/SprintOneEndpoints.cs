@@ -28,6 +28,13 @@ public static class SprintOneEndpoints
         api.MapPut("/users/{id:guid}/roles", SetRoles).RequireAuthorization();
         api.MapGet("/roles", ListRoles).RequireAuthorization();
         api.MapPost("/roles", CreateRole).RequireAuthorization();
+        api.MapGet("/permissions", ListPermissions).RequireAuthorization();
+    }
+
+    private static async Task<IResult> ListPermissions(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (!Has(user, "roles.manage")) return Forbidden();
+        return Results.Ok(await db.Permissions.OrderBy(x => x.Code).Select(x => new { x.Id, x.Code }).ToListAsync(ct));
     }
 
     private static async Task<IResult> Bootstrap(BootstrapRequest request, IdentityService identity, HttpContext context, CancellationToken ct)

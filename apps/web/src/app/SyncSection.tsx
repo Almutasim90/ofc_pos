@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, ShoppingBag, Trash2, Wifi, WifiOff } from "lucide-react";
 import { store } from "@/lib/local-store";
-import { backoffDelay, conflicts, dismissConflicts, enqueue, flush, getBranchId, lastSyncVersion, lastSyncedAt, pending, pendingCount, retryConflict, setBranchId } from "@/lib/sync-outbox";
+import { backoffDelay, cancelPending, conflicts, enqueue, flush, getBranchId, lastSyncVersion, lastSyncedAt, pending, pendingCount, retryConflict, setBranchId } from "@/lib/sync-outbox";
 
 type Language = "ar" | "en";
 type Context = { branches: Array<{ id: string; nameAr: string; nameEn: string }>; channels: Array<{ id: string; code: string; nameAr: string; nameEn: string }> };
@@ -191,7 +191,7 @@ export function SyncSection({ language }: { language: Language }) {
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="flex items-center justify-between font-semibold"><span>{t.conflicts} ({conflictItems.length})</span>{conflictItems.length > 0 && <button onClick={() => { dismissConflicts(conflictItems.map((c) => c.idempotencyKey)); refresh(); }} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.clear}</button>}</h2>
+          <h2 className="flex items-center justify-between font-semibold"><span>{t.conflicts} ({conflictItems.length})</span>{conflictItems.length > 0 && <button onClick={() => { cancelPending(conflictItems.map((c) => c.idempotencyKey)); refresh(); }} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.clear}</button>}</h2>
           {conflictItems.length === 0 ? <p className="mt-4 text-sm text-[#69766f]">{t.noConflicts}</p> : (
             <ul className="mt-4 space-y-3">{conflictItems.map((item) => {
               const stale = item.conflictReason === "stale-pricing";
@@ -206,7 +206,7 @@ export function SyncSection({ language }: { language: Language }) {
                   {item.conflictReason === "negative-stock" && <p className="mt-2 text-xs text-[#b4322a]">{t.negativeStock}</p>}
                   <div className="mt-3 flex gap-2">
                     <button onClick={() => { retryConflict(item.idempotencyKey); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><RefreshCw size={14} />{t.retry}</button>
-                    <button onClick={() => { dismissConflicts([item.idempotencyKey]); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><Trash2 size={14} />{t.dismiss}</button>
+                    <button onClick={() => { cancelPending([item.idempotencyKey]); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><Trash2 size={14} />{t.dismiss}</button>
                   </div>
                 </li>
               );

@@ -122,12 +122,16 @@ public static class SprintFourteenEndpoints
         if (!ProcurementRules.ValidNotes(request.Notes) || !ProcurementRules.ValidReference(request.Reference)) return Validation("purchaseOrder", "The purchase order notes or reference are invalid.");
         if (request.Lines is not { Count: > 0 } || !ProcurementRules.ValidLineCount(request.Lines.Count)) return Validation("lines", "A purchase order requires between 1 and 500 lines.");
         if (!await db.Suppliers.AsNoTracking().AnyAsync(x => x.Id == request.SupplierId && x.IsActive, ct)) return Validation("supplierId", "The supplier does not exist.");
+        var clientOrderId = request.ClientOrderId ?? Guid.CreateVersion7();
+        var existingOrder = await db.PurchaseOrders.Include(x => x.Lines).AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientOrderId == clientOrderId, ct);
+        if (existingOrder is not null) return Results.Ok(PurchaseOrderDetail(existingOrder, await db.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == existingOrder.SupplierId, ct)));
         var lines = await BuildPurchaseOrderLines(request.Lines, db, ct);
         if (lines is null) return Validation("lines", "One or more purchase order lines reference an unknown inventory item or unit.");
-        var order = new PurchaseOrder { Number = await NextPurchaseOrderNumber(db, request.BranchId, ct), SupplierId = request.SupplierId, BranchId = request.BranchId, Status = PurchaseOrderStatus.Draft, ExpectedDate = request.ExpectedDate, Notes = request.Notes?.Trim(), Reference = request.Reference?.Trim(), CreatedByUserId = UserId(user) };
+        var order = new PurchaseOrder { Number = await NextPurchaseOrderNumber(db, request.BranchId, ct), SupplierId = request.SupplierId, BranchId = request.BranchId, Status = PurchaseOrderStatus.Draft, ExpectedDate = request.ExpectedDate, Notes = request.Notes?.Trim(), Reference = request.Reference?.Trim(), CreatedByUserId = UserId(user), ClientOrderId = clientOrderId };
         foreach (var line in lines) order.Lines.Add(line);
         db.PurchaseOrders.Add(order); identity.Audit(UserId(user), request.BranchId, DeviceId(user), "procurement.purchase-order.create", "purchase_order", order.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { order.Number, order.SupplierId, order.BranchId, lineCount = order.Lines.Count, order.Status }));
-        await db.SaveChangesAsync(ct);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { var duplicate = await db.PurchaseOrders.Include(x => x.Lines).AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientOrderId == clientOrderId, ct); if (duplicate is not null) return Results.Ok(PurchaseOrderDetail(duplicate, await db.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == duplicate.SupplierId, ct))); throw; }
         var supplier = await db.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == order.SupplierId, ct);
         return Results.Created($"/api/v1/procurement/purchase-orders/{order.Id}", PurchaseOrderDetail(order, supplier));
     }
@@ -192,10 +196,11 @@ public static class SprintFourteenEndpoints
         if (remaining.Count == 0) return Validation("receipt", "There is nothing left to receive on this purchase order.");
         var receipt = await PersistGoodsReceipt(db, identity, user, context, order.BranchId, order.SupplierId, order.Id, $"received from {order.Number}", remaining, ct);
         if (receipt is null) return Validation("receipt", "The goods receipt could not be created for this purchase order.");
-        await ApplyGoodsReceipt(db, identity, user, context, receipt, ct);
+        var deltas = await ApplyGoodsReceipt(db, identity, user, context, receipt, ct);
         order.Status = PurchaseOrderStatus.Received; order.ReceivedAt = DateTimeOffset.UtcNow;
         foreach (var line in order.Lines) { var received = receipt.Lines.FirstOrDefault(l => l.InventoryItemId == line.InventoryItemId); if (received is not null) line.ReceivedQuantity = ProcurementRules.RoundQuantity(line.ReceivedQuantity + received.Quantity); }
         await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
         var supplier = await db.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == order.SupplierId, ct);
         return Results.Created($"/api/v1/procurement/goods-receipts/{receipt.Id}", ReceiptDetail(receipt, supplier));
     }
@@ -242,8 +247,9 @@ public static class SprintFourteenEndpoints
         var existing = await db.GoodsReceipts.AsNoTracking().Include(x => x.Lines).SingleOrDefaultAsync(x => x.ClientReceiptId == receipt.ClientReceiptId && x.Status == GoodsReceiptStatus.Posted, ct);
         if (existing is not null) return Results.Ok(ReceiptDetail(existing, await db.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == existing.SupplierId, ct)));
         if (!ProcurementRules.CanPost(receipt.Status)) return Validation("status", "Only a draft goods receipt can be posted.");
-        await ApplyGoodsReceipt(db, identity, user, context, receipt, ct);
+        var deltas = await ApplyGoodsReceipt(db, identity, user, context, receipt, ct);
         await db.SaveChangesAsync(ct);
+        foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
         var supplier = await db.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == receipt.SupplierId, ct);
         return Results.Ok(ReceiptDetail(receipt, supplier));
     }
@@ -263,11 +269,22 @@ public static class SprintFourteenEndpoints
         return receipt;
     }
 
-    private static async Task ApplyGoodsReceipt(OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, GoodsReceipt receipt, CancellationToken ct)
+    // Returns the net stock delta per item so the caller can apply it atomically (InventoryStock.ApplyDelta)
+    // after SaveChanges. Two lines for the same item in one receipt used to each re-read
+    // currentStock via a fresh SUM query — the second line never saw the first line's not-yet-flushed
+    // movement, so its weighted-average cost (and the cached balance) was computed against a stale
+    // baseline. currentStock is now a running total tracked in memory across the whole receipt instead.
+    private static async Task<Dictionary<Guid, decimal>> ApplyGoodsReceipt(OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, GoodsReceipt receipt, CancellationToken ct)
     {
         var conversions = await db.UnitConversions.AsNoTracking().Where(x => x.IsActive).ToListAsync(ct);
         var items = await db.InventoryItems.Include(x => x.BaseUnit).Where(x => receipt.Lines.Select(l => l.InventoryItemId).Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         if (receipt.Lines.Any(l => !items.ContainsKey(l.InventoryItemId) || !items[l.InventoryItemId].IsActive)) throw new InvalidOperationException("A goods receipt line references an inactive or unknown inventory item.");
+        var itemIds = items.Keys.ToList();
+        var runningStock = await db.InventoryMovements.Where(x => x.BranchId == receipt.BranchId && itemIds.Contains(x.InventoryItemId))
+            .GroupBy(x => x.InventoryItemId)
+            .Select(g => new { ItemId = g.Key, Sum = g.Sum(x => (decimal?)x.Quantity) ?? 0m })
+            .ToDictionaryAsync(x => x.ItemId, x => x.Sum, ct);
+        var deltas = new Dictionary<Guid, decimal>();
         var now = DateTimeOffset.UtcNow;
         foreach (var line in receipt.Lines)
         {
@@ -281,14 +298,16 @@ public static class SprintFourteenEndpoints
             baseQuantity = InventoryRules.RoundQuantity(baseQuantity);
             var factor = line.Quantity == 0m ? 1m : baseQuantity / line.Quantity;
             var baseUnitCost = ProcurementRules.RoundCost(line.UnitCost * factor);
-            var currentStock = InventoryRules.RoundQuantity((await db.InventoryMovements.Where(x => x.BranchId == receipt.BranchId && x.InventoryItemId == item.Id).SumAsync(x => (decimal?)x.Quantity, ct).ConfigureAwait(false) ?? 0m));
+            var currentStock = InventoryRules.RoundQuantity(runningStock.GetValueOrDefault(item.Id));
             var movement = new InventoryMovement { BranchId = receipt.BranchId, InventoryItemId = item.Id, Type = InventoryMovementType.Purchase, Quantity = baseQuantity, UnitId = item.BaseUnitId, Reference = receipt.Number, Reason = "supplier-receipt", SupplierId = receipt.SupplierId, PurchaseOrderId = receipt.PurchaseOrderId, CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = now };
             db.InventoryMovements.Add(movement);
-            item.StockOnHand = InventoryRules.RoundQuantity(currentStock + baseQuantity);
             item.UnitCost = ProcurementRules.WeightedAverageCost(currentStock, item.UnitCost, baseQuantity, baseUnitCost);
+            runningStock[item.Id] = InventoryRules.RoundQuantity(currentStock + baseQuantity);
+            deltas[item.Id] = deltas.GetValueOrDefault(item.Id) + baseQuantity;
         }
         receipt.Status = GoodsReceiptStatus.Posted; receipt.PostedByUserId = UserId(user); receipt.PostedAt = now;
         identity.Audit(UserId(user), receipt.BranchId, DeviceId(user), "procurement.goods-receipt.post", "goods_receipt", receipt.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { receipt.Number, movementCount = receipt.Lines.Count, supplierId = receipt.SupplierId, purchaseOrderId = receipt.PurchaseOrderId }));
+        return deltas;
     }
 
     private static async Task<List<PurchaseOrderLine>?> BuildPurchaseOrderLines(List<CreatePurchaseOrderLineRequest> lines, OFCDbContext db, CancellationToken ct)
@@ -347,7 +366,7 @@ public static class SprintFourteenEndpoints
     private sealed record CreateSupplierRequest(string? Code, string? NameAr, string? NameEn, string? ContactPerson, string? Phone, string? Email, string? VatNumber, string? Address, string? Notes);
     private sealed record UpdateSupplierRequest(string? NameAr, string? NameEn, string? ContactPerson, string? Phone, string? Email, string? VatNumber, string? Address, string? Notes, bool IsActive);
     private sealed record CreatePurchaseOrderLineRequest(Guid InventoryItemId, Guid UnitId, decimal Quantity, decimal UnitCost);
-    private sealed record CreatePurchaseOrderRequest(Guid SupplierId, Guid BranchId, DateTimeOffset? ExpectedDate, string? Notes, string? Reference, List<CreatePurchaseOrderLineRequest> Lines);
+    private sealed record CreatePurchaseOrderRequest(Guid SupplierId, Guid BranchId, Guid? ClientOrderId, DateTimeOffset? ExpectedDate, string? Notes, string? Reference, List<CreatePurchaseOrderLineRequest> Lines);
     private sealed record CreateGoodsReceiptLineRequest(Guid InventoryItemId, Guid UnitId, decimal Quantity, decimal UnitCost);
     private sealed record CreateGoodsReceiptRequest(Guid SupplierId, Guid BranchId, Guid? PurchaseOrderId, string? Reference, string? Notes, Guid ClientReceiptId, List<CreateGoodsReceiptLineRequest> Lines);
 }

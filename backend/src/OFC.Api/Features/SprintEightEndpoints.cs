@@ -57,7 +57,10 @@ public static class SprintEightEndpoints
         var shift = new Shift { BranchId = request.BranchId, OpenedByUserId = UserId(user), DeviceId = DeviceId(user), OpeningCash = ShiftRules.RoundMoney(request.OpeningCash) };
         db.Shifts.Add(shift);
         identity.Audit(UserId(user), shift.BranchId, DeviceId(user), "shift.open", "shift", shift.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { shift.OpeningCash }));
-        await db.SaveChangesAsync(ct);
+        // The AnyAsync check above is a fast-path UX check, not the guarantee: a partial unique index on
+        // (BranchId) WHERE Status = 'Open' is what actually rejects two concurrent opens for one branch.
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { return Validation("shift", "A shift is already open for this branch."); }
         return Results.Created($"/api/v1/shifts/{shift.Id}", new { shift.Id, shift.BranchId, shift.OpeningCash, shift.OpenedAt, shift.Status });
     }
 
