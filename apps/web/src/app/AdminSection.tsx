@@ -1,3 +1,4 @@
+import { UserEditor } from "@/app/UserEditor";
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { store } from "@/lib/local-store";
@@ -99,8 +100,8 @@ function BranchesPanel({ t, branches, auth, onSaved }: { t: Copy; language: Lang
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label={t.code} value={form.code} onChange={(v) => setForm({ ...form, code: v })} max={30} />
         <Field label={t.timeZone} value={form.timeZone} onChange={(v) => setForm({ ...form, timeZone: v })} max={60} />
-        <Field label={t.nameAr} value={form.nameAr} onChange={(v) => setForm({ ...form, nameAr: v })} max={160} />
-        <Field label={t.nameEn} value={form.nameEn} onChange={(v) => setForm({ ...form, nameEn: v })} max={160} />
+        <Field required label={t.nameAr} value={form.nameAr} onChange={(v) => setForm({ ...form, nameAr: v })} max={160} />
+        <Field required label={t.nameEn} value={form.nameEn} onChange={(v) => setForm({ ...form, nameEn: v })} max={160} />
       </div>
       {formError && <p role="alert" className="mt-4 text-sm text-[#b4322a]">{formError}</p>}
       <button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</button>
@@ -150,8 +151,9 @@ function DevicesPanel({ t, devices, branches, name, auth, onSaved }: { t: Copy; 
   </>;
 }
 
-function UsersPanel({ t, users, roles, branches, permissions, name, auth, onSaved }: { t: Copy; language: Language; users: AdminUser[]; roles: Role[]; branches: Branch[]; permissions: Permission[]; name: (x: { nameAr: string; nameEn: string }) => string; auth: (p: string, i?: RequestInit) => Promise<Response>; onSaved: (msg: string) => void }) {
+function UsersPanel({ t, language, users, roles, branches, permissions, name, auth, onSaved }: { t: Copy; language: Language; users: AdminUser[]; roles: Role[]; branches: Branch[]; permissions: Permission[]; name: (x: { nameAr: string; nameEn: string }) => string; auth: (p: string, i?: RequestInit) => Promise<Response>; onSaved: (msg: string) => void }) {
   const [form, setForm] = useState({ username: "", email: "", displayName: "", password: "", roleIds: [] as string[], branchIds: [] as string[] });
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [roleForm, setRoleForm] = useState({ name: "", permissionCodes: [] as string[] });
   const [editingRoles, setEditingRoles] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState(false);
@@ -189,33 +191,35 @@ function UsersPanel({ t, users, roles, branches, permissions, name, auth, onSave
       <form onSubmit={createUser} className="rounded-xl border border-[#dfe5df] bg-white p-5">
         <h2 className="font-semibold">{t.addUser}</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label={t.username} value={form.username} onChange={(v) => setForm({ ...form, username: v })} max={40} />
+          <Field required label={t.username} value={form.username} onChange={(v) => setForm({ ...form, username: v })} max={40} />
           <Field label={t.email} value={form.email} onChange={(v) => setForm({ ...form, email: v })} max={160} />
-          <Field label={t.displayName} value={form.displayName} onChange={(v) => setForm({ ...form, displayName: v })} max={160} />
-          <Field label={t.password} value={form.password} onChange={(v) => setForm({ ...form, password: v })} type="password" />
+          <Field required label={t.displayName} value={form.displayName} onChange={(v) => setForm({ ...form, displayName: v })} max={160} />
+          <Field required label={t.password} value={form.password} onChange={(v) => setForm({ ...form, password: v })} type="password" />
         </div>
         <fieldset className="mt-4"><legend className="text-sm font-medium">{t.roles}</legend><div className="mt-2 flex flex-wrap gap-2">{roles.map((r) => <label key={r.id} className="flex min-h-9 items-center gap-1.5 rounded-full border border-[#dfe5df] px-3 text-sm"><input type="checkbox" checked={form.roleIds.includes(r.id)} onChange={(e) => setForm({ ...form, roleIds: e.target.checked ? [...form.roleIds, r.id] : form.roleIds.filter((id) => id !== r.id) })} className="accent-[#0e5a4f]" />{r.name}</label>)}</div></fieldset>
         <fieldset className="mt-4"><legend className="text-sm font-medium">{t.branches2}</legend><div className="mt-2 flex flex-wrap gap-2">{branches.map((b) => <label key={b.id} className="flex min-h-9 items-center gap-1.5 rounded-full border border-[#dfe5df] px-3 text-sm"><input type="checkbox" checked={form.branchIds.includes(b.id)} onChange={(e) => setForm({ ...form, branchIds: e.target.checked ? [...form.branchIds, b.id] : form.branchIds.filter((id) => id !== b.id) })} className="accent-[#0e5a4f]" />{name(b)}</label>)}</div></fieldset>
         {formError && <p role="alert" className="mt-4 text-sm text-[#b4322a]">{formError}</p>}
         <button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</button>
       </form>
-      <form onSubmit={createRole} className="rounded-xl border border-[#dfe5df] bg-white p-5">
+      <details><summary className="min-h-11 cursor-pointer font-semibold">{t.addRole}</summary><form onSubmit={createRole} className="rounded-xl border border-[#dfe5df] bg-white p-5">
         <h2 className="font-semibold">{t.addRole}</h2>
-        <div className="mt-4"><Field label={t.roleName} value={roleForm.name} onChange={(v) => setRoleForm({ ...roleForm, name: v })} max={100} /></div>
+        <div className="mt-4"><Field required label={t.roleName} value={roleForm.name} onChange={(v) => setRoleForm({ ...roleForm, name: v })} max={100} /></div>
         <fieldset className="mt-4"><legend className="text-sm font-medium">{t.permissions}</legend><div className="mt-2 flex max-h-56 flex-wrap gap-2 overflow-y-auto">{permissions.map((p) => <label key={p.id} className="flex min-h-9 items-center gap-1.5 rounded-full border border-[#dfe5df] px-3 text-xs"><input type="checkbox" checked={roleForm.permissionCodes.includes(p.code)} onChange={(e) => setRoleForm({ ...roleForm, permissionCodes: e.target.checked ? [...roleForm.permissionCodes, p.code] : roleForm.permissionCodes.filter((c) => c !== p.code) })} className="accent-[#0e5a4f]" />{p.code}</label>)}</div></fieldset>
         <button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</button>
-      </form>
+      </form></details>
     </div>
     {roles.length > 0 && <div className="mt-5 flex flex-wrap gap-2">{roles.map((r) => <span key={r.id} className="rounded-full bg-[#f4f7f4] px-3 py-1 text-xs text-[#53615b]">{r.name} ({r.permissions.length})</span>)}</div>}
+    {editingUser && <UserEditor key={editingUser.id} user={editingUser} branches={branches} language={language} auth={auth} onClose={() => setEditingUser(null)} onSaved={() => { setEditingUser(null); onSaved(t.saved); }} />}
     {users.length === 0 ? <Empty text={t.noUsers} /> : <div className="mt-6 divide-y divide-[#e8ece8] rounded-xl border border-[#dfe5df] bg-white">{users.map((u) => <div key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
       <div className="min-w-0"><p className="font-medium">{u.displayName} <span className="font-normal text-[#69766f]">@{u.username}</span></p><p className="mt-1 text-sm text-[#69766f]">{u.roles.join(", ") || "—"}</p></div>
+      <button onClick={() => { setEditingUser(u); }} className="min-h-11 rounded-lg border border-[#0e5a4f] px-4 text-sm font-semibold text-[#0e5a4f]">{language === "ar" ? "تعديل البيانات" : "Edit details"}</button>
       {editingRoles[u.id] ? <div className="flex flex-wrap items-center gap-2">{roles.map((r) => <label key={r.id} className="flex min-h-8 items-center gap-1.5 rounded-full border border-[#dfe5df] px-2.5 text-xs"><input type="checkbox" checked={editingRoles[u.id].includes(r.name)} onChange={(e) => setEditingRoles({ ...editingRoles, [u.id]: e.target.checked ? [...editingRoles[u.id], r.name] : editingRoles[u.id].filter((n) => n !== r.name) })} className="accent-[#0e5a4f]" />{r.name}</label>)}<button onClick={() => void saveUserRoles(u.id)} className="min-h-8 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white">{t.save}</button></div>
         : <button onClick={() => setEditingRoles({ ...editingRoles, [u.id]: [...u.roles] })} className="min-h-9 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.editRoles}</button>}
     </div>)}</div>}
   </>;
 }
 
-function Field({ label, value, onChange, max, type = "text" }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string }) {
-  return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+function Field({ label, value, onChange, max, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string; required?: boolean }) {
+  return <label className="block text-sm font-medium">{label}{required && " *"}<input required={required} type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 function Empty({ text }: { text: string }) { return <div className="mt-6 rounded-xl border border-[#dfe5df] bg-white p-8 text-center text-sm text-[#69766f]">{text}</div>; }

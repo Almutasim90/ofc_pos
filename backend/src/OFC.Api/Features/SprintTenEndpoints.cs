@@ -37,12 +37,12 @@ public static class SprintTenEndpoints
 
     private static async Task<IResult> Dispatch(DispatchRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
-        if (!await CanOperate(db, user, request.BranchId, ct, "kitchen.manage")) return Forbidden();
+        if (!await CanOperate(db, user, request.BranchId, ct, "kitchen.manage") && !await CanOperate(db, user, request.BranchId, ct, "orders.manage")) return Forbidden();
         if (request.OrderId == Guid.Empty || request.ClientDispatchId == Guid.Empty) return Validation("request", "Provide an order id and a deterministic client dispatch id.");
         if (request.Note?.Trim().Length > KitchenRules.NoteMax || !KitchenRules.ValidTargetMinutes(request.TargetMinutes)) return Validation("request", "The note or target preparation time is invalid.");
         var order = await db.Orders.AsNoTracking().Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == request.OrderId && x.BranchId == request.BranchId, ct);
         if (order is null) return Results.NotFound();
-        if (order.Status is OrderStatus.Cancelled or OrderStatus.Rejected) return Validation("order", "A cancelled or rejected order cannot be dispatched to the kitchen.");
+        if (order.Status is not (OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.Paid or OrderStatus.SentToKitchen or OrderStatus.Preparing or OrderStatus.Ready)) return Validation("order", "Only an active submitted order can be dispatched to the kitchen.");
 
         var existing = await db.KitchenTickets.AsNoTracking().Include(x => x.Items).Where(x => x.BranchId == request.BranchId && x.OrderId == order.Id && x.DispatchStatus != KitchenDispatchStatus.Cancelled).ToListAsync(ct);
         if (existing.Count > 0) return Results.Ok(existing.Select(x => TicketResponse(x, null)));

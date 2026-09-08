@@ -22,6 +22,7 @@ public static class SprintElevenEndpoints
         api.MapGet("/inventory/items", ListItems).RequireAuthorization();
         api.MapGet("/inventory/items/{id:guid}", GetItem).RequireAuthorization();
         api.MapPost("/inventory/items", CreateItem).RequireAuthorization();
+        api.MapPut("/inventory/items/{id:guid}", UpdateItem).RequireAuthorization();
         api.MapGet("/inventory/recipes", ListRecipes).RequireAuthorization();
         api.MapGet("/inventory/recipes/{id:guid}", GetRecipe).RequireAuthorization();
         api.MapPost("/inventory/recipes", CreateRecipe).RequireAuthorization();
@@ -112,6 +113,23 @@ public static class SprintElevenEndpoints
         try { db.InventoryItems.Add(item); identity.Audit(UserId(user), null, DeviceId(user), "inventory.item.create", "inventory_item", item.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { item.Sku, item.NameAr, item.NameEn, item.Type, item.BaseUnitId, item.UnitCost })); await db.SaveChangesAsync(ct); }
         catch (DbUpdateException) { return Validation("sku", "An inventory item with this SKU or barcode already exists."); }
         return Results.Created($"/api/v1/inventory/items/{item.Id}", ItemResponse(item));
+    }
+
+    private static async Task<IResult> UpdateItem(Guid id, UpdateItemRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!user.HasClaim("permission", "inventory.items.manage")) return Forbidden();
+        var item = await db.InventoryItems.SingleOrDefaultAsync(x => x.Id == id, ct); if (item is null) return Results.NotFound();
+        if (!InventoryRules.ValidSku(request.Sku ?? "") || !InventoryRules.ValidName(request.NameAr) || !InventoryRules.ValidName(request.NameEn) || !InventoryRules.ValidBarcode(request.Barcode) || !InventoryRules.ValidCost(request.UnitCost) || !Enum.IsDefined(request.Type)) return Validation("item", "Check the names, code, type and cost.");
+        if (!await db.UnitsOfMeasure.AnyAsync(x => x.Id == request.BaseUnitId && x.IsActive, ct)) return Validation("baseUnitId", "Choose an active base unit.");
+        if (request.BaseUnitId != item.BaseUnitId || request.Type != item.Type) return Validation("baseUnitId", "The base unit and item type cannot change after creation; create a new item instead.");
+        var sku = request.Sku!.Trim(); var barcode = string.IsNullOrWhiteSpace(request.Barcode) ? null : request.Barcode.Trim();
+        if (await db.InventoryItems.AnyAsync(x => x.Id != id && (x.Sku == sku || (barcode != null && x.Barcode == barcode)), ct)) return Validation("sku", "This code or barcode is already in use.");
+        var before = JsonSerializer.Serialize(new { item.Sku, item.NameAr, item.NameEn, item.Barcode, item.UnitCost, item.IsActive });
+        item.Sku = sku; item.Barcode = barcode; item.NameAr = request.NameAr!.Trim(); item.NameEn = request.NameEn!.Trim(); item.IsActive = request.IsActive;
+        if (item.UnitCost != request.UnitCost && await db.InventoryMovements.AnyAsync(x => x.InventoryItemId == id, ct)) return Validation("unitCost", "Cost for an item with stock movements is updated through purchasing.");
+        item.UnitCost = request.UnitCost;
+        identity.Audit(UserId(user), null, DeviceId(user), "inventory.item.update", "inventory_item", id.ToString(), context.TraceIdentifier, before, JsonSerializer.Serialize(new { item.Sku, item.NameAr, item.NameEn, item.Barcode, item.UnitCost, item.IsActive }));
+        await db.SaveChangesAsync(ct); return Results.NoContent();
     }
 
     private static async Task<IResult> ListRecipes(Guid? productId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
@@ -335,6 +353,7 @@ public static class SprintElevenEndpoints
     private sealed record CreateConversionRequest(Guid FromUnitId, Guid ToUnitId, decimal Factor);
     private sealed record ConvertRequest(Guid FromUnitId, Guid ToUnitId, decimal Quantity);
     private sealed record CreateItemRequest(string? Sku, string? Barcode, string? NameAr, string? NameEn, string? DescriptionAr, string? DescriptionEn, InventoryItemType Type, Guid BaseUnitId, decimal UnitCost);
+    private sealed record UpdateItemRequest(string? Sku, string? Barcode, string? NameAr, string? NameEn, InventoryItemType Type, Guid BaseUnitId, decimal UnitCost, bool IsActive);
     private sealed record LineRequest(Guid InventoryItemId, Guid UnitId, decimal Quantity);
     private sealed record CreateRecipeRequest(Guid ProductId, string? NameAr, string? NameEn, DateTimeOffset? EffectiveFrom, List<LineRequest> Lines);
     private sealed record ReviseRecipeRequest(Guid ProductId, string? NameAr, string? NameEn, DateTimeOffset? EffectiveFrom, List<LineRequest> Lines);

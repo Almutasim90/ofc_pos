@@ -21,7 +21,7 @@ const wasteCategories = ["Expired", "Damaged", "PreparationWaste", "FinishedProd
 const copy = {
   ar: {
     title: "الجرد والتحويل والهدر والتكلفة", intro: "دورات الجرد والتسوية، التحويل بين الفروع، تسجيل الهدر وأسبابه، وحساب تكلفة الوصفة والهامش.", loading: "جارٍ التحميل", reload: "تحديث", saved: "تم الحفظ بنجاح.", failed: "تعذر تنفيذ العملية.", empty: "لا توجد بيانات بعد.", branch: "الفرع", view: "عرض",
-    counts: "الجرد الدوري", addCount: "إنشاء جرد", note: "ملاحظة", countItem: "المادة", countedQty: "الكمية الفعلية", reason: "السبب", systemQty: "كمية النظام", variance: "الفرق", approve: "اعتماد", post: "ترحيل التسوية", cancel: "إلغاء", addCountLine: "إضافة سطر", createCount: "إنشاء", statusDraft: "مسودة", statusPosted: "مرحّل", statusCancelled: "ملغي", countLines: "أسطر الجرد",
+    counts: "عدّ المخزون الفعلي", addCount: "إنشاء جرد", note: "ملاحظة", countItem: "المادة", countedQty: "الكمية الفعلية", reason: "السبب", systemQty: "كمية النظام", variance: "الفرق", approve: "اعتماد", post: "تحديث الرصيد بالكمية المعتمدة", cancel: "إلغاء", addCountLine: "إضافة سطر", createCount: "إنشاء", statusDraft: "مسودة", statusPosted: "مرحّل", statusCancelled: "ملغي", countLines: "أسطر الجرد",
     transfers: "التحويل بين الفروع", addTransfer: "إنشاء تحويل", sourceBranch: "فرع المصدر", destinationBranch: "الفرع الوجهة", transferItem: "المادة", quantity: "الكمية", reference: "مرجع", ship: "شحن", receive: "استلام", cancelTransfer: "إلغاء", addTransferLine: "إضافة سطر", createTransfer: "إنشاء", statusInTransit: "قيد النقل", statusReceived: "مستلم", statusCancelledTransfer: "ملغي",
     waste: "الهدر", addWaste: "تسجيل هدر", category: "نوع الهدر", unit: "الوحدة", photoUrl: "رابط الصورة", recordWaste: "تسجيل", catExpired: "منتهي الصلاحية", catDamaged: "تالف", catPreparationWaste: "هدر التحضير", catFinishedProductWaste: "هدر المنتج النهائي", catCancelledOrderWaste: "هدر طلب ملغي",
     costing: "التكلفة والتسعير", viewValuation: "قيمة المخزون", valuation: "قيمة المخزون", totalValue: "إجمالي قيمة المخزون", itemsLineCount: "منتجات", balance: "الرصيد", unitCost: "تكلفة الوحدة", value: "القيمة", recipeCost: "تكلفة الوصفة", reproduced: "التكلفة قابلة لإعادة الحساب", notReproduced: "التكلفة غير قابلة للاحتساب", sellingPrice: "سعر البيع", foodCostPercent: "نسبة تكلفة الطعام", grossMargin: "الهامش الإجمالي", grossMarginPercent: "نسبة الهامش", viewSummary: "ملخص التكلفة"
@@ -99,7 +99,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
   async function createCount(event: React.FormEvent) {
     event.preventDefault(); setMsg("");
-    if (countLines.length === 0 || countLines.some((l) => !l.inventoryItemId)) { setMsg(t.failed, true); return; }
+    if (countLines.length === 0 || countLines.some((l) => !l.inventoryItemId || l.countedQuantity.trim() === "" || Number(l.countedQuantity) < 0)) { setMsg(t.failed, true); return; }
     try {
       const lines = countLines.map((l) => ({ inventoryItemId: l.inventoryItemId, countedQuantity: l.countedQuantity === "" ? 0 : Number(l.countedQuantity), reason: countForm.reason.trim() || null }));
       const r = await auth("/api/v1/inventory/counts", { method: "POST", body: JSON.stringify({ branchId, clientCountId: createId(), note: countForm.note.trim() || null, lines }) });
@@ -178,7 +178,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.counts}</h2>
+          <h2 className="font-semibold">{t.counts}</h2><p className="mt-3 rounded-lg bg-[#edf5f1] p-4 text-sm leading-7">{language === "ar" ? "١. عُدّ الكمية الموجودة فعليًا في المخزن. ٢. أدخل الكمية بوحدة المادة. ٣. راجع الفرق وسببه، ثم اعتمد الجرد وحدّث الرصيد. مثال: النظام يعرض 10 كجم دجاج، والموجود 8 كجم؛ الفرق ناقص 2 كجم. إنشاء الجرد وحده لا يغيّر الرصيد." : "1. Count the stock physically present. 2. Enter the quantity in the item’s unit. 3. Review the difference and its reason, approve, then update stock. Example: system 10 kg of chicken, counted 8 kg, difference −2 kg. Creating a count alone does not change stock."}</p>
           {counts.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">{counts.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{c.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#69766f]">{c.lineCount} {t.countLines} · {c.varianceLineCount} {t.variance}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.status === "Posted" ? "bg-[#e3f4ea] text-[#137347]" : c.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{countStatus(c.status)}</span><button onClick={() => void openCount(c.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
           )}
@@ -197,7 +197,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
               {countLines.map((l, index) => (
                 <div key={index} className="grid gap-2 sm:grid-cols-[1fr_5rem_auto]">
                   <Select label={t.countItem} value={l.inventoryItemId} onChange={(v) => updateCountLine(index, { inventoryItemId: v })}>{itemOptions}</Select>
-                  <Field label={t.countedQty} value={l.countedQuantity} onChange={(v) => updateCountLine(index, { countedQuantity: v })} type="number" />
+                  <Field required label={t.countedQty} value={l.countedQuantity} onChange={(v) => updateCountLine(index, { countedQuantity: v })} type="number" />
                   <button type="button" onClick={() => setCountLines(countLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]"><Trash2 size={15} /></button>
                 </div>
               ))}
@@ -289,8 +289,8 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 type CountLineForm = { inventoryItemId: string; countedQuantity: string; reason: string };
 type TransferLineForm = { inventoryItemId: string; quantity: string };
 
-function Field({ label, value, onChange, max, type = "text" }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string }) {
-  return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+function Field({ label, value, onChange, max, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string; required?: boolean }) {
+  return <label className="block text-sm font-medium">{label}{required && " *"}<input required={required} type={type} step={type === "number" ? "any" : undefined} min={type === "number" ? 0 : undefined} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {

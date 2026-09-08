@@ -48,7 +48,7 @@ public static class SprintFiveEndpoints
             var snapshot = PricingRules.Resolve(product, branchId, salesChannelId, at, prices, promotions, taxes, version);
             return new
             {
-                product.Id, product.CategoryId, categoryNameAr = product.Category!.NameAr, categoryNameEn = product.Category.NameEn, product.Sku, product.NameAr, product.NameEn, product.Type, product.BasePrice,
+                product.Id, product.Barcode, product.CategoryId, categoryNameAr = product.Category!.NameAr, categoryNameEn = product.Category.NameEn, product.Sku, product.NameAr, product.NameEn, product.Type, product.BasePrice,
                 imageUrl = product.Images.OrderBy(x => x.SortOrder).Select(x => x.Url).FirstOrDefault(),
                 pricing = new
                 {

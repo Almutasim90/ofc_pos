@@ -1,3 +1,4 @@
+import { QrCodeCard } from "@/app/QrCodeCard";
 import { useEffect, useState } from "react";
 import { Check, Plus, Power, RefreshCw, X } from "lucide-react";
 import { store } from "@/lib/local-store";
@@ -30,6 +31,7 @@ export function QrAdminSection({ language }: { language: Language }) {
   const [orders, setOrders] = useState<QrOrder[]>([]);
   const [state, setState] = useState<LoadState>("idle");
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ code: "", nameAr: "", nameEn: "", kind: "Table" as QrContextItem["kind"], channelId: "", approvalMode: "AutoApprove" as QrContextItem["approvalMode"] });
 
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) } });
@@ -70,22 +72,22 @@ export function QrAdminSection({ language }: { language: Language }) {
   useEffect(() => { void loadBranch(); }, [branchId]);
 
   async function createContext(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+    event.preventDefault(); if (saving) return; setSaving(true);
     setNotice(null);
     try {
-      const response = await auth("/api/v1/qr/contexts", { method: "POST", body: JSON.stringify({ branchId, salesChannelId: form.channelId || channels[0]?.id, kind: form.kind, code: form.code, nameAr: form.nameAr, nameEn: form.nameEn, approvalMode: form.approvalMode, isActive: true }) });
+      const response = await auth("/api/v1/qr/contexts", { method: "POST", body: JSON.stringify({ branchId, salesChannelId: form.channelId || channels[0]?.id, kind: form.kind, code: form.code.trim() || `QR-${crypto.randomUUID().slice(0, 12)}`, nameAr: form.nameAr, nameEn: form.nameEn, approvalMode: form.approvalMode, isActive: true }) });
       if (!response.ok) throw new Error(t.error);
       setNotice({ text: t.saved, error: false });
       setForm({ code: "", nameAr: "", nameEn: "", kind: "Table", channelId: "", approvalMode: "AutoApprove" });
       void loadBranch();
     } catch (e) {
       setNotice({ text: e instanceof Error ? e.message : t.error, error: true });
-    }
+    } finally { setSaving(false); }
   }
 
   async function toggleContext(id: string) {
     setNotice(null);
-    try { await auth(`/api/v1/qr/contexts/${id}/toggle`, { method: "POST" }); void loadBranch(); } catch { setNotice({ text: t.error, error: true }); }
+    try { const response = await auth(`/api/v1/qr/contexts/${id}/toggle`, { method: "POST" }); if (!response.ok) throw new Error(); void loadBranch(); } catch { setNotice({ text: t.error, error: true }); }
   }
 
   async function review(approvalId: string, decision: "approve" | "reject") {
@@ -123,13 +125,13 @@ export function QrAdminSection({ language }: { language: Language }) {
             <section className="rounded-xl border border-[#dfe5df] bg-white p-4">
               <h2 className="font-semibold">{t.addContext}</h2>
               <form onSubmit={createContext} className="mt-4 space-y-3">
-                <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder={t.code} maxLength={50} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
-                <input value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} placeholder={t.nameAr} maxLength={160} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
-                <input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder={t.nameEn} maxLength={160} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
-                <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as QrContextItem["kind"] })} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm"><option value="Table">{t.table}</option><option value="Parking">{t.parking}</option><option value="Branch">{t.branch}</option></select>
-                <select value={form.channelId} onChange={(e) => setForm({ ...form, channelId: e.target.value })} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm">{channels.map((c) => <option key={c.id} value={c.id}>{nameArEn(c, language)}</option>)}</select>
-                <select value={form.approvalMode} onChange={(e) => setForm({ ...form, approvalMode: e.target.value as QrContextItem["approvalMode"] })} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm"><option value="AutoApprove">{t.auto}</option><option value="RequiresStaffApproval">{t.manual}</option><option value="None">{t.none}</option></select>
-                <button className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.create}</button>
+                <input aria-label={t.code} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder={language === "ar" ? "رمز داخلي — يُنشأ تلقائيًا" : "Internal code — generated automatically"} maxLength={50} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
+                <label className="block text-sm">{t.nameAr} *<input required aria-label={t.nameAr} value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} placeholder={t.nameAr} maxLength={160} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
+                <label className="block text-sm">{t.nameEn} *<input required aria-label={t.nameEn} value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder={t.nameEn} maxLength={160} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
+                <label className="block text-sm">{t.type}<select aria-label={t.type} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as QrContextItem["kind"] })} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm"><option value="Table">{t.table}</option><option value="Parking">{t.parking}</option><option value="Branch">{t.branch}</option></select></label>
+                <label className="block text-sm">{t.channel}<select aria-label={t.channel} value={form.channelId} onChange={(e) => setForm({ ...form, channelId: e.target.value })} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm">{channels.map((c) => <option key={c.id} value={c.id}>{nameArEn(c, language)}</option>)}</select></label>
+                <label className="block text-sm">{t.approvalMode}<select aria-label={t.approvalMode} value={form.approvalMode} onChange={(e) => setForm({ ...form, approvalMode: e.target.value as QrContextItem["approvalMode"] })} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm"><option value="AutoApprove">{t.auto}</option><option value="RequiresStaffApproval">{t.manual}</option><option value="None">{t.none}</option></select></label>
+                <button disabled={saving || !branchId || channels.length === 0} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.create}</button>
               </form>
             </section>
           </aside>
@@ -142,6 +144,7 @@ export function QrAdminSection({ language }: { language: Language }) {
                   <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div><p className="font-medium">{c.code} · {language === "ar" ? c.nameAr : c.nameEn}</p><p className="mt-1 text-sm text-[#69766f]">{kindLabel[c.kind]} · {modeLabel[c.approvalMode]} · {c.salesChannelNameAr ?? ""}</p></div>
                     <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#53615b]"}`}>{c.isActive ? t.active : t.inactive}</span><button onClick={() => void toggleContext(c.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><Power size={14} />{t.toggle}</button></div>
+                    <QrCodeCard code={c.code} name={nameArEn(c, language)} language={language} />
                   </li>
                 ))}</ul>
               )}
@@ -154,6 +157,7 @@ export function QrAdminSection({ language }: { language: Language }) {
                   <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div className="min-w-0"><p className="text-sm font-medium">{o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)} {language === "ar" ? "ر.ع" : "OMR"}</p><p className="mt-1 text-xs text-[#69766f]">{o.lines.map((l) => l.quantity + "× " + (language === "ar" ? l.productNameAr : l.productNameEn)).join(", ")}</p></div>
                     <div className="flex gap-2"><button onClick={() => void review(o.approval!.id, "approve")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><Check size={14} />{t.approve}</button><button onClick={() => void review(o.approval!.id, "reject")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><X size={14} />{t.reject}</button></div>
+
                   </li>
                 ))}</ul>
               )}

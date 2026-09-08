@@ -4,6 +4,15 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Usability and daily workflows (2026-09-08)
+
+- POS-first navigation with grouped menus, breadcrumbs and hash routes; responsive product browsing, cart, direct kitchen dispatch and current-order payment follow-up.
+- Searchable product/category management with edit/deactivate, photo previews, optional advanced details, automatic internal product barcodes and barcode/SKU search.
+- Editable user profiles and branch assignments with session revocation; editable inventory items with protected base units and historical costs.
+- Locally generated downloadable QR images linked to the public ordering page; clarified kitchen routing and physical count instructions, including required counted quantities.
+- Inventory task tabs, API/WebSocket development proxy, and kitchen WebSocket/static-image routing for Nginx.
+- See `USABILITY-REVIEW-2026-09-08.md` for findings, workflow instructions and verification scope.
+
 ### Payment lifecycle follow-up (2026-09-08)
 
 - Completed the pending electronic authorization/capture and payment reversal endpoints. Authorization does not post a sale; the last capture marks the order Paid, including split tenders.

@@ -13,6 +13,8 @@ export default defineConfig({
   server: {
     proxy: {
       "/health": "http://127.0.0.1:5055",
+      "/api": "http://127.0.0.1:5055",
+      "/hubs": { target: "http://127.0.0.1:5055", ws: true },
     },
   },
 });

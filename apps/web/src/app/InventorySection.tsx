@@ -62,6 +62,8 @@ export function InventorySection({ language }: { language: Language }) {
   const [convertForm, setConvertForm] = useState({ fromUnitId: "", toUnitId: "", quantity: "" });
   const [convertResult, setConvertResult] = useState<{ convertedQuantity: number; toUnitCode: string | null } | null>(null);
   const [itemForm, setItemForm] = useState({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial" as (typeof itemTypes)[number], baseUnitId: "", unitCost: "" });
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [inventoryTab, setInventoryTab] = useState("stock");
   const [recipeFilter, setRecipeFilter] = useState("");
   const [recipeForm, setRecipeForm] = useState({ productId: "", nameAr: "", nameEn: "", effectiveFrom: "" });
   const [recipeLines, setRecipeLines] = useState<RecipeLineForm[]>([]);
@@ -139,9 +141,9 @@ export function InventorySection({ language }: { language: Language }) {
     event.preventDefault(); setMsg("");
     if (!itemForm.baseUnitId) { setMsg(t.failed, true); return; }
     try {
-      const response = await auth("/api/v1/inventory/items", { method: "POST", body: JSON.stringify({ sku: itemForm.sku, barcode: itemForm.barcode.trim() || null, nameAr: itemForm.nameAr, nameEn: itemForm.nameEn, type: itemForm.type, baseUnitId: itemForm.baseUnitId, unitCost: Number(itemForm.unitCost) || 0 }) });
+      const response = await auth(editingItem ? `/api/v1/inventory/items/${editingItem.id}` : "/api/v1/inventory/items", { method: editingItem ? "PUT" : "POST", body: JSON.stringify({ isActive: editingItem?.isActive ?? true, sku: itemForm.sku, barcode: itemForm.barcode.trim() || null, nameAr: itemForm.nameAr, nameEn: itemForm.nameEn, type: itemForm.type, baseUnitId: itemForm.baseUnitId, unitCost: Number(itemForm.unitCost) || 0 }) });
       if (!response.ok) { const p = await response.json().catch(() => null); throw new Error(p?.errors?.sku?.[0] ?? p?.errors?.item?.[0] ?? p?.errors?.baseUnitId?.[0] ?? t.failed); }
-      setMsg(t.saved); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); await loadItems();
+      setEditingItem(null); setMsg(t.saved); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); await loadItems();
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -223,9 +225,9 @@ export function InventorySection({ language }: { language: Language }) {
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
       {loading && <div className="mt-4 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.units}</h2>
+      <nav aria-label={language === "ar" ? "أقسام المخزون" : "Inventory sections"} className="mt-5 flex flex-wrap gap-2">{[["stock", t.stock], ["items", t.items], ["recipes", t.recipes], ["units", t.units]].map(([id, label]) => <button key={id} onClick={() => setInventoryTab(id)} aria-pressed={inventoryTab === id} className={`min-h-11 rounded-lg border px-4 text-sm ${inventoryTab === id ? "bg-[#0e5a4f] text-white" : "bg-white"}`}>{label}</button>)}</nav>
+      <div className="mt-6 grid gap-5">
+        <section hidden={inventoryTab !== "units"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><h2 className="font-semibold">{t.units}</h2>
           {units.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">{units.map((u) => <li key={u.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{u.code} · {name(u)}</span><span className="text-xs text-[#69766f]">{u.symbol ?? ""}</span></li>)}</ul>
           )}
@@ -260,28 +262,26 @@ export function InventorySection({ language }: { language: Language }) {
           </section>
         </section>
 
-        <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.items}</h2>
+        <section hidden={inventoryTab !== "items"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><h2 className="font-semibold">{t.items}</h2>
           {items.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{item.sku}</span><span className="text-[#69766f]"> · {name(item)}</span></div><span className="text-xs text-[#69766f]">{typeLabel(item.type)} · {fmt(item.unitCost)}</span></li>)}</ul>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{item.sku}</span><span className="text-[#69766f]"> · {name(item)}</span></div><span className="text-xs text-[#69766f]">{typeLabel(item.type)} · {fmt(item.unitCost)}</span><button onClick={() => { setEditingItem(item); setItemForm({ sku: item.sku, barcode: item.barcode ?? "", nameAr: item.nameAr, nameEn: item.nameEn, type: item.type, baseUnitId: item.baseUnitId, unitCost: item.unitCost.toString() }); }} className="min-h-11 rounded-lg border px-3 font-semibold text-[#0e5a4f]">{language === "ar" ? "تعديل" : "Edit"}</button></li>)}</ul>
           )}
           <form onSubmit={createItem} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addItem}</h3>
+            <h3 className="font-semibold">{editingItem ? (language === "ar" ? "تعديل المادة" : "Edit item") : t.addItem}</h3>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field label={t.sku} value={itemForm.sku} onChange={(v) => setItemForm({ ...itemForm, sku: v })} max={64} />
+              <Field required label={t.sku} value={itemForm.sku} onChange={(v) => setItemForm({ ...itemForm, sku: v })} max={64} />
               <Field label={t.barcode} value={itemForm.barcode} onChange={(v) => setItemForm({ ...itemForm, barcode: v })} max={64} />
-              <Field label={t.nameAr} value={itemForm.nameAr} onChange={(v) => setItemForm({ ...itemForm, nameAr: v })} max={160} />
-              <Field label={t.nameEn} value={itemForm.nameEn} onChange={(v) => setItemForm({ ...itemForm, nameEn: v })} max={160} />
-              <label className="block text-sm font-medium">{t.type}<select value={itemForm.type} onChange={(e) => setItemForm({ ...itemForm, type: e.target.value as (typeof itemTypes)[number] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{itemTypes.map((tt) => <option key={tt} value={tt}>{typeLabel(tt)}</option>)}</select></label>
-              <Select label={t.baseUnit} value={itemForm.baseUnitId} onChange={(v) => setItemForm({ ...itemForm, baseUnitId: v })}>{unitOptions}</Select>
+              <Field required label={t.nameAr} value={itemForm.nameAr} onChange={(v) => setItemForm({ ...itemForm, nameAr: v })} max={160} />
+              <Field required label={t.nameEn} value={itemForm.nameEn} onChange={(v) => setItemForm({ ...itemForm, nameEn: v })} max={160} />
+              <label className="block text-sm font-medium">{t.type}<select disabled={!!editingItem} value={itemForm.type} onChange={(e) => setItemForm({ ...itemForm, type: e.target.value as (typeof itemTypes)[number] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{itemTypes.map((tt) => <option key={tt} value={tt}>{typeLabel(tt)}</option>)}</select></label>
+              <Select disabled={!!editingItem} label={t.baseUnit} value={itemForm.baseUnitId} onChange={(v) => setItemForm({ ...itemForm, baseUnitId: v })}>{unitOptions}</Select>
               <Field label={t.unitCost} value={itemForm.unitCost} onChange={(v) => setItemForm({ ...itemForm, unitCost: v })} type="number" />
             </div>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</button>
-          </form>
+            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{editingItem ? (language === "ar" ? "حفظ التعديلات" : "Save changes") : t.add}</button>
+          {editingItem && <><label className="mt-3 flex min-h-11 items-center gap-2"><input type="checkbox" checked={editingItem.isActive} onChange={e => setEditingItem({ ...editingItem, isActive: e.target.checked })} />{t.active}</label><p className="mt-2 text-xs text-[#64716b]">{language === "ar" ? "الوحدة ونوع المادة ثابتان لحماية الحركات السابقة. تكلفة مادة لها حركات تُحدّث من المشتريات." : "Unit and type stay fixed to preserve past movements. Cost for an item with movements is updated through purchasing."}</p><button type="button" onClick={() => { setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }} className="mt-3 min-h-11 rounded-lg border px-4">{language === "ar" ? "إلغاء التعديل" : "Cancel editing"}</button></>}</form>
         </section>
 
-        <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.recipes}</h2>
+        <section hidden={inventoryTab !== "recipes"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><h2 className="font-semibold">{t.recipes}</h2>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <Select label={t.product} value={recipeFilter} onChange={setRecipeFilter}><option value="">{t.none}</option>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
           </div>
@@ -312,8 +312,7 @@ export function InventorySection({ language }: { language: Language }) {
           </form>
         </section>
 
-        <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.stock}</h2>
+        <section hidden={inventoryTab !== "stock"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><h2 className="font-semibold">{t.stock}</h2>
           {!branchId ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : stock.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">{stock.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{row.sku} · {language === "ar" ? row.itemNameAr : row.itemNameEn}</span><span className={`font-semibold ${(row.balance ?? 0) < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(row.balance)} <span className="text-xs text-[#69766f]">{row.baseUnitCode ?? ""}</span></span></li>)}</ul>
           )}
@@ -358,10 +357,10 @@ export function InventorySection({ language }: { language: Language }) {
 
 type RecipeLineForm = { inventoryItemId: string; unitId: string; quantity: string };
 
-function Field({ label, value, onChange, max, type = "text" }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string }) {
-  return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+function Field({ label, value, onChange, max, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string; required?: boolean }) {
+  return <label className="block text-sm font-medium">{label}{required && " *"}<input required={required} type={type} step={type === "number" ? "any" : undefined} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 
-function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="block text-sm font-medium">{label}<select value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{children}</select></label>;
+function Select({ label, value, onChange, children, disabled = false }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode; disabled?: boolean }) {
+  return <label className="block text-sm font-medium">{label}<select disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{children}</select></label>;
 }
