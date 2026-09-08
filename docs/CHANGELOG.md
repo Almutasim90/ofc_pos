@@ -4,6 +4,14 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Payment lifecycle follow-up (2026-09-08)
+
+- Completed the pending electronic authorization/capture and payment reversal endpoints. Authorization does not post a sale; the last capture marks the order Paid, including split tenders.
+- Fixed newly appended order/payment history entries being tracked as updates, which caused HTTP 500 during order status changes and payment settlement.
+- Reversals require a reason and an original sale, append a linked reversal, and reopen a Paid order as Pending. Replacement tenders cover only the outstanding amount. Orders beyond payment use the existing refund workflow.
+- Added integration coverage for ledger entries, sequential duplicate requests, split capture and replacement, cancelled-order capture rejection, and reversal validation.
+- Validation uses EF InMemory for HTTP integration tests; PostgreSQL constraints, concurrent payment requests, and actual terminal/provider callbacks still require a separate production-like verification. No deployment or database migration was performed in this follow-up.
+
 ### Added
 
 - STORY-18-01/02/09 Optional extension points & preferences: `OFC.Modules.Integrations` (adapter contracts `IExternalIntegrationAdapter`/`IAiAssistProvider`, `IntegrationRules`) with loyalty, customer CRM, online ordering, delivery, notifications, AI assist, and external-billing placeholder adapters. Preferences are read from the existing `branch_settings` table at query time (keys `integration.<kind>.enabled`, `ai.assist.enabled`), all disabled by default.

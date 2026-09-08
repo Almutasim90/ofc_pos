@@ -22,6 +22,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseEnvironment("Development");
         // AddInfrastructure only calls AddDbContext<OFCDbContext> when a connection string is present,
         // so a dummy one is supplied here purely to make that registration happen — it is never
         // connected to, because the InMemory provider below replaces it before the host starts.
@@ -34,6 +35,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<DbContextOptions<OFCDbContext>>();
             services.AddDbContext<OFCDbContext>(options => options.UseInMemoryDatabase(DatabaseName));
+            // A 500 in these tests is a real failure to diagnose, not something to just retry — surface
+            // the actual exception in the ProblemDetails body instead of the production-safe generic one.
+            services.Configure<Microsoft.AspNetCore.Http.ProblemDetailsOptions>(options => options.CustomizeProblemDetails = ctx =>
+            {
+                var error = ctx.HttpContext.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+                if (error is not null) ctx.ProblemDetails.Extensions["exception"] = error.ToString();
+                if (error is DbUpdateException dbEx) ctx.ProblemDetails.Extensions["entries"] = string.Join(" | ", dbEx.Entries.Select(e => $"{e.Entity.GetType().Name}:{e.State}"));
+            });
         });
     }
 

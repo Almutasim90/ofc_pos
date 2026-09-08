@@ -110,7 +110,7 @@ public static class SprintFiveEndpoints
         var order = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.Id == id, ct); if (order is null) return Results.NotFound();
         if (!await CanOperate(db, user, order.BranchId, ct)) return Forbidden();
         if (!OrderRules.CanTransition(order.Status, request.Status) || request.Note?.Trim().Length > OrderRules.NoteMax) return Validation("status", "This status transition or note is invalid.");
-        var from = order.Status; order.Status = request.Status; order.UpdatedAt = DateTimeOffset.UtcNow; order.StatusHistory.Add(new OrderStatusHistory { FromStatus = from, ToStatus = request.Status, ChangedByUserId = UserId(user), Note = request.Note?.Trim() });
+        var from = order.Status; order.Status = request.Status; order.UpdatedAt = DateTimeOffset.UtcNow; db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = from, ToStatus = request.Status, ChangedByUserId = UserId(user), Note = request.Note?.Trim() });
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.status.change", "order", order.Id.ToString(), context.TraceIdentifier, JsonSerializer.Serialize(from), JsonSerializer.Serialize(request.Status)); await db.SaveChangesAsync(ct); return Results.Ok(OrderResponse(order));
     }
 
