@@ -3,7 +3,11 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY . .
-RUN dotnet restore src/OFC.Api/OFC.Api.csproj
+# dotnet restore's default massively-parallel HTTP requests can overwhelm a container's bridge
+# network and hit NuGet's 100s timeout even though the network itself is fine (curl succeeds,
+# HttpClient doesn't — see dotnet/dotnet-docker#6844). --disable-parallel avoids that, and the
+# retry loop rides out any remaining transient blip instead of failing the whole build on it.
+RUN for i in 1 2 3; do dotnet restore src/OFC.Api/OFC.Api.csproj --disable-parallel && exit 0; echo "dotnet restore attempt $i failed, retrying in 5s..."; sleep 5; done; exit 1
 RUN dotnet publish src/OFC.Api/OFC.Api.csproj -c Release -o /app /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
