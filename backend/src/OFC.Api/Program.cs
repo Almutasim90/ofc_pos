@@ -19,6 +19,7 @@ builder.Services.AddHealthChecks()
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IKitchenBroadcaster, KitchenBroadcaster>();
+builder.Services.AddSingleton<IOrdersBroadcaster, OrdersBroadcaster>();
 builder.Services.AddHostedService<KitchenFallbackWatcher>();
 // The QR customer endpoints (/api/v1/qr/{code}...) are the only anonymous, unauthenticated routes in
 // the API — open to menu-scraping and order-submission flooding with nothing else standing in the way.
@@ -67,6 +68,7 @@ app.MapSprintSixteenEndpoints();
 app.MapSprintSeventeenEndpoints();
 app.MapSprintEighteenEndpoints();
 app.MapHub<KitchenHub>("/hubs/kitchen");
+app.MapHub<OrdersHub>("/hubs/orders");
 
 var indexFile = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "index.html");
 if (File.Exists(indexFile))

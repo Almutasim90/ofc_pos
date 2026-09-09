@@ -75,7 +75,7 @@ public static class SprintSixteenEndpoints
         return Results.Ok(new { context = ContextResponse(branch, channel, ctx), products = rows });
     }
 
-    private static async Task<IResult> SubmitOrder(string code, SubmitOrderRequest request, OFCDbContext db, IdentityService identity, HttpContext httpContext, CancellationToken ct)
+    private static async Task<IResult> SubmitOrder(string code, SubmitOrderRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster broadcaster, HttpContext httpContext, CancellationToken ct)
     {
         var context = await ActiveContext(db, code, ct);
         if (context is null) return Results.NotFound();
@@ -135,6 +135,11 @@ public static class SprintSixteenEndpoints
             if (duplicate is not null) return Results.Ok(OrderTracking(duplicate, await db.QrOrderApprovals.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == duplicate.Id, ct)));
             throw;
         }
+
+        // Realtime staff notification: a fresh QR order landed for this branch (pending staff approval,
+        // or already auto-approved). Each connected screen re-fetches authoritative data — no state is
+        // carried over the socket (docs/01-ARCHITECTURE-GUARDRAILS.md).
+        await broadcaster.QrOrderReceived(ctx.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), approval.Status.ToString(), order.GrossAmount, ctx.Code);
 
         return Results.Created($"/api/v1/qr/{ctx.Code}/orders/{order.ClientRequestId}", OrderTracking(order, approval));
     }
@@ -199,7 +204,7 @@ public static class SprintSixteenEndpoints
         return Results.Ok(orders.Select(x => OrderTracking(x, approvals.TryGetValue(x.Id, out var a) ? a : null, customers)));
     }
 
-    private static async Task<IResult> ReviewApproval(Guid id, ReviewRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext httpContext, CancellationToken ct)
+    private static async Task<IResult> ReviewApproval(Guid id, ReviewRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster broadcaster, ClaimsPrincipal user, HttpContext httpContext, CancellationToken ct)
     {
         var approval = await db.QrOrderApprovals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
         if (approval is null) return Results.NotFound();
@@ -226,6 +231,9 @@ public static class SprintSixteenEndpoints
         trackedApproval.Note = request.Note?.Trim();
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "qr.order.review", "order", order.Id.ToString(), httpContext.TraceIdentifier, JsonSerializer.Serialize(new { fromOrderStatus }), JsonSerializer.Serialize(new { target, targetOrderStatus }));
         await db.SaveChangesAsync(ct);
+        // Realtime staff notification: this QR order was approved/rejected. Screens refresh their lists;
+        // the customer's own screen picks the outcome up on its next status poll.
+        await broadcaster.QrOrderReviewed(order.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), trackedApproval.Status.ToString());
         return Results.Ok(OrderTracking(order, trackedApproval));
     }
 

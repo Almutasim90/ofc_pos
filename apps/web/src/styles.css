@@ -20,3 +20,23 @@
     font: inherit;
   }
 }
+
+/* Responsive off-canvas menu drawer: slides in from the inline-start edge
+   (left in LTR, right in RTL) and never moves layout content. */
+@keyframes ofc-drawer-in-ltr {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes ofc-drawer-in-rtl {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.drawer-in {
+  animation: ofc-drawer-in-ltr 0.22s ease-out;
+}
+
+[dir="rtl"] .drawer-in {
+  animation: ofc-drawer-in-rtl 0.22s ease-out;
+}

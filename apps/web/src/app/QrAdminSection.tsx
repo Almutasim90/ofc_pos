@@ -1,7 +1,8 @@
 import { QrCodeCard } from "@/app/QrCodeCard";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Plus, Power, RefreshCw, X } from "lucide-react";
 import { store } from "@/lib/local-store";
+import { useQrOrdersLive, type QrOrderReceivedEvent, type QrOrderReviewedEvent } from "@/lib/orders-realtime";
 
 type Language = "ar" | "en";
 type Channel = { id: string; code: string; nameAr: string; nameEn: string };
@@ -9,13 +10,14 @@ type Branch = { id: string; code: string; nameAr: string; nameEn: string; isActi
 type QrContextItem = { id: string; branchId: string; code: string; kind: "Table" | "Parking" | "Branch"; nameAr: string; nameEn: string; approvalMode: "None" | "AutoApprove" | "RequiresStaffApproval"; isActive: boolean; salesChannelId: string; salesChannelCode: string | null; salesChannelNameAr: string | null; salesChannelNameEn: string | null };
 type QrOrder = { id: string; status: string; grossAmount: number; createdAt: string; clientRequestId: string; lines: Array<{ id: string; productNameAr: string; productNameEn: string; quantity: number }>; approval: { id: string; status: string; note: string | null } | null };
 type LoadState = "idle" | "loading" | "error";
+type Toast = { id: number; text: string; error: boolean };
 
 const copy = {
   ar: {
-    title: "QR والطلبات الذاتية", intro: "أنشئ أكواد الطاولات والمواقف، وراجع طلبات العملاء واعتمدها قبل إرسالها.", selectBranch: "اختر الفرع", contexts: "أكواد QR", addContext: "إضافة كود جديد", code: "الكود", nameAr: "الاسم بالعربية", nameEn: "الاسم بالإنجليزية", type: "النوع", table: "طاولة", parking: "موقف", branch: "الفرع", channel: "قناة البيع", approvalMode: "وضع الاعتماد", none: "بدون", auto: "اعتماد تلقائي", manual: "اعتماد موظف", active: "فعال", inactive: "معطل", toggle: "تبديل", noContexts: "لا توجد أكواد بعد", create: "إنشاء", pending: "طلبات بانتظار الاعتماد", orders: "طلبات QR", noPending: "لا توجد طلبات معلّقة", noOrders: "لا توجد طلبات", approve: "اعتماد", reject: "رفض", loading: "جارٍ التحميل...", error: "تعذر تحميل بيانات QR", retry: "إعادة المحاولة", saved: "تم الحفظ", language: "English", customer: "العميل", walkIn: "زائر", amount: "المبلغ", status: "الحالة", empty: "لا توجد بيانات"
+    title: "QR والطلبات الذاتية", intro: "أنشئ أكواد الطاولات والمواقف، وراجع طلبات العملاء واعتمدها قبل إرسالها.", selectBranch: "اختر الفرع", contexts: "أكواد QR", addContext: "إضافة كود جديد", code: "الكود", nameAr: "الاسم بالعربية", nameEn: "الاسم بالإنجليزية", type: "النوع", table: "طاولة", parking: "موقف", branch: "الفرع", channel: "قناة البيع", approvalMode: "وضع الاعتماد", none: "بدون", auto: "اعتماد تلقائي", manual: "اعتماد موظف", active: "فعال", inactive: "معطل", toggle: "تبديل", noContexts: "لا توجد أكواد بعد", create: "إنشاء", pending: "طلبات بانتظار الاعتماد", orders: "طلبات QR", noPending: "لا توجد طلبات معلّقة", noOrders: "لا توجد طلبات", approve: "اعتماد", reject: "رفض", loading: "جارٍ التحميل...", error: "تعذر تحميل بيانات QR", retry: "إعادة المحاولة", saved: "تم الحفظ", language: "English", customer: "العميل", walkIn: "زائر", amount: "المبلغ",     status: "الحالة", empty: "لا توجد بيانات", live: "مباشر", newOrderPending: "طلب QR جديد بانتظار الاعتماد", newOrder: "وصل طلب QR جديد", approvedToast: "تم اعتماد الطلب", rejectedToast: "تم رفض الطلب", dismiss: "إغلاق"
   } as const,
   en: {
-    title: "QR & self ordering", intro: "Create table and parking QR codes, review customer orders, and approve them before they go to the kitchen.", selectBranch: "Select branch", contexts: "QR codes", addContext: "Add new code", code: "Code", nameAr: "Arabic name", nameEn: "English name", type: "Type", table: "Table", parking: "Parking", branch: "Branch", channel: "Sales channel", approvalMode: "Approval mode", none: "None", auto: "Auto approve", manual: "Staff approval", active: "Active", inactive: "Inactive", toggle: "Toggle", noContexts: "No QR codes yet", create: "Create", pending: "Orders awaiting approval", orders: "QR orders", noPending: "No pending orders", noOrders: "No orders yet", approve: "Approve", reject: "Reject", loading: "Loading...", error: "Unable to load QR data", retry: "Retry", saved: "Saved", language: "العربية", customer: "Customer", walkIn: "Walk-in", amount: "Amount", status: "Status", empty: "No data"
+    title: "QR & self ordering", intro: "Create table and parking QR codes, review customer orders, and approve them before they go to the kitchen.", selectBranch: "Select branch", contexts: "QR codes", addContext: "Add new code", code: "Code", nameAr: "Arabic name", nameEn: "English name", type: "Type", table: "Table", parking: "Parking", branch: "Branch", channel: "Sales channel", approvalMode: "Approval mode", none: "None", auto: "Auto approve", manual: "Staff approval", active: "Active", inactive: "Inactive", toggle: "Toggle", noContexts: "No QR codes yet", create: "Create", pending: "Orders awaiting approval", orders: "QR orders", noPending: "No pending orders", noOrders: "No orders yet", approve: "Approve", reject: "Reject", loading: "Loading...", error: "Unable to load QR data", retry: "Retry", saved: "Saved", language: "العربية", customer: "Customer", walkIn: "Walk-in", amount: "Amount",     status: "Status", empty: "No data", live: "Live", newOrderPending: "New QR order awaiting approval", newOrder: "New QR order received", approvedToast: "Order approved", rejectedToast: "Order rejected", dismiss: "Dismiss"
   } as const,
 };
 
@@ -33,6 +35,8 @@ export function QrAdminSection({ language }: { language: Language }) {
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ code: "", nameAr: "", nameEn: "", kind: "Table" as QrContextItem["kind"], channelId: "", approvalMode: "AutoApprove" as QrContextItem["approvalMode"] });
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastId = useRef(0);
 
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) } });
 
@@ -108,8 +112,39 @@ export function QrAdminSection({ language }: { language: Language }) {
   const fmt = (value: number) => new Intl.NumberFormat(language, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(value);
   const fmtDate = (value: string) => new Intl.DateTimeFormat(language, { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 
+  // Realtime QR-order alerts. SignalR is transport only (docs/01-ARCHITECTURE-GUARDRAILS.md): an event
+  // refreshes the REST-backed lists and shows a notification — the admin never reloads the page.
+  function notify(text: string, error = false) {
+    const id = ++toastId.current;
+    setToasts((prev) => [...prev, { id, text, error }]);
+    window.setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 8000);
+  }
+  function onQrOrderReceived(payload: QrOrderReceivedEvent) {
+    if (!branchId || payload.branchId !== branchId) return;
+    void loadBranch();
+    const label = payload.approvalStatus === "Pending" ? t.newOrderPending : t.newOrder;
+    notify(`${label} · ${payload.clientRequestId.slice(0, 8)} · ${fmt(payload.grossAmount)} ${language === "ar" ? "ر.ع" : "OMR"}`);
+  }
+  function onQrOrderReviewed(payload: QrOrderReviewedEvent) {
+    if (!branchId || payload.branchId !== branchId) return;
+    void loadBranch();
+    notify(`${payload.approvalStatus === "Approved" ? t.approvedToast : t.rejectedToast} · ${payload.clientRequestId.slice(0, 8)}`);
+  }
+  const ordersLive = useQrOrdersLive(branchId || null, onQrOrderReceived, onQrOrderReviewed);
+  const toastsNode = toasts.length > 0 && (
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4">
+      {toasts.map((toast) => (
+        <div key={toast.id} role={toast.error ? "alert" : "status"} className={`pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${toast.error ? "border-[#e8b6b0] bg-[#fff5f4] text-[#9b2922]" : "border-[#bcd8c9] bg-[#e3f4ea] text-[#0e5a4f]"}`}>
+          <span>{toast.text}</span>
+          <button onClick={() => setToasts((prev) => prev.filter((x) => x.id !== toast.id))} className="shrink-0 rounded-lg p-1 opacity-70 hover:opacity-100" aria-label={t.dismiss}><X size={16} /></button>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div>
+      {toastsNode}
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
       <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
@@ -151,7 +186,7 @@ export function QrAdminSection({ language }: { language: Language }) {
             </div>
 
             <div className="rounded-xl border border-[#dfe5df] bg-white">
-              <div className="flex items-center justify-between border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.pending} ({pending.length})</h2></div>
+              <div className="flex items-center justify-between border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.pending} ({pending.length})</h2>{ordersLive && <span className="rounded-full bg-[#e3f4ea] px-2.5 py-1 text-[11px] font-semibold text-[#137347]">{t.live}</span>}</div>
               {pending.length === 0 ? <p className="p-8 text-center text-sm text-[#69766f]">{t.noPending}</p> : (
                 <ul className="divide-y divide-[#e8ece8]">{pending.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">

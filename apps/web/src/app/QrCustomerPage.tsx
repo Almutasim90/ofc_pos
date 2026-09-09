@@ -11,13 +11,30 @@ type Choice = { optionId: string; quantity: number };
 type Selection = { selectionGroupId: string; choices: Choice[] };
 type CartLine = { key: string; product: MenuProduct; quantity: number; note: string; selections: Selection[]; unitGrossAmount: number };
 type OrderResult = { id: string; clientRequestId: string; status: string; grossAmount: number; requiresApproval: boolean; approvalStatus: string | null };
+type Toast = { id: number; text: string; error: boolean };
 
 const copy = {
   ar: {
-    order: "اطلب الآن", menu: "القائمة", loading: "جارٍ تحميل القائمة...", error: "تعذر تحميل القائمة. تحقق من رمز الطاولة.", retry: "إعادة المحاولة", empty: "لا توجد أصناف متاحة حاليًا", cart: "السلة", total: "الإجمالي", add: "أضف", emptyCart: "سلتك فارغة", required: "أجب عن الحقول المطلوبة", customize: "اختر المكونات", confirm: "تأكيد", note: "ملاحظة (اختياري)", name: "الاسم", close: "إغلاق", submit: "إرسال الطلب", submitting: "جارٍ الإرسال", submitted: "تم استلام طلبك", orderNo: "رقم الطلب", status: "الحالة", amount: "المبلغ", tracking: "تتبع الطلب", phone: "رقم الهاتف (اختياري)", walkIn: "زائر", back: "العودة للقائمة", approved: "مقبول", pending: "بانتظار الاعتماد", rejected: "مرفوض", waiting: "بانتظار بدء التحضير", preparing: "قيد التحضير", ready: "جاهز", completed: "مكتمل", cancelled: "ملغى", paid: "مدفوع", viewOrder: "عرض الطلب", language: "English", currency: "ر.ع", optionalSelections: "إضافات", invalid: "لا يمكنك طلب هذا الصنف الآن", contact: "سيتصل بك الموظف عند الجاهزية", quantity: "الكمية", requiredNote: "هذا اختيار إلزامي"
+    order: "اطلب الآن", menu: "القائمة", loading: "جارٍ تحميل القائمة...", error: "تعذر تحميل القائمة. تحقق من رمز الطاولة.", retry: "إعادة المحاولة", empty: "لا توجد أصناف متاحة حاليًا", cart: "السلة", total: "الإجمالي", add: "أضف", emptyCart: "سلتك فارغة", required: "أجب عن الحقول المطلوبة", customize: "اختر المكونات", confirm: "تأكيد", note: "ملاحظة (اختياري)", name: "الاسم", close: "إغلاق", submit: "إرسال الطلب", submitting: "جارٍ الإرسال", submitted: "تم استلام طلبك", orderNo: "رقم الطلب", status: "الحالة", amount: "المبلغ", tracking: "تتبع الطلب", phone: "رقم الهاتف (اختياري)", walkIn: "زائر", back: "العودة للقائمة", approved: "مقبول", pending: "بانتظار الاعتماد", rejected: "مرفوض", waiting: "بانتظار بدء التحضير", preparing: "قيد التحضير", ready: "جاهز", completed: "مكتمل", cancelled: "ملغى", paid: "مدفوع", viewOrder: "عرض الطلب", language: "English", currency: "ر.ع", optionalSelections: "إضافات", invalid: "لا يمكنك طلب هذا الصنف الآن", contact: "سيتصل بك الموظف عند الجاهزية",     quantity: "الكمية", requiredNote: "هذا اختيار إلزامي",
+    sentApproved: "تم إرسال طلبك واعتماده بنجاح. سيتم تحضيره قريبًا.",
+    awaitingApproval: "تم استلام طلبك وهو بانتظار اعتماد الموظف.",
+    sentKitchen: "تم إرسال طلبك إلى المطبخ.",
+    preparingMsg: "طلبك قيد التحضير الآن.",
+    readyMsg: "طلبك جاهز الآن.",
+    completedMsg: "اكتمل طلبك. استمتع بوجبتك!",
+    cancelledMsg: "تم إلغاء طلبك.",
+    rejectedMsg: "عذرًا، لم يتم اعتماد طلبك."
   } as const,
   en: {
-    order: "Order now", menu: "Menu", loading: "Loading menu...", error: "Unable to load the menu. Check the table QR code.", retry: "Retry", empty: "No items available right now", cart: "Cart", total: "Total", add: "Add", emptyCart: "Your cart is empty", required: "Complete the required fields", customize: "Choose your options", confirm: "Confirm", note: "Note (optional)", name: "Name", close: "Close", submit: "Submit order", submitting: "Submitting", submitted: "Your order was received", orderNo: "Order", status: "Status", amount: "Amount", tracking: "Track order", phone: "Phone (optional)", walkIn: "Walk-in", back: "Back to menu", approved: "Approved", pending: "Awaiting approval", rejected: "Rejected", waiting: "Awaiting kitchen", preparing: "Preparing", ready: "Ready", completed: "Completed", cancelled: "Cancelled", paid: "Paid", viewOrder: "View order", language: "العربية", currency: "OMR", optionalSelections: "Extras", invalid: "This item cannot be ordered now", contact: "A staff member will call you when ready", quantity: "Qty", requiredNote: "This is a required choice"
+    order: "Order now", menu: "Menu", loading: "Loading menu...", error: "Unable to load the menu. Check the table QR code.", retry: "Retry", empty: "No items available right now", cart: "Cart", total: "Total", add: "Add", emptyCart: "Your cart is empty", required: "Complete the required fields", customize: "Choose your options", confirm: "Confirm", note: "Note (optional)", name: "Name", close: "Close", submit: "Submit order", submitting: "Submitting", submitted: "Your order was received", orderNo: "Order", status: "Status", amount: "Amount", tracking: "Track order", phone: "Phone (optional)", walkIn: "Walk-in", back: "Back to menu", approved: "Approved", pending: "Awaiting approval", rejected: "Rejected", waiting: "Awaiting kitchen", preparing: "Preparing", ready: "Ready", completed: "Completed", cancelled: "Cancelled", paid: "Paid", viewOrder: "View order", language: "العربية", currency: "OMR", optionalSelections: "Extras", invalid: "This item cannot be ordered now", contact: "A staff member will call you when ready", quantity: "Qty", requiredNote: "This is a required choice",
+    sentApproved: "Your order has been sent and approved. It will be prepared soon.",
+    awaitingApproval: "Your order was received and is awaiting staff approval.",
+    sentKitchen: "Your order has been sent to the kitchen.",
+    preparingMsg: "Your order is being prepared now.",
+    readyMsg: "Your order is ready now.",
+    completedMsg: "Your order is complete. Enjoy your meal!",
+    cancelledMsg: "Your order was cancelled.",
+    rejectedMsg: "Sorry, your order was not approved."
   } as const,
 };
 
@@ -38,10 +55,26 @@ export function QrCustomerPage({ code }: { code: string }) {
   const [result, setResult] = useState<OrderResult | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedCopies, setSelectedCopies] = useState(1);
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const orderRequestId = useRef<string | null>(null);
+  const toastId = useRef(0);
+  const toastTimers = useRef<number[]>([]);
+  const lastSigRef = useRef("");
   const t = copy[language];
 
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = language === "ar" ? "rtl" : "ltr"; store.set("qr-lang", language); }, [language]);
+  useEffect(() => () => { toastTimers.current.forEach((timer) => window.clearTimeout(timer)); }, []);
+
+  // Transient notification toast (auto-dismissed) used for order lifecycle messages so the customer is
+  // told what happened without ever refreshing the page — the SPA updates itself via the status poll.
+  function notify(text: string, error = false) {
+    const id = ++toastId.current;
+    setToasts((prev) => [...prev, { id, text, error }]);
+    const timer = window.setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 8000);
+    toastTimers.current.push(timer);
+  }
+
+  function dismissToast(id: number) { setToasts((prev) => prev.filter((x) => x.id !== id)); }
 
   async function load() {
     setState("loading");
@@ -166,7 +199,10 @@ export function QrCustomerPage({ code }: { code: string }) {
       const value = await response.json() as { clientRequestId: string; grossAmount: number; status: string; requiresApproval?: boolean; approval?: { status: string } | null };
       orderRequestId.current = null;
       store.set("qr-" + code + "-order", { clientRequestId: value.clientRequestId });
-      setResult({ id: value.clientRequestId, clientRequestId: value.clientRequestId, status: value.status, grossAmount: value.grossAmount, requiresApproval: value.requiresApproval ?? context?.requiresApproval ?? false, approvalStatus: value.approval?.status ?? null });
+      const approvalStatus = value.approval?.status ?? null;
+      lastSigRef.current = `${value.status}|${approvalStatus}`;
+      notify(value.status === "Confirmed" ? t.sentApproved : t.awaitingApproval);
+      setResult({ id: value.clientRequestId, clientRequestId: value.clientRequestId, status: value.status, grossAmount: value.grossAmount, requiresApproval: value.requiresApproval ?? context?.requiresApproval ?? false, approvalStatus });
       setCart([]);
       setOrderNote("");
       setSubmitting(false);
@@ -177,12 +213,21 @@ export function QrCustomerPage({ code }: { code: string }) {
   }
 
   async function refreshOrder(clientRequestId: string) {
-    // Inferred status refresh from the track endpoint; kept lightweight.
+    // Inferred status refresh from the track endpoint; kept lightweight. The SPA updates the visible
+    // order state and surfaces a notification toast on meaningful changes — no page refresh is needed.
     try {
       const response = await fetch(`/api/v1/qr/${code}/orders/${clientRequestId}`);
       if (response.ok) {
         const value = await response.json() as { status: string; approval: { status: string } | null };
-        setResult((prev) => prev ? { ...prev, status: value.status, approvalStatus: value.approval?.status ?? null } : prev);
+        const approvalStatus = value.approval?.status ?? null;
+        const nextSig = `${value.status}|${approvalStatus}`;
+        if (lastSigRef.current !== nextSig) {
+          const previous = lastSigRef.current;
+          lastSigRef.current = nextSig;
+          const notice = statusNotice(language, value.status, approvalStatus, previous);
+          if (notice) notify(notice.text, notice.tone === "error");
+        }
+        setResult((prev) => prev ? { ...prev, status: value.status, approvalStatus } : prev);
       }
     } catch {
       // Ignore transient polling failures.
@@ -251,6 +296,7 @@ export function QrCustomerPage({ code }: { code: string }) {
               <p className="text-xs font-semibold text-[#66736d]">{t.status}</p>
               <p className="mt-1 flex items-center gap-2 text-lg font-semibold"><Clock size={18} className="text-[#0e5a4f]" />{statusLabel(language, result.status, result.approvalStatus)}</p>
             </div>
+            {(() => { const n = currentNotice(language, result.status, result.approvalStatus); if (!n) return null; return <p role="status" className={`mt-3 rounded-xl px-4 py-3 text-start text-sm font-medium ${n.tone === "error" ? "bg-[#fbe4e2] text-[#b4322a]" : n.tone === "amber" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e3f4ea] text-[#137347]"}`}>{n.text}</p>; })()}
             <p className="mt-4 text-sm text-[#66736d]">{t.contact}</p>
             <button onClick={() => setResult(null)} className="mt-5 min-h-11 rounded-lg bg-[#0e5a4f] px-5 font-semibold text-white">{t.back}</button>
           </div>
@@ -326,6 +372,16 @@ export function QrCustomerPage({ code }: { code: string }) {
           </div>
         </div>
       )}
+      {toasts.length > 0 && (
+        <div aria-live="polite" className="pointer-events-none fixed inset-x-0 top-4 z-50 flex flex-col items-center gap-2 px-4">
+          {toasts.map((toast) => (
+            <div key={toast.id} role={toast.error ? "alert" : "status"} className={`pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${toast.error ? "border-[#e8b6b0] bg-[#fff5f4] text-[#9b2922]" : "border-[#bcd8c9] bg-[#e3f4ea] text-[#0e5a4f]"}`}>
+              <span>{toast.text}</span>
+              <button onClick={() => dismissToast(toast.id)} className="shrink-0 rounded-lg p-1 opacity-70 hover:opacity-100" aria-label={t.close}><X size={16} /></button>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
@@ -335,4 +391,26 @@ function statusLabel(language: Language, status: string, approvalStatus: string 
   if (status === "Pending" && approvalStatus === "Pending") return t.pending;
   const map: Record<string, string> = { Confirmed: t.approved, Paid: t.paid, SentToKitchen: t.waiting, Preparing: t.preparing, Ready: t.ready, Completed: t.completed, Cancelled: t.cancelled, Rejected: t.rejected };
   return map[status] ?? statusEn[status as keyof typeof statusEn] ?? status;
+}
+
+type NoticeTone = "success" | "amber" | "error";
+function currentNotice(language: Language, status: string, approvalStatus: string | null): { text: string; tone: NoticeTone } | null {
+  const t = copy[language];
+  if (approvalStatus === "Rejected" || status === "Rejected") return { text: t.rejectedMsg, tone: "error" };
+  switch (status) {
+    case "Confirmed": return { text: t.sentApproved, tone: "success" };
+    case "SentToKitchen": return { text: t.sentKitchen, tone: "success" };
+    case "Preparing": return { text: t.preparingMsg, tone: "amber" };
+    case "Ready": return { text: t.readyMsg, tone: "success" };
+    case "Completed": return { text: t.completedMsg, tone: "success" };
+    case "Cancelled": return { text: t.cancelledMsg, tone: "error" };
+    case "Pending": return approvalStatus === "Pending" ? { text: t.awaitingApproval, tone: "amber" } : null;
+    default: return null;
+  }
+}
+
+function statusNotice(language: Language, status: string, approvalStatus: string | null, previous: string): { text: string; tone: NoticeTone } | null {
+  // A restored/refreshed session has no "previous" signature recorded, so don't toast historical state.
+  if (!previous) return null;
+  return currentNotice(language, status, approvalStatus);
 }

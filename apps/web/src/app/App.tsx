@@ -39,6 +39,15 @@ export function App() {
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = ar ? "rtl" : "ltr"; store.set("language", language); }, [language]);
   useEffect(() => { const update = () => setHash(window.location.hash); window.addEventListener("hashchange", update); return () => window.removeEventListener("hashchange", update); }, []);
   useEffect(() => { const target = hash.slice(2); if (navigation.some(([key]) => key === target)) setView(target as View); else if (!hash || hash === "#/") setView("pos"); }, [hash]);
+  // While the mobile drawer is open, keep the page from scrolling behind it and close on Escape.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", onKey); };
+  }, [menuOpen]);
   function navigate(next: View) { window.location.hash = "/" + next; setView(next); setMenuOpen(false); }
   async function login(event: React.FormEvent) {
     event.preventDefault(); setLoginError(""); setLoggingIn(true);
@@ -54,11 +63,29 @@ export function App() {
     { label: tr("الإدارة والإعدادات", "Administration"), keys: ["users", "branches", "devices", "printing", "sync", "integrations"] }
   ];
   const current = navigation.find(([key]) => key === view)?.[1];
+  const menuContent = groups.map(group => (
+    <div key={group.label} className="mb-4">
+      <p className="px-3 py-2 text-xs font-semibold text-[#69766f]">{group.label}</p>
+      {group.keys.map(key => { const entry = navigation.find(([k]) => k === key)!; const Icon = entry[2]; return <button key={key} aria-current={view === key ? "page" : undefined} onClick={() => navigate(key)} className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-sm ${view === key ? "bg-[#e6f1ec] font-semibold text-[#08483f]" : "text-[#53615b] hover:bg-[#f2f5f2]"}`}><Icon size={18} />{entry[1]}</button>; })}
+    </div>
+  ));
   return <div className="min-h-screen bg-[#f5f6f2] text-[#17211f]">
-    <header className="flex min-h-16 items-center justify-between gap-2 border-b bg-white px-4"><div className="flex items-center gap-2"><button className="grid size-11 place-items-center rounded-lg border lg:hidden" aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button><button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button></div><div className="flex items-center gap-1"><button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></button><button className="min-h-11 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}>{tr("خروج", "Sign out")}</button></div></header>
+    <header className="flex min-h-16 items-center justify-between gap-2 border-b bg-white px-4"><div className="flex items-center gap-2"><button aria-controls="mobile-nav" className="grid size-11 place-items-center rounded-lg border lg:hidden" aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</button><button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button></div><div className="flex items-center gap-1"><button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></button><button className="min-h-11 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}>{tr("خروج", "Sign out")}</button></div></header>
+    {menuOpen && (
+      <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 bg-black/40" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+        <aside id="mobile-nav" role="dialog" aria-modal="true" aria-label={tr("القائمة الرئيسية", "Main menu")} className="drawer-in absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-white p-3 shadow-2xl">
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-[#e8ece8] pb-3">
+            <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button>
+            <button onClick={() => setMenuOpen(false)} aria-label={tr("إغلاق القائمة", "Close menu")} className="grid size-10 place-items-center rounded-lg border border-[#cdd7d0]"><X size={18} /></button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto pb-4">{menuContent}</div>
+        </aside>
+      </div>
+    )}
     <div className="mx-auto grid max-w-[1920px] lg:grid-cols-[210px_minmax(0,1fr)]">
-      <nav aria-label={tr("القائمة الرئيسية", "Main menu")} className={`${menuOpen ? "block" : "hidden"} border-b bg-white p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto lg:border-e`}>
-        {groups.map(group => <div key={group.label} className="mb-4"><p className="px-3 py-2 text-xs font-semibold text-[#69766f]">{group.label}</p>{group.keys.map(key => { const entry = navigation.find(([k]) => k === key)!; const Icon = entry[2]; return <button key={key} aria-current={view === key ? "page" : undefined} onClick={() => navigate(key)} className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-sm ${view === key ? "bg-[#e6f1ec] font-semibold text-[#08483f]" : "text-[#53615b] hover:bg-[#f2f5f2]"}`}><Icon size={18} />{entry[1]}</button>; })}</div>)}
+      <nav aria-label={tr("القائمة الرئيسية", "Main menu")} className="hidden border-e bg-white p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto">
+        {menuContent}
       </nav>
       <main className="min-w-0 p-4 sm:p-6"><nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#64716b]"><button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>{view === "pos" ? <PosSection language={language} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
     </div>

@@ -4,6 +4,12 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Realtime QR-order notifications (2026-09-09)
+
+- Added an authorized `OrdersHub` at `/hubs/orders` with an `IOrdersBroadcaster`; a freshly submitted QR order and every QR approval review now broadcast `qrOrderReceived`/`qrOrderReviewed` to the branch group. SignalR stays transport-only — screens re-fetch authoritative REST data on each event.
+- The QR customer page now raises a notification toast on submit and on tracked status changes, and shows a live inline status message (e.g. "Your order has been sent and approved", awaiting staff approval, sent to the kitchen, preparing/ready/completed, cancelled/rejected). It is driven by the existing status poll, so nothing requires a page refresh.
+- The QR admin screen and the POS/cashier screen subscribe to the hub: a new QR order or a review outcome refreshes their order/held lists in the background and shows a notification toast (plus a "Live" pill on the QR admin pending list) — a true SPA update without reloading.
+
 ### Usability and daily workflows (2026-09-08)
 
 - POS-first navigation with grouped menus, breadcrumbs and hash routes; responsive product browsing, cart, direct kitchen dispatch and current-order payment follow-up.
