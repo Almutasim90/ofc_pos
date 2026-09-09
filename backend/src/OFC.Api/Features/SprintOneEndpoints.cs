@@ -27,8 +27,11 @@ public static class SprintOneEndpoints
         api.MapPost("/users", CreateUser).RequireAuthorization();
         api.MapPut("/users/{id:guid}", UpdateUser).RequireAuthorization();
         api.MapPut("/users/{id:guid}/roles", SetRoles).RequireAuthorization();
+        api.MapGet("/users/{id:guid}/permissions", GetUserPermissions).RequireAuthorization();
+        api.MapPut("/users/{id:guid}/permissions", SetUserPermissions).RequireAuthorization();
         api.MapGet("/roles", ListRoles).RequireAuthorization();
         api.MapPost("/roles", CreateRole).RequireAuthorization();
+        api.MapPut("/roles/{id:guid}/permissions", SetRolePermissions).RequireAuthorization();
         api.MapGet("/permissions", ListPermissions).RequireAuthorization();
     }
 
@@ -89,12 +92,18 @@ public static class SprintOneEndpoints
     private static async Task<IResult> CreateUser(CreateUserRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!Has(user, "users.manage")) return Forbidden(); var error = ValidateUsername(request.Username) ?? Validate(request.DisplayName, "displayName", 160) ?? ValidatePassword(request.Password); if (error is not null) return error; if (request.BranchIds.Count == 0 || await db.Branches.CountAsync(x => request.BranchIds.Distinct().Contains(x.Id) && x.IsActive, ct) != request.BranchIds.Distinct().Count()) return Validation("branchIds", "At least one active branch assignment is required.");
-        var roles = await db.Roles.Where(x => request.RoleIds.Contains(x.Id)).ToListAsync(ct); if (roles.Count != request.RoleIds.Count) return Validation("roleIds", "One or more roles do not exist."); var (salt, hash) = IdentityService.Hash(request.Password); var created = new User { Username = request.Username.Trim(), Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(), DisplayName = request.DisplayName.Trim(), PasswordSalt = salt, PasswordHash = hash, Roles = roles.Select(role => new UserRole { Role = role }).ToList(), Branches = request.BranchIds.Distinct().Select(branchId => new UserBranch { BranchId = branchId }).ToList() }; db.Users.Add(created); identity.Audit(UserId(user), null, null, "create", "user", created.Id.ToString(), Correlation(context)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/users/{created.Id}", new { created.Id, created.Username, created.DisplayName });
+        var roles = await db.Roles.Where(x => request.RoleIds.Contains(x.Id)).ToListAsync(ct); if (roles.Count != request.RoleIds.Count) return Validation("roleIds", "One or more roles do not exist.");
+        var permissionCodes = request.Permissions?.Select(x => x.PermissionCode).Distinct().ToList() ?? [];
+        if (permissionCodes.Count > 0 && await db.Permissions.CountAsync(x => permissionCodes.Contains(x.Code), ct) != permissionCodes.Count) return Validation("permissions", "One or more permissions do not exist.");
+        var permissionMap = permissionCodes.Count == 0 ? new Dictionary<string, Permission>() : await db.Permissions.Where(x => permissionCodes.Contains(x.Code)).ToDictionaryAsync(x => x.Code, x => x, ct);
+        var (salt, hash) = IdentityService.Hash(request.Password); var created = new User { Username = request.Username.Trim(), Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(), DisplayName = request.DisplayName.Trim(), PasswordSalt = salt, PasswordHash = hash, Roles = roles.Select(role => new UserRole { Role = role }).ToList(), Branches = request.BranchIds.Distinct().Select(branchId => new UserBranch { BranchId = branchId }).ToList() };
+        SetPermissionOverrides(created, request.Permissions, permissionMap);
+        db.Users.Add(created); identity.Audit(UserId(user), null, null, "create", "user", created.Id.ToString(), Correlation(context)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/users/{created.Id}", new { created.Id, created.Username, created.DisplayName });
     }
     private static async Task<IResult> UpdateUser(Guid id, UpdateUserRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!Has(user, "users.manage")) return Forbidden();
-        var target = await db.Users.Include(x => x.Branches).SingleOrDefaultAsync(x => x.Id == id, ct);
+        var target = await db.Users.Include(x => x.Branches).Include(x => x.Permissions).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (target is null) return Results.NotFound();
         var error = ValidateUsername(request.Username) ?? Validate(request.DisplayName, "displayName", 160);
         if (error is not null) return error;
@@ -102,6 +111,9 @@ public static class SprintOneEndpoints
         if (request.Email is { Length: > 160 } || (!string.IsNullOrWhiteSpace(request.Email) && !System.Net.Mail.MailAddress.TryCreate(request.Email.Trim(), out _))) return Validation("email", "Provide a valid email address.");
         if (id == UserId(user) && !request.IsActive) return Validation("isActive", "You cannot deactivate your own account.");
         if (request.BranchIds is not { Count: > 0 } || await db.Branches.CountAsync(x => request.BranchIds.Contains(x.Id) && x.IsActive, ct) != request.BranchIds.Distinct().Count()) return Validation("branchIds", "Assign at least one active branch.");
+        var permissionCodes = request.Permissions?.Select(x => x.PermissionCode).Distinct().ToList() ?? [];
+        if (permissionCodes.Count > 0 && await db.Permissions.CountAsync(x => permissionCodes.Contains(x.Code), ct) != permissionCodes.Count) return Validation("permissions", "One or more permissions do not exist.");
+        var permissionMap = permissionCodes.Count == 0 ? new Dictionary<string, Permission>() : await db.Permissions.Where(x => permissionCodes.Contains(x.Code)).ToDictionaryAsync(x => x.Code, x => x, ct);
         var username = request.Username.Trim();
         if (await db.Users.AnyAsync(x => x.Id != id && x.Username.ToLower() == username.ToLower(), ct)) return Validation("username", "This username is already in use.");
         var previous = JsonSerializer.Serialize(new { target.Username, target.DisplayName, target.Email, target.IsActive, branchIds = target.Branches.Select(x => x.BranchId) });
@@ -109,15 +121,69 @@ public static class SprintOneEndpoints
         if (!string.IsNullOrWhiteSpace(request.Password)) { var (salt, hash) = IdentityService.Hash(request.Password); target.PasswordSalt = salt; target.PasswordHash = hash; }
         foreach (var assignment in target.Branches.Where(x => !request.BranchIds.Contains(x.BranchId)).ToList()) db.UserBranches.Remove(assignment);
         foreach (var branchId in request.BranchIds.Distinct().Where(branchId => target.Branches.All(x => x.BranchId != branchId))) db.UserBranches.Add(new UserBranch { UserId = id, BranchId = branchId });
+        SetPermissionOverrides(target, request.Permissions, permissionMap);
         // Existing sessions must not retain access to a removed branch or an old password.
         var sessions = await db.Sessions.Where(x => x.UserId == id).ToListAsync(ct); db.Sessions.RemoveRange(sessions);
         identity.Audit(UserId(user), null, null, "update", "user", id.ToString(), Correlation(context), previous, JsonSerializer.Serialize(new { target.Username, target.DisplayName, target.Email, target.IsActive, request.BranchIds }));
         await db.SaveChangesAsync(ct); return Results.Ok(new { signInRequired = id == UserId(user) });
     }
 
+    private static async Task<IResult> GetUserPermissions(Guid id, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (!Has(user, "users.manage", "roles.manage")) return Forbidden();
+        var target = await db.Users.AsNoTracking().Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).Include(x => x.Permissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (target is null) return Results.NotFound();
+        var permissions = await db.Permissions.AsNoTracking().OrderBy(x => x.Code).ToListAsync(ct);
+        var roleCodes = target.Roles.SelectMany(x => x.Role.Permissions).Select(x => x.Permission.Code).ToHashSet();
+        var overrides = target.Permissions.ToDictionary(x => x.Permission.Code, x => x.IsGrant);
+        return Results.Ok(new
+        {
+            roleIds = target.Roles.Select(x => x.Role.Id),
+            permissions = permissions.Select(p => new { code = p.Code, source = overrides.TryGetValue(p.Code, out var grant) ? (grant ? "granted" : "revoked") : roleCodes.Contains(p.Code) ? "role" : "none" })
+        });
+    }
+
+    private static async Task<IResult> SetUserPermissions(Guid id, List<PermissionOverrideRequest> overrides, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!Has(user, "users.manage", "roles.manage")) return Forbidden();
+        var target = await db.Users.Include(x => x.Permissions).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (target is null) return Results.NotFound();
+        var codes = overrides.Select(x => x.PermissionCode).Distinct().ToList();
+        if (codes.Count > 0 && await db.Permissions.CountAsync(x => codes.Contains(x.Code), ct) != codes.Count) return Validation("permissions", "One or more permissions do not exist.");
+        var map = codes.Count == 0 ? new Dictionary<string, Permission>() : await db.Permissions.Where(x => codes.Contains(x.Code)).ToDictionaryAsync(x => x.Code, x => x, ct);
+        SetPermissionOverrides(target, overrides, map);
+        var sessions = await db.Sessions.Where(x => x.UserId == id).ToListAsync(ct); db.Sessions.RemoveRange(sessions);
+        identity.Audit(UserId(user), null, null, "permission.change", "user", id.ToString(), Correlation(context));
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
+
+    private static void SetPermissionOverrides(User target, List<PermissionOverrideRequest>? overrides, Dictionary<string, Permission> map)
+    {
+        target.Permissions.Clear();
+        if (overrides is null) return;
+        foreach (var o in overrides.Where(o => map.ContainsKey(o.PermissionCode))) target.Permissions.Add(new UserPermission { Permission = map[o.PermissionCode], IsGrant = o.IsGrant });
+    }
+
     private static async Task<IResult> SetRoles(Guid id, List<Guid> roleIds, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct) { if (!Has(user, "users.manage", "roles.manage")) return Forbidden(); var target = await db.Users.Include(x => x.Roles).SingleOrDefaultAsync(x => x.Id == id, ct); if (target is null) return Results.NotFound(); var roles = await db.Roles.Where(x => roleIds.Contains(x.Id)).ToListAsync(ct); if (roles.Count != roleIds.Distinct().Count()) return Validation("roleIds", "One or more roles do not exist."); target.Roles.Clear(); foreach (var role in roles) target.Roles.Add(new UserRole { UserId = target.Id, RoleId = role.Id }); identity.Audit(UserId(user), null, null, "permission.change", "user", id.ToString(), Correlation(context)); await db.SaveChangesAsync(ct); return Results.NoContent(); }
     private static async Task<IResult> ListRoles(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct) { if (!Has(user, "roles.manage")) return Forbidden(); return Results.Ok(await db.Roles.Include(x => x.Permissions).ThenInclude(x => x.Permission).Select(x => new { x.Id, x.Name, permissions = x.Permissions.Select(p => p.Permission.Code) }).ToListAsync(ct)); }
     private static async Task<IResult> CreateRole(CreateRoleRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct) { if (!Has(user, "roles.manage")) return Forbidden(); var error = Validate(request.Name, "name", 100); if (error is not null) return error; var permissions = await db.Permissions.Where(x => request.PermissionCodes.Contains(x.Code)).ToListAsync(ct); if (permissions.Count != request.PermissionCodes.Distinct().Count()) return Validation("permissionCodes", "One or more permissions do not exist."); var role = new Role { Name = request.Name.Trim(), Permissions = permissions.Select(p => new RolePermission { Permission = p }).ToList() }; db.Roles.Add(role); identity.Audit(UserId(user), null, null, "permission.change", "role", role.Id.ToString(), Correlation(context)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/roles/{role.Id}", new { role.Id, role.Name }); }
+
+    private static async Task<IResult> SetRolePermissions(Guid id, List<string> permissionCodes, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!Has(user, "roles.manage")) return Forbidden();
+        var role = await db.Roles.Include(x => x.Permissions).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (role is null) return Results.NotFound();
+        var codes = permissionCodes.Distinct().ToList();
+        if (codes.Count > 0 && await db.Permissions.CountAsync(x => codes.Contains(x.Code), ct) != codes.Count) return Validation("permissionCodes", "One or more permissions do not exist.");
+        role.Permissions.Clear();
+        foreach (var p in await db.Permissions.Where(x => codes.Contains(x.Code)).ToListAsync(ct)) role.Permissions.Add(new RolePermission { RoleId = id, PermissionId = p.Id });
+        var userIds = await db.UserRoles.Where(x => x.RoleId == id).Select(x => x.UserId).ToListAsync(ct);
+        var sessions = await db.Sessions.Where(x => userIds.Contains(x.UserId)).ToListAsync(ct); db.Sessions.RemoveRange(sessions);
+        identity.Audit(UserId(user), null, null, "permission.change", "role", id.ToString(), Correlation(context));
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
+    }
     private static bool Has(ClaimsPrincipal user, params string[] permissions) => permissions.Any(permission => user.HasClaim("permission", permission));
     private static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Forbidden", detail: "You do not have permission to perform this operation.");
     private static IResult? Validate(string value, string field, int max) => string.IsNullOrWhiteSpace(value) || value.Trim().Length > max ? Validation(field, $"{field} is required and must be at most {max} characters.") : null;
@@ -130,7 +196,8 @@ public static class SprintOneEndpoints
     private sealed record LoginRequest(string Username, string Password, Guid? BranchId, Guid? DeviceId);
     private sealed record CreateBranchRequest(string Code, string NameAr, string NameEn, string? TimeZone);
     private sealed record CreateDeviceRequest(Guid BranchId, string Name, string RegistrationCode);
-    private sealed record CreateUserRequest(string Username, string? Email, string DisplayName, string Password, List<Guid> RoleIds, List<Guid> BranchIds);
-    private sealed record UpdateUserRequest(string Username, string? Email, string DisplayName, string? Password, bool IsActive, List<Guid> BranchIds);
+    private sealed record CreateUserRequest(string Username, string? Email, string DisplayName, string Password, List<Guid> RoleIds, List<Guid> BranchIds, List<PermissionOverrideRequest>? Permissions);
+    private sealed record UpdateUserRequest(string Username, string? Email, string DisplayName, string? Password, bool IsActive, List<Guid> BranchIds, List<PermissionOverrideRequest>? Permissions);
     private sealed record CreateRoleRequest(string Name, List<string> PermissionCodes);
+    private sealed record PermissionOverrideRequest(string PermissionCode, bool IsGrant);
 }

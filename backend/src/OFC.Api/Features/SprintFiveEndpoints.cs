@@ -6,6 +6,7 @@ using OFC.Infrastructure.Persistence;
 using OFC.Infrastructure.Security;
 using OFC.Modules.Catalog;
 using OFC.Modules.Ordering;
+using OFC.Modules.Reporting;
 
 namespace OFC.Api.Features;
 
@@ -17,6 +18,7 @@ public static class SprintFiveEndpoints
         api.MapGet("/pos/context", Context).RequireAuthorization();
         api.MapGet("/pos/catalog", Catalog).RequireAuthorization();
         api.MapGet("/orders", List).RequireAuthorization();
+        api.MapGet("/orders/history", History).RequireAuthorization();
         api.MapGet("/orders/{id:guid}", Get).RequireAuthorization();
         api.MapPost("/orders", Create).RequireAuthorization();
         api.MapPost("/orders/{id:guid}/status", ChangeStatus).RequireAuthorization();
@@ -72,6 +74,27 @@ public static class SprintFiveEndpoints
     {
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
         return Results.Ok(await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId).OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt }).ToListAsync(ct));
+    }
+
+    // Browsable order history: unlike List (last 100 open-ish orders for the POS "current orders"
+    // panel), this covers every status across any date range, paged, for reviewing today's or a past
+    // day's business.
+    private static async Task<IResult> History(Guid branchId, DateTimeOffset? from, DateTimeOffset? to, OrderStatus? status, Guid? salesChannelId, int page, int pageSize, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
+        var now = DateTimeOffset.UtcNow;
+        var start = from ?? new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, TimeSpan.Zero);
+        var end = to ?? start.AddDays(1);
+        IQueryable<Order> query = db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end);
+        if (status.HasValue) query = query.Where(x => x.Status == status.Value);
+        if (salesChannelId.HasValue) query = query.Where(x => x.SalesChannelId == salesChannelId.Value);
+        var total = await query.CountAsync(ct);
+        var pageIndex = ReportingRules.NormalizePage(page);
+        var size = ReportingRules.NormalizePageSize(pageSize);
+        var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageIndex - 1) * size).Take(size)
+            .Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, lineCount = x.Lines.Count })
+            .ToListAsync(ct);
+        return Results.Ok(new { total, page = pageIndex, pageSize = size, items });
     }
 
     private static async Task<IResult> Get(Guid id, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)

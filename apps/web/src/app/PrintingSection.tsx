@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Printer, RefreshCw, ShieldCheck } from "lucide-react";
+import { Plus, Printer, RefreshCw, ShieldCheck } from "lucide-react";
+import { FormDialog } from "@/app/FormDialog";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -43,6 +44,7 @@ export function PrintingSection({ language }: { language: Language }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [dialog, setDialog] = useState<"config" | "template" | "route" | "enqueue" | null>(null);
 
   const [configForm, setConfigForm] = useState({ code: "", nameAr: "", nameEn: "", kind: "Receipt" as PrinterKind, deviceName: "", sortOrder: "" });
   const [templateForm, setTemplateForm] = useState({ code: "", nameAr: "", nameEn: "", kind: "Kitchen" as PrinterKind, widthChars: "42", content: "" });
@@ -75,11 +77,11 @@ export function PrintingSection({ language }: { language: Language }) {
     return () => clearInterval(interval);
   }, [branchId]);
 
-  async function submitConfig(event: React.FormEvent) { event.preventDefault(); setMsg(""); try { const response = await auth("/api/v1/print/configs", { method: "POST", body: JSON.stringify({ ...configForm, deviceName: configForm.deviceName.trim() || null, sortOrder: configForm.sortOrder === "" ? 0 : Number(configForm.sortOrder) }) }); if (!response.ok) throw new Error(t.failed); setConfigForm({ code: "", nameAr: "", nameEn: "", kind: "Receipt", deviceName: "", sortOrder: "" }); setMsg(t.saved); void load(branchId); } catch { setMsg(t.failed, true); } }
-  async function submitTemplate(event: React.FormEvent) { event.preventDefault(); setMsg(""); try { const response = await auth("/api/v1/print/templates", { method: "POST", body: JSON.stringify({ ...templateForm, widthChars: Number(templateForm.widthChars) || 42 }) }); if (!response.ok) throw new Error(t.failed); setTemplateForm({ code: "", nameAr: "", nameEn: "", kind: "Kitchen", widthChars: "42", content: "" }); setMsg(t.saved); void load(branchId); } catch { setMsg(t.failed, true); } }
-  async function submitRoute(event: React.FormEvent) { event.preventDefault(); setMsg(""); if (!routeForm.configId || !routeForm.templateId) { setMsg(t.failed, true); return; } try { const response = await auth("/api/v1/print/routes", { method: "POST", body: JSON.stringify({ branchId, preparationStationId: routeForm.stationId || null, printerConfigurationId: routeForm.configId, printTemplateId: routeForm.templateId, priority: Number(routeForm.priority) || 1 }) }); if (!response.ok) throw new Error(t.failed); setRouteForm({ stationId: "", configId: "", templateId: "", priority: "1" }); setMsg(t.saved); void load(branchId); } catch { setMsg(t.failed, true); } }
+  async function submitConfig(event: React.FormEvent) { event.preventDefault(); setMsg(""); try { const response = await auth("/api/v1/print/configs", { method: "POST", body: JSON.stringify({ ...configForm, deviceName: configForm.deviceName.trim() || null, sortOrder: configForm.sortOrder === "" ? 0 : Number(configForm.sortOrder) }) }); if (!response.ok) throw new Error(t.failed); setConfigForm({ code: "", nameAr: "", nameEn: "", kind: "Receipt", deviceName: "", sortOrder: "" }); setMsg(t.saved); setDialog(null); void load(branchId); } catch { setMsg(t.failed, true); } }
+  async function submitTemplate(event: React.FormEvent) { event.preventDefault(); setMsg(""); try { const response = await auth("/api/v1/print/templates", { method: "POST", body: JSON.stringify({ ...templateForm, widthChars: Number(templateForm.widthChars) || 42 }) }); if (!response.ok) throw new Error(t.failed); setTemplateForm({ code: "", nameAr: "", nameEn: "", kind: "Kitchen", widthChars: "42", content: "" }); setMsg(t.saved); setDialog(null); void load(branchId); } catch { setMsg(t.failed, true); } }
+  async function submitRoute(event: React.FormEvent) { event.preventDefault(); setMsg(""); if (!routeForm.configId || !routeForm.templateId) { setMsg(t.failed, true); return; } try { const response = await auth("/api/v1/print/routes", { method: "POST", body: JSON.stringify({ branchId, preparationStationId: routeForm.stationId || null, printerConfigurationId: routeForm.configId, printTemplateId: routeForm.templateId, priority: Number(routeForm.priority) || 1 }) }); if (!response.ok) throw new Error(t.failed); setRouteForm({ stationId: "", configId: "", templateId: "", priority: "1" }); setMsg(t.saved); setDialog(null); void load(branchId); } catch { setMsg(t.failed, true); } }
 
-  async function enqueue(event: React.FormEvent) { event.preventDefault(); setMsg(""); try { const response = await auth("/api/v1/print/jobs", { method: "POST", body: JSON.stringify({ branchId, orderId: enqueueForm.orderId.trim() || null, clientRequestId: createId(), kind: enqueueForm.kind, preparationStationId: enqueueForm.stationId || null, templateCode: enqueueForm.templateCode.trim() || null, payload: JSON.parse(enqueueForm.payload) }) }); if (!response.ok) throw new Error(t.failed); setMsg(t.enqueued); void load(branchId); } catch { setMsg(t.failed, true); } }
+  async function enqueue(event: React.FormEvent) { event.preventDefault(); setMsg(""); try { const response = await auth("/api/v1/print/jobs", { method: "POST", body: JSON.stringify({ branchId, orderId: enqueueForm.orderId.trim() || null, clientRequestId: createId(), kind: enqueueForm.kind, preparationStationId: enqueueForm.stationId || null, templateCode: enqueueForm.templateCode.trim() || null, payload: JSON.parse(enqueueForm.payload) }) }); if (!response.ok) throw new Error(t.failed); setMsg(t.enqueued); setDialog(null); void load(branchId); } catch { setMsg(t.failed, true); } }
 
   async function jobAction(id: string, action: "claim" | "complete" | "fail" | "retry") { setMsg(""); const url = action === "fail" ? `/api/v1/print/jobs/${id}/fail` : `/api/v1/print/jobs/${id}/${action}`; const body = action === "fail" ? { error: t.failed } : undefined; const response = await auth(url, body ? { method: "POST", body: JSON.stringify(body) } : { method: "POST" }); if (!response.ok) { const problem = await response.json().catch(() => null); setMsg(problem?.errors?.job?.[0] ?? t.failed, true); return; } await load(branchId); }
 
@@ -106,21 +108,9 @@ export function PrintingSection({ language }: { language: Language }) {
       {loading && <div className="mt-6 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
       {!loading && tab === "configs" && (
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.addConfig}</h2>
-            <form onSubmit={submitConfig} className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label={t.code} value={configForm.code} onChange={(v) => setConfigForm({ ...configForm, code: v })} max={50} />
-              <Field label={t.nameAr} value={configForm.nameAr} onChange={(v) => setConfigForm({ ...configForm, nameAr: v })} max={160} />
-              <Field label={t.nameEn} value={configForm.nameEn} onChange={(v) => setConfigForm({ ...configForm, nameEn: v })} max={160} />
-              <SelectField label={t.kind} value={configForm.kind} onChange={(v) => setConfigForm({ ...configForm, kind: v as PrinterKind })} options={printerKinds.map((k) => [k, printerKindLabel(k)])} />
-              <Field label={t.deviceName} value={configForm.deviceName} onChange={(v) => setConfigForm({ ...configForm, deviceName: v })} max={100} />
-              <Field label={t.sortOrder} value={configForm.sortOrder} onChange={(v) => setConfigForm({ ...configForm, sortOrder: v })} type="number" />
-              <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
-            </form>
-          </section>
-          <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.configs}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.configs}</h2><button type="button" onClick={() => setDialog("config")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addConfig}</button></div>
             {configs.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noConfigs}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{configs.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{name(c)}</p><p className="text-sm text-[#69766f]">{c.code} · {printerKindLabel(c.kind)}{c.deviceName ? ` · ${c.deviceName}` : ""}</p>{c.lastHealthError && <p className="text-xs text-[#b4322a]">{c.lastHealthError}</p>}</div><div className="flex items-center gap-1.5"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#53615b]"}`}>{c.isActive ? t.active : t.inactive}</span><span title={c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString(language) : undefined} className={`rounded-full px-3 py-1 text-xs font-semibold ${c.online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{c.online ? t.agentOnline : t.agentOffline}</span></div></li>)}</ul>
             )}
@@ -129,21 +119,9 @@ export function PrintingSection({ language }: { language: Language }) {
       )}
 
       {!loading && tab === "templates" && (
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.addTemplate}</h2>
-            <form onSubmit={submitTemplate} className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label={t.code} value={templateForm.code} onChange={(v) => setTemplateForm({ ...templateForm, code: v })} max={50} />
-              <SelectField label={t.kind} value={templateForm.kind} onChange={(v) => setTemplateForm({ ...templateForm, kind: v as PrinterKind })} options={printerKinds.map((k) => [k, printerKindLabel(k)])} />
-              <Field label={t.nameAr} value={templateForm.nameAr} onChange={(v) => setTemplateForm({ ...templateForm, nameAr: v })} max={160} />
-              <Field label={t.nameEn} value={templateForm.nameEn} onChange={(v) => setTemplateForm({ ...templateForm, nameEn: v })} max={160} />
-              <Field label={t.widthChars} value={templateForm.widthChars} onChange={(v) => setTemplateForm({ ...templateForm, widthChars: v })} type="number" />
-              <label className="block text-sm font-medium sm:col-span-2">{t.content}<textarea value={templateForm.content} onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })} maxLength={4000} rows={5} className="mt-2 min-h-24 w-full rounded-lg border border-[#cdd7d0] px-3 py-2 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>
-              <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
-            </form>
-          </section>
-          <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.templates}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.templates}</h2><button type="button" onClick={() => setDialog("template")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addTemplate}</button></div>
             {templates.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noTemplates}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{templates.map((x) => <li key={x.id} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{name(x)}</p><span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{printerKindLabel(x.kind)}</span></div><p className="mt-1 text-sm text-[#69766f]">{x.code} · {x.widthChars}</p></li>)}</ul>
             )}
@@ -152,19 +130,9 @@ export function PrintingSection({ language }: { language: Language }) {
       )}
 
       {!loading && tab === "routes" && (
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.addRoute}</h2>
-            <form onSubmit={submitRoute} className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium">{t.station}<select value={routeForm.stationId} onChange={(e) => setRouteForm({ ...routeForm, stationId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{stations.length === 0 && <option value="">{t.stationOptional}</option>}<option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
-              <SelectField label={t.printer} required value={routeForm.configId} onChange={(v) => setRouteForm({ ...routeForm, configId: v })} options={configs.map((c) => [c.id, `${name(c)} (${c.code})`])} />
-              <SelectField label={t.template} required value={routeForm.templateId} onChange={(v) => setRouteForm({ ...routeForm, templateId: v })} options={templates.map((x) => [x.id, `${name(x)} (${x.code})`])} />
-              <Field label={t.priority} value={routeForm.priority} onChange={(v) => setRouteForm({ ...routeForm, priority: v })} type="number" />
-              <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
-            </form>
-          </section>
-          <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.routes}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.routes}</h2><button type="button" onClick={() => setDialog("route")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addRoute}</button></div>
             {routes.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noRoutes}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{routes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{r.stationCode ? `${r.stationCode} · ${r.stationNameAr ?? r.stationNameEn}` : t.defaultRoute}</p><p className="text-sm text-[#69766f]">{r.printerNameAr ?? r.printerCode} → {r.templateCode}</p></div><span className="rounded-full bg-[#e8ece8] px-3 py-1 text-xs font-semibold text-[#53615b]">{r.priority}</span></li>)}</ul>
             )}
@@ -173,20 +141,9 @@ export function PrintingSection({ language }: { language: Language }) {
       )}
 
       {!loading && tab === "queue" && (
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+        <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.enqueue}</h2>
-            <form onSubmit={enqueue} className="mt-4 grid gap-4 sm:grid-cols-2">
-              <SelectField label={t.kind} value={enqueueForm.kind} onChange={(v) => setEnqueueForm({ ...enqueueForm, kind: v as JobKind })} options={jobKinds.map((k) => [k, jobKindLabel(k)])} />
-              <Field label={t.orderId} value={enqueueForm.orderId} onChange={(v) => setEnqueueForm({ ...enqueueForm, orderId: v })} />
-              <label className="block text-sm font-medium">{t.station}<select value={enqueueForm.stationId} onChange={(e) => setEnqueueForm({ ...enqueueForm, stationId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
-              <Field label={t.templateCode} value={enqueueForm.templateCode} onChange={(v) => setEnqueueForm({ ...enqueueForm, templateCode: v })} max={50} />
-              <label className="block text-sm font-medium sm:col-span-2">{t.payload}<textarea value={enqueueForm.payload} onChange={(e) => setEnqueueForm({ ...enqueueForm, payload: e.target.value })} rows={3} className="mt-2 min-h-20 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 py-2 font-mono text-xs outline-none focus:border-[#0e5a4f]" /></label>
-              <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60">{t.sendToAgent}</button>
-            </form>
-          </section>
-          <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <h2 className="font-semibold">{t.queue}</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.queue}</h2><button type="button" onClick={() => setDialog("enqueue")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.enqueue}</button></div>
             {jobs.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.jobsEmpty}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{jobs.map((job) => (
                 <li key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -207,6 +164,51 @@ export function PrintingSection({ language }: { language: Language }) {
           </section>
         </div>
       )}
+
+      {dialog === "config" && <FormDialog title={t.addConfig} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={submitConfig} className="grid gap-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-2">
+          <Field label={t.code} value={configForm.code} onChange={(v) => setConfigForm({ ...configForm, code: v })} max={50} />
+          <Field label={t.nameAr} value={configForm.nameAr} onChange={(v) => setConfigForm({ ...configForm, nameAr: v })} max={160} />
+          <Field label={t.nameEn} value={configForm.nameEn} onChange={(v) => setConfigForm({ ...configForm, nameEn: v })} max={160} />
+          <SelectField label={t.kind} value={configForm.kind} onChange={(v) => setConfigForm({ ...configForm, kind: v as PrinterKind })} options={printerKinds.map((k) => [k, printerKindLabel(k)])} />
+          <Field label={t.deviceName} value={configForm.deviceName} onChange={(v) => setConfigForm({ ...configForm, deviceName: v })} max={100} />
+          <Field label={t.sortOrder} value={configForm.sortOrder} onChange={(v) => setConfigForm({ ...configForm, sortOrder: v })} type="number" />
+          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
+        </form>
+      </FormDialog>}
+
+      {dialog === "template" && <FormDialog title={t.addTemplate} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={submitTemplate} className="grid gap-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-2">
+          <Field label={t.code} value={templateForm.code} onChange={(v) => setTemplateForm({ ...templateForm, code: v })} max={50} />
+          <SelectField label={t.kind} value={templateForm.kind} onChange={(v) => setTemplateForm({ ...templateForm, kind: v as PrinterKind })} options={printerKinds.map((k) => [k, printerKindLabel(k)])} />
+          <Field label={t.nameAr} value={templateForm.nameAr} onChange={(v) => setTemplateForm({ ...templateForm, nameAr: v })} max={160} />
+          <Field label={t.nameEn} value={templateForm.nameEn} onChange={(v) => setTemplateForm({ ...templateForm, nameEn: v })} max={160} />
+          <Field label={t.widthChars} value={templateForm.widthChars} onChange={(v) => setTemplateForm({ ...templateForm, widthChars: v })} type="number" />
+          <label className="block text-sm font-medium sm:col-span-2">{t.content}<textarea value={templateForm.content} onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })} maxLength={4000} rows={5} className="mt-2 min-h-24 w-full rounded-lg border border-[#cdd7d0] px-3 py-2 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>
+          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
+        </form>
+      </FormDialog>}
+
+      {dialog === "route" && <FormDialog title={t.addRoute} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={submitRoute} className="grid gap-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-2">
+          <label className="block text-sm font-medium">{t.station}<select value={routeForm.stationId} onChange={(e) => setRouteForm({ ...routeForm, stationId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
+          <SelectField label={t.printer} required value={routeForm.configId} onChange={(v) => setRouteForm({ ...routeForm, configId: v })} options={configs.map((c) => [c.id, `${name(c)} (${c.code})`])} />
+          <SelectField label={t.template} required value={routeForm.templateId} onChange={(v) => setRouteForm({ ...routeForm, templateId: v })} options={templates.map((x) => [x.id, `${name(x)} (${x.code})`])} />
+          <Field label={t.priority} value={routeForm.priority} onChange={(v) => setRouteForm({ ...routeForm, priority: v })} type="number" />
+          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
+        </form>
+      </FormDialog>}
+
+      {dialog === "enqueue" && <FormDialog title={t.enqueue} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={enqueue} className="grid gap-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-2">
+          <SelectField label={t.kind} value={enqueueForm.kind} onChange={(v) => setEnqueueForm({ ...enqueueForm, kind: v as JobKind })} options={jobKinds.map((k) => [k, jobKindLabel(k)])} />
+          <Field label={t.orderId} value={enqueueForm.orderId} onChange={(v) => setEnqueueForm({ ...enqueueForm, orderId: v })} />
+          <label className="block text-sm font-medium">{t.station}<select value={enqueueForm.stationId} onChange={(e) => setEnqueueForm({ ...enqueueForm, stationId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
+          <Field label={t.templateCode} value={enqueueForm.templateCode} onChange={(v) => setEnqueueForm({ ...enqueueForm, templateCode: v })} max={50} />
+          <label className="block text-sm font-medium sm:col-span-2">{t.payload}<textarea value={enqueueForm.payload} onChange={(e) => setEnqueueForm({ ...enqueueForm, payload: e.target.value })} rows={3} className="mt-2 min-h-20 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 py-2 font-mono text-xs outline-none focus:border-[#0e5a4f]" /></label>
+          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60">{t.sendToAgent}</button>
+        </form>
+      </FormDialog>}
     </div>
   );
 }

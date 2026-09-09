@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Save, Truck, Recycle, BadgeCheck, XCircle, Eye } from "lucide-react";
+import { FormDialog } from "@/app/FormDialog";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -52,6 +53,7 @@ export function ProcurementSection({ language }: { language: Language }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
+  const [dialog, setDialog] = useState<"supplier" | "purchaseOrder" | "goodsReceipt" | null>(null);
 
   const [supplierForm, setSupplierForm] = useState({ code: "", nameAr: "", nameEn: "", contactPerson: "", phone: "", email: "", vatNumber: "", address: "", notes: "" });
   const [poForm, setPoForm] = useState({ supplierId: "", expectedDate: "", reference: "" });
@@ -96,7 +98,7 @@ export function ProcurementSection({ language }: { language: Language }) {
       const body = { code: supplierForm.code.trim() || null, nameAr: supplierForm.nameAr, nameEn: supplierForm.nameEn, contactPerson: supplierForm.contactPerson.trim() || null, phone: supplierForm.phone.trim() || null, email: supplierForm.email.trim() || null, vatNumber: supplierForm.vatNumber.trim() || null, address: supplierForm.address.trim() || null, notes: supplierForm.notes.trim() || null };
       const r = await auth("/api/v1/procurement/suppliers", { method: "POST", body: JSON.stringify(body) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.supplier?.[0] ?? p?.errors?.code?.[0] ?? p?.errors?.vatNumber?.[0] ?? t.failed); }
-      setMsg(t.saved); setSupplierForm({ code: "", nameAr: "", nameEn: "", contactPerson: "", phone: "", email: "", vatNumber: "", address: "", notes: "" }); await loadSuppliers();
+      setMsg(t.saved); setSupplierForm({ code: "", nameAr: "", nameEn: "", contactPerson: "", phone: "", email: "", vatNumber: "", address: "", notes: "" }); await loadSuppliers(); setDialog(null);
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -107,7 +109,7 @@ export function ProcurementSection({ language }: { language: Language }) {
       const lines = poLines.map((l) => ({ inventoryItemId: l.inventoryItemId, unitId: l.unitId, quantity: Number(l.quantity), unitCost: Number(l.unitCost) }));
       const r = await auth("/api/v1/procurement/purchase-orders", { method: "POST", body: JSON.stringify({ supplierId: poForm.supplierId, branchId, clientOrderId: createId(), expectedDate: poForm.expectedDate ? new Date(poForm.expectedDate).toISOString() : null, notes: null, reference: poForm.reference.trim() || null, lines }) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.lines?.[0] ?? p?.errors?.supplierId?.[0] ?? t.failed); }
-      setMsg(t.saved); setPoForm({ supplierId: "", expectedDate: "", reference: "" }); setPoLines([LineDef()]); await loadOrders();
+      setMsg(t.saved); setPoForm({ supplierId: "", expectedDate: "", reference: "" }); setPoLines([LineDef()]); await loadOrders(); setDialog(null);
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -118,7 +120,7 @@ export function ProcurementSection({ language }: { language: Language }) {
       const lines = grLines.map((l) => ({ inventoryItemId: l.inventoryItemId, unitId: l.unitId, quantity: Number(l.quantity), unitCost: Number(l.unitCost) }));
       const r = await auth("/api/v1/procurement/goods-receipts", { method: "POST", body: JSON.stringify({ supplierId: grForm.supplierId, branchId, purchaseOrderId: grForm.purchaseOrderId || null, reference: grForm.reference.trim() || null, notes: grForm.notes.trim() || null, clientReceiptId: createId(), lines }) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.lines?.[0] ?? p?.errors?.supplierId?.[0] ?? p?.errors?.purchaseOrderId?.[0] ?? t.failed); }
-      setMsg(t.saved); setGrForm({ supplierId: "", purchaseOrderId: "", reference: "", notes: "" }); setGrLines([LineDef()]); await loadReceipts();
+      setMsg(t.saved); setGrForm({ supplierId: "", purchaseOrderId: "", reference: "", notes: "" }); setGrLines([LineDef()]); await loadReceipts(); setDialog(null);
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -171,29 +173,14 @@ export function ProcurementSection({ language }: { language: Language }) {
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.suppliers}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.suppliers}</h2><button type="button" onClick={() => setDialog("supplier")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addSupplier}</button></div>
           {suppliers.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">{suppliers.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{s.code}</span><span className="text-[#69766f]"> · {name(s)}</span>{s.vatNumber && <span className="text-[#69766f]"> · VAT {s.vatNumber}</span>}</div><button onClick={() => void viewHistory(s.id)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]"><Eye size={14} />{t.viewHistory}</button></li>)}</ul>
           )}
-          <form onSubmit={createSupplier} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addSupplier}</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Field label={t.code} value={supplierForm.code} onChange={(v) => setSupplierForm({ ...supplierForm, code: v })} max={50} />
-              <Field label={t.vatNumber} value={supplierForm.vatNumber} onChange={(v) => setSupplierForm({ ...supplierForm, vatNumber: v })} max={50} />
-              <Field label={t.nameAr} value={supplierForm.nameAr} onChange={(v) => setSupplierForm({ ...supplierForm, nameAr: v })} max={160} />
-              <Field label={t.nameEn} value={supplierForm.nameEn} onChange={(v) => setSupplierForm({ ...supplierForm, nameEn: v })} max={160} />
-              <Field label={t.contactPerson} value={supplierForm.contactPerson} onChange={(v) => setSupplierForm({ ...supplierForm, contactPerson: v })} max={160} />
-              <Field label={t.phone} value={supplierForm.phone} onChange={(v) => setSupplierForm({ ...supplierForm, phone: v })} max={50} />
-              <Field label={t.email} value={supplierForm.email} onChange={(v) => setSupplierForm({ ...supplierForm, email: v })} max={320} />
-              <Field label={t.address} value={supplierForm.address} onChange={(v) => setSupplierForm({ ...supplierForm, address: v })} max={500} />
-            </div>
-            <Field label={t.notes} value={supplierForm.notes} onChange={(v) => setSupplierForm({ ...supplierForm, notes: v })} max={2000} />
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</button>
-          </form>
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.purchaseOrders}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.purchaseOrders}</h2><button type="button" onClick={() => setDialog("purchaseOrder")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addPo}</button></div>
           {orders.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 space-y-2">{orders.map((o) => (
               <li key={o.id} className="rounded-lg border border-[#e8ece8] px-3 py-2 text-sm">
@@ -212,31 +199,10 @@ export function ProcurementSection({ language }: { language: Language }) {
               </li>
             ))}</ul>
           )}
-          <form onSubmit={createPurchaseOrder} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addPo}</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Select label={t.supplier} value={poForm.supplierId} onChange={(v) => setPoForm({ ...poForm, supplierId: v })}>{supplierOptions}</Select>
-              <Field label={t.expectedDate} value={poForm.expectedDate} onChange={(v) => setPoForm({ ...poForm, expectedDate: v })} type="date" />
-              <Field label={t.reference} value={poForm.reference} onChange={(v) => setPoForm({ ...poForm, reference: v })} max={200} />
-            </div>
-            <div className="mt-4 space-y-2">
-              {poLines.map((l, index) => (
-                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_5rem_auto]">
-                  <Select label={t.product} value={l.inventoryItemId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, inventoryItemId: v } : row))}>{itemOptions}</Select>
-                  <Select label={t.unit} value={l.unitId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
-                  <Field label={t.quantity} value={l.quantity} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
-                  <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
-                  <button type="button" onClick={() => setPoLines(poLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={() => setPoLines([...poLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
-          </form>
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.goodsReceipts}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.goodsReceipts}</h2><button type="button" onClick={() => setDialog("goodsReceipt")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addGr}</button></div>
           {receipts.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 space-y-2">{receipts.map((g) => (
               <li key={g.id} className="rounded-lg border border-[#e8ece8] px-3 py-2 text-sm">
@@ -249,27 +215,6 @@ export function ProcurementSection({ language }: { language: Language }) {
               </li>
             ))}</ul>
           )}
-          <form onSubmit={createGoodsReceipt} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addGr}</h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <Select label={t.supplier} value={grForm.supplierId} onChange={(v) => setGrForm({ ...grForm, supplierId: v })}>{supplierOptions}</Select>
-              <Field label={t.reference} value={grForm.reference} onChange={(v) => setGrForm({ ...grForm, reference: v })} max={200} />
-              <Field label={t.notes} value={grForm.notes} onChange={(v) => setGrForm({ ...grForm, notes: v })} max={2000} />
-            </div>
-            <div className="mt-4 space-y-2">
-              {grLines.map((l, index) => (
-                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_5rem_auto]">
-                  <Select label={t.product} value={l.inventoryItemId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, inventoryItemId: v } : row))}>{itemOptions}</Select>
-                  <Select label={t.unit} value={l.unitId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
-                  <Field label={t.quantity} value={l.quantity} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
-                  <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
-                  <button type="button" onClick={() => setGrLines(grLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
-                </div>
-              ))}
-            </div>
-            <button type="button" onClick={() => setGrLines([...grLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
-          </form>
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
@@ -301,6 +246,61 @@ export function ProcurementSection({ language }: { language: Language }) {
           )}
         </section>
       </div>
+
+      {dialog === "supplier" && <FormDialog title={t.addSupplier} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={createSupplier} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={t.code} value={supplierForm.code} onChange={(v) => setSupplierForm({ ...supplierForm, code: v })} max={50} />
+            <Field label={t.vatNumber} value={supplierForm.vatNumber} onChange={(v) => setSupplierForm({ ...supplierForm, vatNumber: v })} max={50} />
+            <Field label={t.nameAr} value={supplierForm.nameAr} onChange={(v) => setSupplierForm({ ...supplierForm, nameAr: v })} max={160} />
+            <Field label={t.nameEn} value={supplierForm.nameEn} onChange={(v) => setSupplierForm({ ...supplierForm, nameEn: v })} max={160} />
+            <Field label={t.contactPerson} value={supplierForm.contactPerson} onChange={(v) => setSupplierForm({ ...supplierForm, contactPerson: v })} max={160} />
+            <Field label={t.phone} value={supplierForm.phone} onChange={(v) => setSupplierForm({ ...supplierForm, phone: v })} max={50} />
+            <Field label={t.email} value={supplierForm.email} onChange={(v) => setSupplierForm({ ...supplierForm, email: v })} max={320} />
+            <Field label={t.address} value={supplierForm.address} onChange={(v) => setSupplierForm({ ...supplierForm, address: v })} max={500} />
+          </div>
+          <Field label={t.notes} value={supplierForm.notes} onChange={(v) => setSupplierForm({ ...supplierForm, notes: v })} max={2000} />
+          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</button>
+        </form>
+      </FormDialog>}
+
+      {dialog === "purchaseOrder" && <FormDialog title={t.addPo} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={createPurchaseOrder} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Select label={t.supplier} value={poForm.supplierId} onChange={(v) => setPoForm({ ...poForm, supplierId: v })}>{supplierOptions}</Select>
+            <Field label={t.expectedDate} value={poForm.expectedDate} onChange={(v) => setPoForm({ ...poForm, expectedDate: v })} type="date" />
+            <Field label={t.reference} value={poForm.reference} onChange={(v) => setPoForm({ ...poForm, reference: v })} max={200} />
+          </div>
+          <div className="mt-4 space-y-2">{poLines.map((l, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_5rem_auto]">
+            <Select label={t.product} value={l.inventoryItemId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, inventoryItemId: v } : row))}>{itemOptions}</Select>
+            <Select label={t.unit} value={l.unitId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
+            <Field label={t.quantity} value={l.quantity} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
+            <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
+            <button type="button" onClick={() => setPoLines(poLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
+          </div>)}</div>
+          <button type="button" onClick={() => setPoLines([...poLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
+          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
+        </form>
+      </FormDialog>}
+
+      {dialog === "goodsReceipt" && <FormDialog title={t.addGr} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
+        <form onSubmit={createGoodsReceipt} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Select label={t.supplier} value={grForm.supplierId} onChange={(v) => setGrForm({ ...grForm, supplierId: v })}>{supplierOptions}</Select>
+            <Field label={t.reference} value={grForm.reference} onChange={(v) => setGrForm({ ...grForm, reference: v })} max={200} />
+            <Field label={t.notes} value={grForm.notes} onChange={(v) => setGrForm({ ...grForm, notes: v })} max={2000} />
+          </div>
+          <div className="mt-4 space-y-2">{grLines.map((l, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_5rem_auto]">
+            <Select label={t.product} value={l.inventoryItemId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, inventoryItemId: v } : row))}>{itemOptions}</Select>
+            <Select label={t.unit} value={l.unitId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
+            <Field label={t.quantity} value={l.quantity} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
+            <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
+            <button type="button" onClick={() => setGrLines(grLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
+          </div>)}</div>
+          <button type="button" onClick={() => setGrLines([...grLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
+          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
+        </form>
+      </FormDialog>}
     </div>
   );
 }

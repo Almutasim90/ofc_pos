@@ -25,11 +25,15 @@ public sealed class SessionAuthenticationHandler(IOptionsMonitor<AuthenticationS
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         var session = await db.Sessions.SingleOrDefaultAsync(x => x.TokenHash == hash && x.ExpiresAt > timeProvider.GetUtcNow(), Context.RequestAborted);
         if (session is null) return AuthenticateResult.Fail("Invalid session.");
-        var user = await db.Users.Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Id == session.UserId && x.IsActive, Context.RequestAborted);
+        var user = await db.Users.Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).Include(x => x.Permissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Id == session.UserId && x.IsActive, Context.RequestAborted);
         if (user is null) return AuthenticateResult.Fail("Inactive user.");
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, user.Id.ToString()), new(ClaimTypes.Name, user.DisplayName), new("branch_id", session.BranchId?.ToString() ?? ""), new("device_id", session.DeviceId?.ToString() ?? "") };
         claims.AddRange(user.Roles.Select(x => new Claim(ClaimTypes.Role, x.Role.Name)));
-        claims.AddRange(user.Roles.SelectMany(x => x.Role.Permissions).Select(x => new Claim("permission", x.Permission.Code)).DistinctBy(x => x.Value));
+        // Effective permissions: the union of role permissions, minus per-user revocations, plus per-user grants.
+        var roleCodes = user.Roles.SelectMany(x => x.Role.Permissions).Select(x => x.Permission.Code).ToHashSet();
+        var revoked = user.Permissions.Where(x => !x.IsGrant).Select(x => x.Permission.Code).ToHashSet();
+        var granted = user.Permissions.Where(x => x.IsGrant).Select(x => x.Permission.Code);
+        claims.AddRange(roleCodes.Except(revoked).Concat(granted).Distinct().Select(code => new Claim("permission", code)));
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName)), SchemeName));
     }
 }

@@ -1,54 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Banknote, CreditCard, X } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
+import { normalizeMoneyInput, roundMoney, type PaymentMethod } from "@/lib/payment";
 
 type Language = "ar" | "en";
 type Method = { id: string; nameAr: string; nameEn: string; kind: string };
-type Mode = "Cash" | "Card" | "Split";
-type Tender = { key: string; role: "Cash" | "Card"; methodId: string; amount: string; tendered: string; reference: string };
-const text = { ar: { title: "الدفع", due: "المستحق", method: "طريقة الدفع", cash: "نقدي", card: "بطاقة", split: "نقدي + بطاقة", splitHint: "قسّم المبلغ: أدخل مبلغ أحد الخيارين ويُحسب الآخر تلقائيًا", amount: "المبلغ", tendered: "المستلم", reference: "مرجع العملية", change: "الباقي", pay: "إتمام الدفع", close: "إغلاق", none: "لا توجد وسائل دفع مفعلة لهذا الفرع", exceed: "المبلغ المدخل أكبر من المستحق", invalid: "المجموع لا يساوي المبلغ المستحق", cashShort: "المبلغ النقدي المستلم أقل من قيمة النقد", failed: "تعذر تسجيل الدفع", paid: "تم الدفع بنجاح" }, en: { title: "Payment", due: "Amount due", method: "Payment method", cash: "Cash", card: "Card", split: "Cash + Card", splitHint: "Split payment: enter one amount and the other is calculated automatically", amount: "Amount", tendered: "Received", reference: "Terminal reference", change: "Change", pay: "Complete payment", close: "Close", none: "No active payment methods are configured for this branch", exceed: "Amount entered exceeds the amount due", invalid: "Tender amounts must equal the amount due", cashShort: "Cash received is less than the cash amount", failed: "Unable to post payment", paid: "Payment completed" } } as const;
+const text = { ar: { title: "الدفع", due: "المستحق", method: "طريقة الدفع", cash: "نقدي", card: "بطاقة", mixed: "نقدي + بطاقة", pay: "إتمام الدفع", close: "إغلاق", none: "لا توجد وسائل دفع مفعلة لهذا الفرع", exceed: "المبلغ المدخل أكبر من المستحق", invalid: "أدخل مبلغًا صحيحًا (يجب تقسيم الدفع بين نقدي وبطاقة)", noCash: "لا توجد طريقة دفع نقدية", noCard: "لا توجد طريقة دفع بالبطاقة", failed: "تعذر تسجيل الدفع", paid: "تم الدفع بنجاح" }, en: { title: "Payment", due: "Amount due", method: "Payment method", cash: "Cash", card: "Card", mixed: "Cash + Card", pay: "Complete payment", close: "Close", none: "No active payment methods are configured for this branch", exceed: "Amount entered exceeds the amount due", invalid: "Enter valid amounts (split must include both cash and card)", noCash: "No cash payment method is configured", noCard: "No card payment method is configured", failed: "Unable to post payment", paid: "Payment completed" } } as const;
 
 export function PaymentDialog({ language, orderId, branchId, total, onClose }: { language: Language; orderId: string; branchId: string; total: number; onClose: () => void }) {
   const t = text[language];
   const [methods, setMethods] = useState<Method[]>([]);
-  const [mode, setMode] = useState<Mode>("Cash");
-  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [method, setMethod] = useState<PaymentMethod>("Cash");
+  const [cash, setCash] = useState("");
+  const [card, setCard] = useState("");
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [paid, setPaid] = useState(false);
+  const closeTimer = useRef<number | null>(null);
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${store.get<string>("session-token") ?? ""}`, ...(init?.headers ?? {}) } });
-  const money = (value: number) => Math.round((value + Number.EPSILON) * 1000) / 1000;
-  const f = (value: number) => money(value).toFixed(3);
-  const number = (value: string) => Number(value) || 0;
-
-  const cashMethods = methods.filter((m) => m.kind === "Cash");
-  const cardMethods = methods.filter((m) => m.kind !== "Cash");
-  const methodsFor = (role: "Cash" | "Card") => role === "Cash" ? cashMethods : cardMethods;
-  const canMode = (m: Mode) => m === "Cash" ? cashMethods.length > 0 : m === "Card" ? cardMethods.length > 0 : cashMethods.length > 0 && cardMethods.length > 0;
-
-  function buildTenders(list: Method[], chosen: Mode): Tender[] {
-    const pick = (role: "Cash" | "Card") => {
-      const candidates = role === "Cash" ? list.filter((m) => m.kind === "Cash") : list.filter((m) => m.kind !== "Cash");
-      return candidates[0]?.id ?? list[0]?.id ?? "";
-    };
-    if (chosen === "Cash") return [{ key: createId(), role: "Cash", methodId: pick("Cash"), amount: f(total), tendered: f(total), reference: "" }];
-    if (chosen === "Card") return [{ key: createId(), role: "Card", methodId: pick("Card"), amount: f(total), tendered: f(total), reference: "" }];
-    const cashAmount = money(total / 2);
-    const cardAmount = money(total - cashAmount);
-    return [
-      { key: createId(), role: "Cash", methodId: pick("Cash"), amount: f(cashAmount), tendered: f(cashAmount), reference: "" },
-      { key: createId(), role: "Card", methodId: pick("Card"), amount: f(cardAmount), tendered: f(cardAmount), reference: "" },
-    ];
-  }
-
-  function chooseMode(next: Mode) {
-    if (!canMode(next) || next === mode) return;
-    setMode(next);
-    setMessage("");
-    setIsError(false);
-    setTenders(buildTenders(methods, next));
-  }
+  const fmt3 = (value: number) => roundMoney(value).toFixed(3);
 
   useEffect(() => {
     void (async () => {
@@ -56,86 +27,86 @@ export function PaymentDialog({ language, orderId, branchId, total, onClose }: {
       if (!response.ok) return;
       const value = await response.json() as Method[];
       setMethods(value);
-      if (value.length === 0) return;
-      const initial = value.some((m) => m.kind === "Cash") ? "Cash" as Mode : "Card" as Mode;
-      setMode(initial);
-      setTenders(buildTenders(value, initial));
+      setMethod(value.some((m) => m.kind === "Cash") ? "Cash" : "Card");
     })();
   }, [branchId, total]);
+  useEffect(() => () => { if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); }, []);
 
-  const cashRows = tenders.filter((x) => x.role === "Cash");
-  const applied = tenders.reduce((sum, x) => sum + money(number(x.amount)), 0);
-  const cashTendered = cashRows.reduce((sum, x) => sum + money(number(x.tendered)), 0);
-  const cashAmount = cashRows.reduce((sum, x) => sum + money(number(x.amount)), 0);
-  const change = Math.max(0, money(cashTendered - cashAmount));
+  const cashMethod = methods.find((m) => m.kind === "Cash");
+  const cardMethod = methods.find((m) => m.kind !== "Cash");
 
-  function patch(key: string, patch: Partial<Tender>) { setTenders(tenders.map((x) => x.key === key ? { ...x, ...patch } : x)); }
+  // Cash stays the canonical split value (either field updates it); the edited field keeps the user's
+  // raw text so fractions/decimal points can be typed freely, and the other field shows the remainder.
+  const cashAmount = method === "Cash" ? total : method === "Card" ? 0 : roundMoney(cash === "" ? 0 : Number(cash));
+  const cardAmount = method === "Card" ? total : method === "Cash" ? 0 : roundMoney(total - cashAmount);
+  const valid = Number.isFinite(cashAmount) && cashAmount >= 0 && cardAmount >= 0 && (method !== "Mixed" || (cashAmount > 0 && cardAmount > 0));
 
-  // Split payment amounts: whichever amount the user edits last wins, the other is recalculated to the
-  // remaining due, and an entry above the amount due is rejected with a message.
-  function editSplitAmount(key: string, raw: string) {
+  function chooseMethod(next: PaymentMethod) {
+    setMethod(next);
+    setCash("");
+    setCard("");
     setMessage("");
     setIsError(false);
-    const value = raw.trim() === "" ? 0 : Number(raw);
-    if (!Number.isFinite(value) || value < 0) return;
-    if (value > total) { setMessage(t.exceed); setIsError(true); return; }
-    setTenders(tenders.map((x) => {
-      if (x.key === key) {
-        if (x.role === "Card") return { ...x, amount: raw, tendered: raw };
-        return { ...x, amount: raw, tendered: money(number(x.tendered)) === money(number(x.amount)) ? raw : x.tendered };
-      }
-      const remaining = f(total - value);
-      if (x.role === "Card") return { ...x, amount: remaining, tendered: remaining };
-      return { ...x, amount: remaining, tendered: money(number(x.tendered)) === money(number(x.amount)) ? remaining : x.tendered };
-    }));
   }
 
-  function normalizeAmount(key: string) {
-    setTenders(tenders.map((x) => x.key === key ? { ...x, amount: f(number(x.amount)), tendered: x.role === "Cash" && money(number(x.tendered)) === money(number(x.amount)) ? f(number(x.amount)) : x.tendered } : x));
+  function setCashAmount(raw: string) {
+    setMessage("");
+    setIsError(false);
+    const normalized = normalizeMoneyInput(raw);
+    if (normalized === null) return;
+    setCash(normalized);
+    const value = normalized === "" ? 0 : Number(normalized);
+    if (value > total) { setCard(""); setMessage(t.exceed); setIsError(true); return; }
+    setCard(normalized === "" ? fmt3(total) : fmt3(total - value));
+  }
+
+  function setCardAmount(raw: string) {
+    setMessage("");
+    setIsError(false);
+    const normalized = normalizeMoneyInput(raw);
+    if (normalized === null) return;
+    setCard(normalized);
+    const value = normalized === "" ? 0 : Number(normalized);
+    if (value > total) { setCash(""); setMessage(t.exceed); setIsError(true); return; }
+    setCash(normalized === "" ? fmt3(total) : fmt3(total - value));
   }
 
   async function pay() {
     setMessage("");
     setIsError(false);
-    if (Math.abs(applied - total) > 0.0001 || tenders.some((x) => money(number(x.amount)) <= 0)) { setMessage(t.invalid); setIsError(true); return; }
-    if (cashRows.some((x) => money(number(x.tendered)) < money(number(x.amount)))) { setMessage(t.cashShort); setIsError(true); return; }
+    if (!valid) { setMessage(t.invalid); setIsError(true); return; }
+    const payments: Array<{ clientRequestId: string; paymentMethodId: string; amount: number; tenderedAmount: number; status: string; providerReference: string | null }> = [];
+    if (cashAmount > 0) { if (!cashMethod) { setMessage(t.noCash); setIsError(true); return; } payments.push({ clientRequestId: createId(), paymentMethodId: cashMethod.id, amount: cashAmount, tenderedAmount: cashAmount, status: "Captured", providerReference: null }); }
+    if (cardAmount > 0) { if (!cardMethod) { setMessage(t.noCard); setIsError(true); return; } payments.push({ clientRequestId: createId(), paymentMethodId: cardMethod.id, amount: cardAmount, tenderedAmount: cardAmount, status: "Captured", providerReference: null }); }
     setSaving(true);
     try {
-      const response = await auth(`/api/v1/orders/${orderId}/payments`, { method: "POST", body: JSON.stringify({ payments: tenders.map((x) => ({ clientRequestId: createId(), paymentMethodId: x.methodId, amount: money(number(x.amount)), tenderedAmount: x.role === "Cash" ? money(number(x.tendered)) : money(number(x.amount)), status: "Captured", providerReference: x.reference.trim() || null })) }) });
+      const response = await auth(`/api/v1/orders/${orderId}/payments`, { method: "POST", body: JSON.stringify({ payments }) });
       if (!response.ok) { const problem = await response.json().catch(() => null); throw new Error(problem?.errors?.payments?.[0] ?? t.failed); }
       setMessage(t.paid);
       setPaid(true);
+      closeTimer.current = window.setTimeout(onClose, 3000);
     } catch (error) { setMessage(error instanceof Error ? error.message : t.failed); setIsError(true); } finally { setSaving(false); }
   }
 
-  const rowInputs = (x: Tender, index: number) => (
-    <div key={x.key} className="rounded-xl border border-[#dfe5df] bg-white p-4">
-      <div className="flex items-center justify-between gap-2">
-        <strong className="flex items-center gap-2">{x.role === "Cash" ? <><Banknote size={18} className="text-[#0e5a4f]" />{t.cash}</> : <><CreditCard size={18} className="text-[#0e5a4f]" />{t.card}</>}</strong>
-        {mode === "Split" && <span className="text-xs text-[#69766f]">{t.method} {index + 1}</span>}
-      </div>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">{t.method}<select value={x.methodId} onChange={(e) => patch(x.key, { methodId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{methodsFor(x.role).map((m) => <option key={m.id} value={m.id}>{language === "ar" ? m.nameAr : m.nameEn}</option>)}</select></label>
-        <label className="text-sm">{t.amount}<input inputMode="decimal" value={x.amount} disabled={mode !== "Split"} onChange={(e) => mode === "Split" && editSplitAmount(x.key, e.target.value)} onBlur={() => mode === "Split" && normalizeAmount(x.key)} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 disabled:bg-[#eef1ee] disabled:text-[#53615b]" /></label>
-        {x.role === "Cash" ? <label className="text-sm">{t.tendered}<input inputMode="decimal" value={x.tendered} onChange={(e) => patch(x.key, { tendered: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label> : <label className="text-sm">{t.reference}<input value={x.reference} onChange={(e) => patch(x.key, { reference: e.target.value })} placeholder="—" className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>}
-      </div>
-    </div>
+  const modeButton = (m: PaymentMethod, label: string, Icon: typeof Banknote | null, enabled: boolean) => (
+    <button key={m} type="button" onClick={() => chooseMethod(m)} disabled={!enabled} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40 ${method === m ? "border-[#0e5a4f] bg-[#0e5a4f] text-white" : "border-[#cdd7d0] bg-white text-[#53615b] hover:bg-[#f2f5f2]"}`}>{Icon && <Icon size={17} />}{label}</button>
   );
 
-  const modeButton = (m: Mode, label: string, Icon: typeof Banknote) => (
-    <button key={m} type="button" onClick={() => chooseMode(m)} disabled={!canMode(m)} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40 ${mode === m ? "border-[#0e5a4f] bg-[#0e5a4f] text-white" : "border-[#cdd7d0] bg-white text-[#53615b] hover:bg-[#f2f5f2]"}`}><Icon size={17} />{label}</button>
+  const splitField = (label: string, value: string, onChange: (v: string) => void, Icon: typeof Banknote) => (
+    <label className="block text-sm font-medium">
+      <span className="flex items-center gap-2 text-[#53615b]"><Icon size={17} className="text-[#0e5a4f]" />{label}</span>
+      <input type="text" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} placeholder="0.000" className="mt-2 min-h-14 w-full rounded-xl border border-[#cdd7d0] bg-white px-4 text-lg font-semibold outline-none focus:border-[#0e5a4f]" />
+    </label>
   );
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 sm:place-items-center sm:p-5">
-      <section role="dialog" aria-modal="true" aria-label={t.title} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-5 shadow-2xl sm:rounded-2xl sm:p-6">
+      <section role="dialog" aria-modal="true" aria-label={t.title} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-5 shadow-2xl sm:rounded-2xl sm:p-6">
         <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p><h2 className="text-2xl font-bold">OMR {total.toFixed(3)}</h2></div><button aria-label={t.close} onClick={onClose} className="grid size-11 place-items-center rounded-lg bg-white"><X size={19} /></button></div>
         {methods.length === 0 ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f4] p-4 text-sm text-[#9b2922]">{t.none}</p> : <>
           <p className="mt-5 text-sm font-medium">{t.method}</p>
-          <div className="mt-2 grid grid-cols-3 gap-2">{modeButton("Cash", t.cash, Banknote)}{modeButton("Card", t.card, CreditCard)}{modeButton("Split", t.split, Banknote)}</div>
-          {mode === "Split" && <p className="mt-3 rounded-lg bg-[#e6f1ec] px-3 py-2 text-xs text-[#08483f]">{t.splitHint}</p>}
-          <div className="mt-4 space-y-3">{tenders.map((x, index) => rowInputs(x, index))}</div>
-          <div className="mt-5 flex justify-between rounded-xl bg-white p-4"><span>{t.change}</span><strong>OMR {change.toFixed(3)}</strong></div>
+          <div className="mt-2 grid grid-cols-3 gap-2">{modeButton("Cash", t.cash, Banknote, !!cashMethod)}{modeButton("Card", t.card, CreditCard, !!cardMethod)}{modeButton("Mixed", t.mixed, null, !!cashMethod && !!cardMethod)}</div>
+          {method === "Mixed" && <div className="mt-4 grid grid-cols-2 gap-3">{splitField(t.cash, cash, setCashAmount, Banknote)}{splitField(t.card, card, setCardAmount, CreditCard)}</div>}
           {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
           <button disabled={saving || paid} onClick={() => void pay()} className="mt-5 flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#0e5a4f] font-semibold text-white disabled:opacity-60"><CreditCard size={18} />{saving ? "..." : t.pay}</button>
         </>}

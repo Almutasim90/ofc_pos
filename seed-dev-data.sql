@@ -44,6 +44,7 @@ DELETE FROM ofc.units_of_measure;
 DELETE FROM ofc.user_branches;
 DELETE FROM ofc.user_roles;
 DELETE FROM ofc.role_permissions;
+DELETE FROM ofc.user_permissions;
 DELETE FROM ofc.sessions;
 DELETE FROM ofc.product_selection_groups;
 DELETE FROM ofc.selection_group_branch_availability;
@@ -85,8 +86,11 @@ VALUES ('33333333-3333-3333-3333-333333333333','admin','admin@newofc.om','OFC Ad
   '\x9f45b99ba41d7c62b6c0f8be0624152c5cf8726de16e0973dba933097f5ea8c2'::bytea,
   '\x0abd7fd928ef5ee3dedb41097f246db9'::bytea, true, now());
 
--- Admin role ----------------------------------------------
-INSERT INTO ofc.roles ("Id","Name") VALUES ('44444444-4444-4444-4444-444444444444','Admin');
+-- Default roles: Admin, Branch Manager, Cashier ------------
+INSERT INTO ofc.roles ("Id","Name") VALUES
+('44444444-4444-4444-4444-444444444444','Admin'),
+('44444444-4444-4444-4444-444444444445','Branch Manager'),
+('44444444-4444-4444-4444-444444444446','Cashier');
 
 -- All permissions ----------------------------------------
 INSERT INTO ofc.permissions ("Id","Code","Name")
@@ -106,6 +110,16 @@ SELECT gen_random_uuid(), code, code FROM unnest(ARRAY[
 
 INSERT INTO ofc.role_permissions ("RoleId","PermissionId")
 SELECT '44444444-4444-4444-4444-444444444444', "Id" FROM ofc.permissions;
+
+-- Branch Manager inherits full operational permissions (no org/global admin).
+INSERT INTO ofc.role_permissions ("RoleId","PermissionId")
+SELECT '44444444-4444-4444-4444-444444444445', p."Id" FROM ofc.permissions p
+WHERE p."Code" IN ('catalog.categories.manage','catalog.products.manage','catalog.selection-groups.manage','pricing.manage','pricing.override','orders.manage','payments.manage','payment-methods.manage','cancellations.manage','cancellations.cancel','cancellations.void','cancellations.refund','cancellations.approve','cancellations.report','shifts.open','shifts.manage','shifts.close','shifts.approve','shifts.view-variance','shifts.report','printing.configs.manage','printing.templates.manage','printing.routes.manage','printing.jobs.manage','printing.view','kitchen.view','kitchen.manage','kitchen.acknowledge','kitchen.cancel','inventory.view','inventory.uoms.manage','inventory.items.manage','inventory.recipes.manage','inventory.movements.manage','inventory.counts.manage','inventory.transfers.manage','inventory.waste.manage','inventory.costing.view','reports.view','reports.export','procurement.view','procurement.suppliers.manage','procurement.purchase-orders.manage','procurement.goods-receipt.manage','procurement.approve','qr.manage','qr.approve');
+
+-- Cashier inherits only point-of-sale permissions.
+INSERT INTO ofc.role_permissions ("RoleId","PermissionId")
+SELECT '44444444-4444-4444-4444-444444444446', p."Id" FROM ofc.permissions p
+WHERE p."Code" IN ('orders.manage','payments.manage','cancellations.cancel','cancellations.void','shifts.open','shifts.close');
 
 -- Grant admin to the two branches -------------------------
 INSERT INTO ofc.user_roles ("UserId","RoleId") VALUES ('33333333-3333-3333-3333-333333333333','44444444-4444-4444-4444-444444444444');

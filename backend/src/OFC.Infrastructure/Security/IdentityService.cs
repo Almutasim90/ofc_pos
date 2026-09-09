@@ -11,6 +11,15 @@ public sealed class IdentityService(OFCDbContext db, TimeProvider timeProvider)
 {
     public static readonly string[] PermissionCodes = ["users.manage", "roles.manage", "branches.manage", "devices.manage", "settings.manage", "catalog.categories.manage", "catalog.products.manage", "catalog.selection-groups.manage", "pricing.manage", "pricing.override", "orders.manage", "payments.manage", "payment-methods.manage", "cancellations.manage", "cancellations.cancel", "cancellations.void", "cancellations.refund", "cancellations.approve", "cancellations.report", "shifts.open", "shifts.manage", "shifts.close", "shifts.approve", "shifts.view-variance", "shifts.report", "printing.configs.manage", "printing.templates.manage", "printing.routes.manage", "printing.jobs.manage", "printing.view", "kitchen.view", "kitchen.manage", "kitchen.acknowledge", "kitchen.cancel", "inventory.view", "inventory.uoms.manage", "inventory.items.manage", "inventory.recipes.manage", "inventory.movements.manage", "inventory.counts.manage", "inventory.transfers.manage", "inventory.waste.manage", "inventory.costing.view", "reports.view", "reports.export", "audit.view", "audit.manage", "procurement.view", "procurement.suppliers.manage", "procurement.purchase-orders.manage", "procurement.goods-receipt.manage", "procurement.approve", "qr.manage", "qr.approve", "integrations.view", "integrations.manage", "integrations.ai"];
 
+    // Default role templates created on bootstrap: each role owns an explicit permission set, and every
+    // user inherits their permissions from the assigned role(s) (per-user overrides are applied on top).
+    public static readonly IReadOnlyList<(string Name, string[] Permissions)> DefaultRoles =
+    [
+        ("Admin", PermissionCodes),
+        ("Branch Manager", ["catalog.categories.manage", "catalog.products.manage", "catalog.selection-groups.manage", "pricing.manage", "pricing.override", "orders.manage", "payments.manage", "payment-methods.manage", "cancellations.manage", "cancellations.cancel", "cancellations.void", "cancellations.refund", "cancellations.approve", "cancellations.report", "shifts.open", "shifts.manage", "shifts.close", "shifts.approve", "shifts.view-variance", "shifts.report", "printing.configs.manage", "printing.templates.manage", "printing.routes.manage", "printing.jobs.manage", "printing.view", "kitchen.view", "kitchen.manage", "kitchen.acknowledge", "kitchen.cancel", "inventory.view", "inventory.uoms.manage", "inventory.items.manage", "inventory.recipes.manage", "inventory.movements.manage", "inventory.counts.manage", "inventory.transfers.manage", "inventory.waste.manage", "inventory.costing.view", "reports.view", "reports.export", "procurement.view", "procurement.suppliers.manage", "procurement.purchase-orders.manage", "procurement.goods-receipt.manage", "procurement.approve", "qr.manage", "qr.approve"]),
+        ("Cashier", ["orders.manage", "payments.manage", "cancellations.cancel", "cancellations.void", "shifts.open", "shifts.close"]),
+    ];
+
     public async Task<(string Token, User User, Guid? BranchId, Guid? DeviceId)?> LoginAsync(string username, string password, Guid? branchId, Guid? deviceId, string correlationId, CancellationToken cancellationToken)
     {
         var normalized = username.Trim().ToLowerInvariant();
@@ -32,9 +41,14 @@ public sealed class IdentityService(OFCDbContext db, TimeProvider timeProvider)
         var branch = new Branch { OrganizationId = organization.Id, Code = "MAIN", NameAr = branchNameAr.Trim(), NameEn = branchNameEn.Trim(), TimeZone = "Asia/Muscat" };
         var (salt, hash) = Hash(password);
         var admin = new User { Username = username.Trim(), DisplayName = displayName.Trim(), PasswordSalt = salt, PasswordHash = hash };
-        var permissions = PermissionCodes.Select(code => new Permission { Code = code, Name = code }).ToArray();
-        var role = new Role { Name = "Admin", Permissions = permissions.Select(permission => new RolePermission { Permission = permission }).ToList() };
-        admin.Roles.Add(new UserRole { Role = role }); admin.Branches.Add(new UserBranch { BranchId = branch.Id });
+        var permissionByCode = PermissionCodes.Select(code => new Permission { Code = code, Name = code }).ToDictionary(p => p.Code);
+        foreach (var (roleName, codes) in DefaultRoles)
+        {
+            var role = new Role { Name = roleName, Permissions = codes.Select(code => new RolePermission { Permission = permissionByCode[code] }).ToList() };
+            if (roleName == "Admin") admin.Roles.Add(new UserRole { Role = role });
+            db.Roles.Add(role);
+        }
+        admin.Branches.Add(new UserBranch { BranchId = branch.Id });
         db.AddRange(organization, branch, admin); Audit(admin.Id, branch.Id, null, "bootstrap", "organization", organization.Id.ToString(), correlationId);
         await db.SaveChangesAsync(cancellationToken); return admin;
     }

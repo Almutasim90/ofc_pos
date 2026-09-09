@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChefHat, RefreshCw, Send } from "lucide-react";
 import * as signalR from "@microsoft/signalr";
+import { FormDialog } from "@/app/FormDialog";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -53,6 +54,7 @@ export function KitchenSection({ language }: { language: Language }) {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [dispatchForm, setDispatchForm] = useState({ orderId: "", targetMinutes: "" });
+  const [showDispatch, setShowDispatch] = useState(false);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   const setMsg = (value: string, error = false) => { setMessage(value); setIsError(error); };
@@ -104,7 +106,7 @@ export function KitchenSection({ language }: { language: Language }) {
     await queuePromise;
   }
 
-  async function dispatch(event: React.FormEvent) { event.preventDefault(); setMsg(""); if (!branchId || !dispatchForm.orderId) { setMsg(t.failed, true); return; } try { const body = { branchId, orderId: dispatchForm.orderId, clientDispatchId: createId(), orderNumber: null, note: null, targetMinutes: dispatchForm.targetMinutes === "" ? null : Number(dispatchForm.targetMinutes) }; const response = await auth("/api/v1/kitchen/tickets", { method: "POST", body: JSON.stringify(body) }); if (!response.ok) throw new Error(t.failed); setMsg(t.dispatched); setDispatchForm({ orderId: "", targetMinutes: "" }); void refresh(); } catch { setMsg(t.failed, true); } }
+  async function dispatch(event: React.FormEvent) { event.preventDefault(); setMsg(""); if (!branchId || !dispatchForm.orderId) { setMsg(t.failed, true); return; } try { const body = { branchId, orderId: dispatchForm.orderId, clientDispatchId: createId(), orderNumber: null, note: null, targetMinutes: dispatchForm.targetMinutes === "" ? null : Number(dispatchForm.targetMinutes) }; const response = await auth("/api/v1/kitchen/tickets", { method: "POST", body: JSON.stringify(body) }); if (!response.ok) throw new Error(t.failed); setMsg(t.dispatched); setDispatchForm({ orderId: "", targetMinutes: "" }); setShowDispatch(false); void refresh(); } catch { setMsg(t.failed, true); } }
 
   async function act(ticket: Ticket, action: "send" | "ack" | "fallback" | "printed" | "fail") {
     setMsg(""); const id = ticket.id;
@@ -135,25 +137,26 @@ export function KitchenSection({ language }: { language: Language }) {
         <label className="block flex-1 text-sm font-medium">{t.branch}<select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
         <label className="block flex-1 text-sm font-medium">{t.station}<select value={stationId} onChange={(e) => setStationId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.allStations}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
         <button onClick={() => void refresh()} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-[#0e5a4f] px-4 font-semibold text-[#0e5a4f]"><RefreshCw size={18} />{t.reload}</button>
+        <button onClick={() => setShowDispatch(true)} className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Send size={18} />{t.dispatchAction}</button>
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.dispatch}</h2>
-          <p className="mt-1 text-sm text-[#69766f]">{t.dispatchNote}</p>
-          <form onSubmit={dispatch} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium sm:col-span-2">{t.order}<select value={dispatchForm.orderId} onChange={(e) => setDispatchForm({ ...dispatchForm, orderId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{orders.length === 0 && <option value="">{t.empty}</option>}{orders.map((o) => <option key={o.id} value={o.id}>{o.status} · {o.grossAmount}</option>)}</select></label>
-            <label className="block text-sm font-medium">{t.targetMinutes}<input type="number" value={dispatchForm.targetMinutes} onChange={(e) => setDispatchForm({ ...dispatchForm, targetMinutes: e.target.value })} min={1} max={999} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>
-            <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={18} />{t.dispatchAction}</button>
-          </form>
-        </section>
+      <div className="mt-6">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <h2 className="font-semibold">{t.station}</h2>
           {stations.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : <ul className="mt-3 grid gap-2 sm:grid-cols-2">{stations.map((s) => <li key={s.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{s.code} · {name(s)}</span><button onClick={() => setStationId(s.id)} className="text-xs font-semibold text-[#0e5a4f]">{t.reload}</button></li>)}</ul>}
         </section>
       </div>
+
+      {showDispatch && <FormDialog title={t.dispatch} closeLabel={t.cancel} onClose={() => setShowDispatch(false)} width="max-w-xl">
+        <p className="text-sm text-[#69766f]">{t.dispatchNote}</p>
+        <form onSubmit={dispatch} className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-medium sm:col-span-2">{t.order}<select value={dispatchForm.orderId} onChange={(e) => setDispatchForm({ ...dispatchForm, orderId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{orders.length === 0 && <option value="">{t.empty}</option>}{orders.map((o) => <option key={o.id} value={o.id}>{o.status} · {o.grossAmount}</option>)}</select></label>
+          <label className="block text-sm font-medium">{t.targetMinutes}<input type="number" value={dispatchForm.targetMinutes} onChange={(e) => setDispatchForm({ ...dispatchForm, targetMinutes: e.target.value })} min={1} max={999} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>
+          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={18} />{t.dispatchAction}</button>
+        </form>
+      </FormDialog>}
 
       {loading && <div className="mt-6 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 

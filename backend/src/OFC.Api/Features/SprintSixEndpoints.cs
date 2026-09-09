@@ -6,6 +6,7 @@ using OFC.Infrastructure.Persistence;
 using OFC.Infrastructure.Security;
 using OFC.Modules.Ordering;
 using OFC.Modules.Payments;
+using OFC.Modules.Printing;
 using OFC.Modules.Shifts;
 
 namespace OFC.Api.Features;
@@ -96,7 +97,7 @@ public static class SprintSixEndpoints
         }
 
         db.Payments.AddRange(payments);
-        await ApplyPaidIfFullyCaptured(db, order, UserId(user), "Payment captured", ct);
+        await ApplyPaidIfFullyCaptured(db, order, UserId(user), DeviceId(user), "Payment captured", ct);
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "payment.capture", "order", order.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { order.GrossAmount, payments = payments.Select(x => new { x.Id, x.PaymentMethodId, x.Amount, x.Status, x.ChangeAmount }) }));
         try { await db.SaveChangesAsync(ct); } catch (DbUpdateException) { var replay = await db.Payments.Where(x => x.OrderId == id && requestIds.Contains(x.ClientRequestId)).ToListAsync(ct); if (replay.Count == requestIds.Count) return Results.Ok(PaymentResponse(replay)); throw; }
         return Results.Ok(PaymentResponse(payments));
@@ -117,7 +118,7 @@ public static class SprintSixEndpoints
         db.PaymentStatusHistory.Add(new PaymentStatusHistory { PaymentId = payment.Id, FromStatus = PaymentStatus.Authorized, ToStatus = PaymentStatus.Captured, ChangedByUserId = UserId(user), Note = "Captured by terminal" });
         var shiftId = await CurrentShiftId(db, order.BranchId, ct);
         db.FinancialTransactions.Add(new FinancialTransaction { OrderId = order.Id, PaymentId = payment.Id, BranchId = order.BranchId, PaymentMethodId = payment.PaymentMethodId, DeviceId = DeviceId(user), ShiftId = shiftId, Amount = payment.Amount, Reference = payment.ProviderReference ?? payment.Id.ToString(), CreatedByUserId = UserId(user) });
-        await ApplyPaidIfFullyCaptured(db, order, UserId(user), "Payment captured", ct);
+        await ApplyPaidIfFullyCaptured(db, order, UserId(user), DeviceId(user), "Payment captured", ct);
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "payment.capture", "payment", payment.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { payment.Status, payment.Amount }));
         await db.SaveChangesAsync(ct);
         return Results.Ok(PaymentResponse([payment]));
@@ -152,18 +153,54 @@ public static class SprintSixEndpoints
         return Results.Ok(PaymentResponse([payment]));
     }
 
-    private static async Task ApplyPaidIfFullyCaptured(OFCDbContext db, Order order, Guid userId, string note, CancellationToken ct)
+    private static async Task ApplyPaidIfFullyCaptured(OFCDbContext db, Order order, Guid userId, Guid? deviceId, string note, CancellationToken ct)
     {
         if (order.Status == OrderStatus.Paid) return;
         // Tracked entities include authorizations captured during this request, before saving.
         var payments = await db.Payments.Where(x => x.OrderId == order.Id).ToListAsync(ct);
         var added = db.ChangeTracker.Entries<Payment>().Where(e => e.State == EntityState.Added && e.Entity.OrderId == order.Id).Select(e => e.Entity);
-        var captured = payments.Concat(added).DistinctBy(x => x.Id).Where(x => x.Status == PaymentStatus.Captured).Sum(x => x.Amount);
+        var allPayments = payments.Concat(added).DistinctBy(x => x.Id).ToList();
+        var captured = allPayments.Where(x => x.Status == PaymentStatus.Captured).Sum(x => x.Amount);
         if (Math.Abs(PaymentRules.RoundMoney(captured) - order.GrossAmount) > PaymentRules.MoneyTolerance) return;
         var from = order.Status;
         order.Status = OrderStatus.Paid;
         order.UpdatedAt = DateTimeOffset.UtcNow;
         db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = from, ToStatus = OrderStatus.Paid, ChangedByUserId = userId, Note = note });
+        await EnqueueReceiptPrintJob(db, order, allPayments.Where(x => x.Status == PaymentStatus.Captured).ToList(), userId, deviceId, ct);
+    }
+
+    // Auto-prints the customer receipt the moment an order becomes fully paid, mirroring how a kitchen
+    // ticket auto-enqueues its own print job (SprintTenEndpoints) — the cashier never has to remember to
+    // print. Falls back to no printer/template (still enqueued, rendered as a plain key/value dump by the
+    // print agent) when the branch hasn't configured a Receipt route yet, so nothing is silently lost.
+    private static async Task EnqueueReceiptPrintJob(OFCDbContext db, Order order, List<Payment> capturedPayments, Guid userId, Guid? deviceId, CancellationToken ct)
+    {
+        if (await db.PrintJobs.AnyAsync(x => x.OrderId == order.Id && x.Kind == PrintJobKind.Receipt, ct)) return;
+        var branch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == order.BranchId, ct);
+        if (branch is null) return;
+        var lines = await db.OrderLines.AsNoTracking().Where(x => x.OrderId == order.Id).ToListAsync(ct);
+        var methodIds = capturedPayments.Select(x => x.PaymentMethodId).Distinct().ToList();
+        var methods = methodIds.Count == 0 ? [] : await db.PaymentMethods.AsNoTracking().Where(x => methodIds.Contains(x.Id)).ToListAsync(ct);
+        var routes = await db.PrinterRoutes.AsNoTracking().Where(x => x.BranchId == order.BranchId && x.IsActive).ToListAsync(ct);
+        var receiptTemplates = await db.PrintTemplates.AsNoTracking().Where(x => x.BranchId == order.BranchId && x.Kind == PrinterKind.Receipt).ToListAsync(ct);
+        var route = PrintingRules.PickRoute(routes.Where(x => receiptTemplates.Any(t => t.Id == x.PrintTemplateId)), null);
+        var template = route is null ? null : receiptTemplates.SingleOrDefault(t => t.Id == route.PrintTemplateId);
+        var payload = new
+        {
+            marker = "RECEIPT",
+            orderId = order.Id,
+            orderShortId = order.Id.ToString()[..8].ToUpperInvariant(),
+            branchNameAr = branch.NameAr,
+            branchNameEn = branch.NameEn,
+            createdAt = order.CreatedAt,
+            paidAt = order.UpdatedAt,
+            netAmount = order.NetAmount,
+            taxAmount = order.TaxAmount,
+            grossAmount = order.GrossAmount,
+            items = lines.Select(x => new { x.ProductNameAr, x.ProductNameEn, x.Quantity, unitPrice = x.UnitGrossAmount, lineTotal = PaymentRules.RoundMoney(x.UnitGrossAmount * x.Quantity), x.Note }),
+            payments = capturedPayments.Select(p => new { methodNameAr = methods.FirstOrDefault(m => m.Id == p.PaymentMethodId)?.NameAr, methodNameEn = methods.FirstOrDefault(m => m.Id == p.PaymentMethodId)?.NameEn, p.Amount, p.TenderedAmount, p.ChangeAmount })
+        };
+        db.PrintJobs.Add(new PrintJob { BranchId = order.BranchId, DeviceId = deviceId, OrderId = order.Id, ClientRequestId = order.Id, Kind = PrintJobKind.Receipt, Status = PrintJobStatus.Pending, PrinterConfigurationId = route?.PrinterConfigurationId, TemplateCode = template?.Code, Payload = JsonSerializer.Serialize(payload), CreatedByUserId = userId });
     }
 
     private static object PaymentResponse(IEnumerable<Payment> payments) => new { payments = payments.Select(x => new { x.Id, x.PaymentMethodId, x.Amount, x.TenderedAmount, x.ChangeAmount, x.Status, x.ProviderReference, x.CreatedAt }), changeAmount = payments.Sum(x => x.ChangeAmount) };

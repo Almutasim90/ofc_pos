@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ClipboardCheck, RefreshCw, Trash2, Save, Plus } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
+import { FormDialog } from "@/app/FormDialog";
 
 type Language = "ar" | "en";
 type Branch = { id: string; code: string; nameAr: string; nameEn: string };
@@ -20,14 +21,14 @@ const wasteCategories = ["Expired", "Damaged", "PreparationWaste", "FinishedProd
 
 const copy = {
   ar: {
-    title: "الجرد والتحويل والهدر والتكلفة", intro: "دورات الجرد والتسوية، التحويل بين الفروع، تسجيل الهدر وأسبابه، وحساب تكلفة الوصفة والهامش.", loading: "جارٍ التحميل", reload: "تحديث", saved: "تم الحفظ بنجاح.", failed: "تعذر تنفيذ العملية.", empty: "لا توجد بيانات بعد.", branch: "الفرع", view: "عرض",
+    title: "الجرد والتحويل والهدر والتكلفة", intro: "دورات الجرد والتسوية، التحويل بين الفروع، تسجيل الهدر وأسبابه، وحساب تكلفة الوصفة والهامش.", loading: "جارٍ التحميل", reload: "تحديث", saved: "تم الحفظ بنجاح.", failed: "تعذر تنفيذ العملية.", empty: "لا توجد بيانات بعد.", branch: "الفرع", view: "عرض", close: "إغلاق",
     counts: "عدّ المخزون الفعلي", addCount: "إنشاء جرد", note: "ملاحظة", countItem: "المادة", countedQty: "الكمية الفعلية", reason: "السبب", systemQty: "كمية النظام", variance: "الفرق", approve: "اعتماد", post: "تحديث الرصيد بالكمية المعتمدة", cancel: "إلغاء", addCountLine: "إضافة سطر", createCount: "إنشاء", statusDraft: "مسودة", statusPosted: "مرحّل", statusCancelled: "ملغي", countLines: "أسطر الجرد",
     transfers: "التحويل بين الفروع", addTransfer: "إنشاء تحويل", sourceBranch: "فرع المصدر", destinationBranch: "الفرع الوجهة", transferItem: "المادة", quantity: "الكمية", reference: "مرجع", ship: "شحن", receive: "استلام", cancelTransfer: "إلغاء", addTransferLine: "إضافة سطر", createTransfer: "إنشاء", statusInTransit: "قيد النقل", statusReceived: "مستلم", statusCancelledTransfer: "ملغي",
     waste: "الهدر", addWaste: "تسجيل هدر", category: "نوع الهدر", unit: "الوحدة", photoUrl: "رابط الصورة", recordWaste: "تسجيل", catExpired: "منتهي الصلاحية", catDamaged: "تالف", catPreparationWaste: "هدر التحضير", catFinishedProductWaste: "هدر المنتج النهائي", catCancelledOrderWaste: "هدر طلب ملغي",
     costing: "التكلفة والتسعير", viewValuation: "قيمة المخزون", valuation: "قيمة المخزون", totalValue: "إجمالي قيمة المخزون", itemsLineCount: "منتجات", balance: "الرصيد", unitCost: "تكلفة الوحدة", value: "القيمة", recipeCost: "تكلفة الوصفة", reproduced: "التكلفة قابلة لإعادة الحساب", notReproduced: "التكلفة غير قابلة للاحتساب", sellingPrice: "سعر البيع", foodCostPercent: "نسبة تكلفة الطعام", grossMargin: "الهامش الإجمالي", grossMarginPercent: "نسبة الهامش", viewSummary: "ملخص التكلفة"
   } as const,
   en: {
-    title: "Advanced inventory, waste & costing", intro: "Count and adjustment cycles, inter-branch transfers, auditable waste with reasons, and recipe cost/COGS valuation.", loading: "Loading", reload: "Refresh", saved: "Saved successfully.", failed: "Unable to complete the operation.", empty: "No data yet.", branch: "Branch", view: "View",
+    title: "Advanced inventory, waste & costing", intro: "Count and adjustment cycles, inter-branch transfers, auditable waste with reasons, and recipe cost/COGS valuation.", loading: "Loading", reload: "Refresh", saved: "Saved successfully.", failed: "Unable to complete the operation.", empty: "No data yet.", branch: "Branch", view: "View", close: "Close",
     counts: "Physical counts", addCount: "Start a count", note: "Note", countItem: "Item", countedQty: "Counted quantity", reason: "Reason", systemQty: "System quantity", variance: "Variance", approve: "Approve", post: "Post adjustment", cancel: "Cancel", addCountLine: "Add line", createCount: "Create", statusDraft: "Draft", statusPosted: "Posted", statusCancelled: "Cancelled", countLines: "Count lines",
     transfers: "Stock transfers", addTransfer: "New transfer", sourceBranch: "Source branch", destinationBranch: "Destination branch", transferItem: "Item", quantity: "Quantity", reference: "Reference", ship: "Ship", receive: "Receive", cancelTransfer: "Cancel", addTransferLine: "Add line", createTransfer: "Create", statusInTransit: "In transit", statusReceived: "Received", statusCancelledTransfer: "Cancelled",
     waste: "Waste", addWaste: "Record waste", category: "Waste category", unit: "Unit", photoUrl: "Photo URL", recordWaste: "Record", catExpired: "Expired", catDamaged: "Damaged", catPreparationWaste: "Preparation waste", catFinishedProductWaste: "Finished product waste", catCancelledOrderWaste: "Cancelled order waste",
@@ -64,6 +65,9 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
   const [valuation, setValuation] = useState<{ totalValue: number; rows: ValuationRow[] } | null>(null);
   const [costRows, setCostRows] = useState<CostRow[] | null>(null);
+  const [countDialogOpen, setCountDialogOpen] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [wasteDialogOpen, setWasteDialogOpen] = useState(false);
 
   const setMsg = (value: string, error = false) => { setMessage(value); setIsError(error); };
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${store.get<string>("session-token") ?? ""}`, ...(init?.headers ?? {}) } });
@@ -104,7 +108,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
       const lines = countLines.map((l) => ({ inventoryItemId: l.inventoryItemId, countedQuantity: l.countedQuantity === "" ? 0 : Number(l.countedQuantity), reason: countForm.reason.trim() || null }));
       const r = await auth("/api/v1/inventory/counts", { method: "POST", body: JSON.stringify({ branchId, clientCountId: createId(), note: countForm.note.trim() || null, lines }) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.lines?.[0] ?? p?.errors?.count?.[0] ?? t.failed); }
-      setMsg(t.saved); setCountForm({ note: "", reason: "" }); setCountLines([]); await loadCounts();
+      setMsg(t.saved); setCountForm({ note: "", reason: "" }); setCountLines([]); setCountDialogOpen(false); await loadCounts();
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -123,7 +127,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
       const lines = transferLines.map((l) => ({ inventoryItemId: l.inventoryItemId, quantity: Number(l.quantity) }));
       const r = await auth("/api/v1/inventory/transfers", { method: "POST", body: JSON.stringify({ sourceBranchId: transferForm.sourceBranchId, destinationBranchId: transferForm.destinationBranchId, clientTransferId: createId(), note: transferForm.note.trim() || null, reference: transferForm.reference.trim() || null, lines }) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.lines?.[0] ?? p?.errors?.destinationBranchId?.[0] ?? t.failed); }
-      setMsg(t.saved); setTransferForm({ sourceBranchId: branchId, destinationBranchId: "", note: "", reference: "" }); setTransferLines([]); await loadTransfers();
+      setMsg(t.saved); setTransferForm({ sourceBranchId: branchId, destinationBranchId: "", note: "", reference: "" }); setTransferLines([]); setTransferDialogOpen(false); await loadTransfers();
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -133,7 +137,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
     try {
       const r = await auth("/api/v1/inventory/waste", { method: "POST", body: JSON.stringify({ branchId, inventoryItemId: wasteForm.inventoryItemId, category: wasteForm.category, quantity: Number(wasteForm.quantity), unitId: wasteForm.unitId, reason: wasteForm.reason.trim(), note: wasteForm.note.trim() || null, photoUrl: wasteForm.photoUrl.trim() || null, reference: wasteForm.reference.trim() || null, orderId: null, orderLineId: null, shiftId: null, clientRecordId: createId(), occurredAt: null }) });
       if (!r.ok) { const p = await r.json().catch(() => null); throw new Error(p?.errors?.reason?.[0] ?? p?.errors?.quantity?.[0] ?? t.failed); }
-      setMsg(t.saved); setWasteForm({ inventoryItemId: "", category: "Expired", quantity: "", unitId: "", reason: "", note: "", photoUrl: "", reference: "" }); await loadWaste();
+      setMsg(t.saved); setWasteForm({ inventoryItemId: "", category: "Expired", quantity: "", unitId: "", reason: "", note: "", photoUrl: "", reference: "" }); setWasteDialogOpen(false); await loadWaste();
     } catch (e) { setMsg(e instanceof Error ? e.message : t.failed, true); }
   }
 
@@ -178,7 +182,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.counts}</h2><p className="mt-3 rounded-lg bg-[#edf5f1] p-4 text-sm leading-7">{language === "ar" ? "١. عُدّ الكمية الموجودة فعليًا في المخزن. ٢. أدخل الكمية بوحدة المادة. ٣. راجع الفرق وسببه، ثم اعتمد الجرد وحدّث الرصيد. مثال: النظام يعرض 10 كجم دجاج، والموجود 8 كجم؛ الفرق ناقص 2 كجم. إنشاء الجرد وحده لا يغيّر الرصيد." : "1. Count the stock physically present. 2. Enter the quantity in the item’s unit. 3. Review the difference and its reason, approve, then update stock. Example: system 10 kg of chicken, counted 8 kg, difference −2 kg. Creating a count alone does not change stock."}</p>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.counts}</h2><button onClick={() => setCountDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Plus size={18} />{t.addCount}</button></div><p className="mt-3 rounded-lg bg-[#edf5f1] p-4 text-sm leading-7">{language === "ar" ? "١. عُدّ الكمية الموجودة فعليًا في المخزن. ٢. أدخل الكمية بوحدة المادة. ٣. راجع الفرق وسببه، ثم اعتمد الجرد وحدّث الرصيد. مثال: النظام يعرض 10 كجم دجاج، والموجود 8 كجم؛ الفرق ناقص 2 كجم. إنشاء الجرد وحده لا يغيّر الرصيد." : "1. Count the stock physically present. 2. Enter the quantity in the item’s unit. 3. Review the difference and its reason, approve, then update stock. Example: system 10 kg of chicken, counted 8 kg, difference −2 kg. Creating a count alone does not change stock."}</p>
           {counts.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">{counts.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{c.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#69766f]">{c.lineCount} {t.countLines} · {c.varianceLineCount} {t.variance}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.status === "Posted" ? "bg-[#e3f4ea] text-[#137347]" : c.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{countStatus(c.status)}</span><button onClick={() => void openCount(c.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
           )}
@@ -189,8 +193,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
               <div className="mt-3 flex flex-wrap gap-2">{(countDetail.status === "Draft" && !countDetail.approvedAt) && <button onClick={() => void actCount(countDetail.id, "approve")} className="min-h-9 rounded-lg bg-[#137347] px-3 text-xs font-semibold text-white">{t.approve}</button>}{countDetail.status === "Draft" && countDetail.approvedAt && <button onClick={() => void actCount(countDetail.id, "post")} className="min-h-9 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white">{t.post}</button>}{countDetail.status === "Draft" && <button onClick={() => void actCount(countDetail.id, "cancel")} className="min-h-9 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]">{t.cancel}</button>}</div>
             </div>
           )}
-          <form onSubmit={createCount} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addCount}</h3>
+          {countDialogOpen && <FormDialog title={t.addCount} closeLabel={t.close} onClose={() => setCountDialogOpen(false)}><form onSubmit={createCount} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3"><Field label={t.note} value={countForm.note} onChange={(v) => setCountForm({ ...countForm, note: v })} max={500} /></div>
             <div className="mt-3"><Field label={t.reason} value={countForm.reason} onChange={(v) => setCountForm({ ...countForm, reason: v })} max={500} /></div>
             <div className="mt-3 space-y-2">
@@ -205,11 +208,11 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
             <button type="button" onClick={() => setCountLines([...countLines, { inventoryItemId: "", countedQuantity: "", reason: "" }])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addCountLine}</button>
             <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Save size={18} />{t.createCount}</button>
-          </form>
+          </form></FormDialog>}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.transfers}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.transfers}</h2><button onClick={() => setTransferDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Plus size={18} />{t.addTransfer}</button></div>
           {transfers.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">{transfers.map((x) => <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{x.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#69766f]">{fmt(x.totalQuantity)} · {x.lineCount}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${x.status === "Received" ? "bg-[#e3f4ea] text-[#137347]" : x.status === "InTransit" ? "bg-[#edf5f1] text-[#0e5a4f]" : x.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{transferStatus(x.status)}</span><button onClick={() => void openTransfer(x.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
           )}
@@ -220,8 +223,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
               <div className="mt-3 flex flex-wrap gap-2">{transferDetail.status === "Draft" && <button onClick={() => void actTransfer(transferDetail.id, "ship", t.failed)} className="min-h-9 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white">{t.ship}</button>}{transferDetail.status === "InTransit" && <button onClick={() => void actTransfer(transferDetail.id, "receive", t.failed)} className="min-h-9 rounded-lg bg-[#137347] px-3 text-xs font-semibold text-white">{t.receive}</button>}{(transferDetail.status === "Draft" || transferDetail.status === "InTransit") && <button onClick={() => void actTransfer(transferDetail.id, "cancel", t.failed)} className="min-h-9 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]">{t.cancelTransfer}</button>}</div>
             </div>
           )}
-          <form onSubmit={createTransfer} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addTransfer}</h3>
+          {transferDialogOpen && <FormDialog title={t.addTransfer} closeLabel={t.close} onClose={() => setTransferDialogOpen(false)}><form onSubmit={createTransfer} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.sourceBranch} value={transferForm.sourceBranchId || branchId} onChange={(v) => setTransferForm({ ...transferForm, sourceBranchId: v })}>{branchOptions}</Select>
               <Select label={t.destinationBranch} value={transferForm.destinationBranchId} onChange={(v) => setTransferForm({ ...transferForm, destinationBranchId: v })}>{branchOptions}</Select>
@@ -239,16 +241,15 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
             </div>
             <button type="button" onClick={() => setTransferLines([...transferLines, { inventoryItemId: "", quantity: "" }])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addTransferLine}</button>
             <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Save size={18} />{t.createTransfer}</button>
-          </form>
+          </form></FormDialog>}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="font-semibold">{t.waste}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.waste}</h2><button onClick={() => setWasteDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Plus size={18} />{t.addWaste}</button></div>
           {waste.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">{waste.map((w) => <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{w.itemNameAr ?? w.itemNameEn ?? ""} · {categoryLabel(w.category)}</span><span className={`font-medium ${w.quantity < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(w.quantity)}</span></li>)}</ul>
           )}
-          <form onSubmit={createWaste} className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <h3 className="font-semibold">{t.addWaste}</h3>
+          {wasteDialogOpen && <FormDialog title={t.addWaste} closeLabel={t.close} onClose={() => setWasteDialogOpen(false)}><form onSubmit={createWaste} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.countItem} value={wasteForm.inventoryItemId} onChange={(v) => setWasteForm({ ...wasteForm, inventoryItemId: v })}>{itemOptions}</Select>
               <label className="block text-sm font-medium">{t.category}<select value={wasteForm.category} onChange={(e) => setWasteForm({ ...wasteForm, category: e.target.value as (typeof wasteCategories)[number] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{wasteCategories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></label>
@@ -260,7 +261,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
               <Field label={t.reference} value={wasteForm.reference} onChange={(v) => setWasteForm({ ...wasteForm, reference: v })} max={200} />
             </div>
             <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Save size={18} />{t.recordWaste}</button>
-          </form>
+          </form></FormDialog>}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">

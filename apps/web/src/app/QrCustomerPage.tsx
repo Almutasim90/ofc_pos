@@ -70,7 +70,7 @@ export function QrCustomerPage({ code }: { code: string }) {
   function notify(text: string, error = false) {
     const id = ++toastId.current;
     setToasts((prev) => [...prev, { id, text, error }]);
-    const timer = window.setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 8000);
+    const timer = window.setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 3000);
     toastTimers.current.push(timer);
   }
 
