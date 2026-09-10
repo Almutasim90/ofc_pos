@@ -240,13 +240,20 @@ public static class SprintSixteenEndpoints
         trackedApproval.Note = request.Note?.Trim();
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "qr.order.review", "order", order.Id.ToString(), httpContext.TraceIdentifier, JsonSerializer.Serialize(new { fromOrderStatus }), JsonSerializer.Serialize(new { target, targetOrderStatus }));
         // Approved → straight to the kitchen, same as an auto-approved order at submission time — the
-        // cashier who just approved it shouldn't also have to go dispatch it by hand.
+        // cashier who just approved it shouldn't also have to go dispatch it by hand. Guard against tickets
+        // that already exist for this order (a near-simultaneous second review, or a manual dispatch that
+        // beat this one to it) — the same check the manual Dispatch endpoint uses — so a race can't double
+        // up kitchen prep for the same order.
         List<KitchenTicket> kitchenTickets = [];
         if (target == QrOrderApprovalStatus.Approved)
         {
-            var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
-            var products = productIds.Count == 0 ? new Dictionary<Guid, Product>() : await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
-            kitchenTickets = SprintTenEndpoints.BuildTickets(db, identity, order.BranchId, order, products, Guid.NewGuid(), null, null, null, UserId(user), DeviceId(user), httpContext.TraceIdentifier);
+            var alreadyDispatched = await db.KitchenTickets.AsNoTracking().AnyAsync(x => x.BranchId == order.BranchId && x.OrderId == order.Id && x.DispatchStatus != KitchenDispatchStatus.Cancelled, ct);
+            if (!alreadyDispatched)
+            {
+                var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
+                var products = productIds.Count == 0 ? new Dictionary<Guid, Product>() : await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
+                kitchenTickets = SprintTenEndpoints.BuildTickets(db, identity, order.BranchId, order, products, Guid.NewGuid(), null, null, null, UserId(user), DeviceId(user), httpContext.TraceIdentifier);
+            }
         }
         await db.SaveChangesAsync(ct);
         // Realtime staff notification: this QR order was approved/rejected. Screens refresh their lists;
