@@ -1,0 +1,8 @@
+# Local-only override (not committed): publish the web UI on localhost and
+# drop the production-only Traefik network requirement.
+services:
+  web:
+    ports:
+      - "8080:80"
+    networks:
+      - default
