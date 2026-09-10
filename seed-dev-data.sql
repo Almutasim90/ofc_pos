@@ -40,6 +40,16 @@ DELETE FROM ofc.inventory_items;
 DELETE FROM ofc.unit_conversions;
 DELETE FROM ofc.units_of_measure;
 
+-- Clean branch-scoped tables added in later sprints (printing routing,
+-- cancellation thresholds, QR ordering, procurement) before their branches --
+DELETE FROM ofc.printer_routes;
+DELETE FROM ofc.printer_configurations;
+DELETE FROM ofc.print_templates;
+DELETE FROM ofc.cancellation_approval_thresholds;
+DELETE FROM ofc.qr_contexts;
+DELETE FROM ofc.customers;
+DELETE FROM ofc.suppliers;
+
 -- Clean slate (idempotent) --------------------------------
 DELETE FROM ofc.user_branches;
 DELETE FROM ofc.user_roles;
@@ -424,5 +434,49 @@ INSERT INTO ofc.recipe_versions ("Id","ProductId","VersionNumber","NameAr","Name
 
 INSERT INTO ofc.recipe_lines ("Id","RecipeVersionId","InventoryItemId","UnitId","Quantity") VALUES
 (gen_random_uuid(),'77777777-0000-0000-0000-000000000001','88888888-0000-0000-0000-000000000001','99999999-0000-0000-0000-000000000001',0.200);
+
+-- Suppliers (demo) -----------------------------------------
+INSERT INTO ofc.suppliers ("Id","Code","NameAr","NameEn","ContactPerson","Phone","Email","VatNumber","Address","Notes","IsActive","CreatedAt") VALUES
+('66666666-0000-0000-0000-000000000001','SUP-POULTRY','مزرعة الدواجن العمانية','Oman Poultry Farm','سالم الحارثي','+968 9911 2233','sales@omanpoultry.example','OM1234567890',NULL,NULL,true,now()),
+('66666666-0000-0000-0000-000000000002','SUP-PRODUCE','موردو الخضار الطازجة','Fresh Produce Suppliers','هدى البلوشية','+968 9922 3344','orders@freshproduce.example','OM0987654321',NULL,NULL,true,now());
+
+-- Customers (demo, for QR/loyalty testing) ------------------
+INSERT INTO ofc.customers ("Id","NameAr","NameEn","Phone","ExternalId","LoyaltyReference","IsWalkIn","CreatedAt") VALUES
+('55555555-0000-0000-0000-000000000001','أحمد الكندي','Ahmed Al Kindi','+968 9123 4567',NULL,NULL,false,now());
+
+-- Cancellation approval thresholds (per branch) --------------
+INSERT INTO ofc.cancellation_approval_thresholds ("Id","BranchId","Operation","Amount") VALUES
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','Void',5.000),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','Cancel',10.000),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','Refund',10.000),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','Void',5.000),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','Cancel',10.000),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','Refund',10.000);
+
+-- Printing: default printer/template/route per branch so
+-- receipt auto-print and kitchen ticket dispatch have a target
+-- out of the box (station NULL = catch-all fallback route). --
+INSERT INTO ofc.printer_configurations ("Id","BranchId","Code","NameAr","NameEn","Kind","DeviceName","IsActive","SortOrder","CreatedAt") VALUES
+('dddddddd-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222221','REC-01','طابعة الفاتورة','Receipt Printer','Receipt',NULL,true,1,now()),
+('dddddddd-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222221','KIT-01','طابعة المطبخ','Kitchen Printer','Kitchen',NULL,true,2,now()),
+('dddddddd-0000-0000-0000-000000000003','22222222-2222-2222-2222-222222222222','REC-01','طابعة الفاتورة','Receipt Printer','Receipt',NULL,true,1,now()),
+('dddddddd-0000-0000-0000-000000000004','22222222-2222-2222-2222-222222222222','KIT-01','طابعة المطبخ','Kitchen Printer','Kitchen',NULL,true,2,now());
+
+INSERT INTO ofc.print_templates ("Id","BranchId","Code","NameAr","NameEn","Kind","WidthChars","Content","IsActive","CreatedAt","UpdatedAt") VALUES
+('eeeeeeee-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222221','RECEIPT-STD','فاتورة عادية','Standard Receipt','Receipt',42,E'{{branchNameAr}} / {{branchNameEn}}\n--------------------------\n{{items}}\n--------------------------\nTotal: {{grossAmount}}',true,now(),now()),
+('eeeeeeee-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222221','KITCHEN-STD','تذكرة مطبخ عادية','Standard Kitchen Ticket','Kitchen',42,E'#{{orderShortId}}\n{{items}}',true,now(),now()),
+('eeeeeeee-0000-0000-0000-000000000003','22222222-2222-2222-2222-222222222222','RECEIPT-STD','فاتورة عادية','Standard Receipt','Receipt',42,E'{{branchNameAr}} / {{branchNameEn}}\n--------------------------\n{{items}}\n--------------------------\nTotal: {{grossAmount}}',true,now(),now()),
+('eeeeeeee-0000-0000-0000-000000000004','22222222-2222-2222-2222-222222222222','KITCHEN-STD','تذكرة مطبخ عادية','Standard Kitchen Ticket','Kitchen',42,E'#{{orderShortId}}\n{{items}}',true,now(),now());
+
+INSERT INTO ofc.printer_routes ("Id","BranchId","PreparationStationId","PrinterConfigurationId","PrintTemplateId","Priority","IsActive","CreatedAt") VALUES
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221',NULL,'dddddddd-0000-0000-0000-000000000001','eeeeeeee-0000-0000-0000-000000000001',1,true,now()),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221',NULL,'dddddddd-0000-0000-0000-000000000002','eeeeeeee-0000-0000-0000-000000000002',1,true,now()),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222',NULL,'dddddddd-0000-0000-0000-000000000003','eeeeeeee-0000-0000-0000-000000000003',1,true,now()),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222',NULL,'dddddddd-0000-0000-0000-000000000004','eeeeeeee-0000-0000-0000-000000000004',1,true,now());
+
+-- QR ordering: one dine-in table context per branch -----------
+INSERT INTO ofc.qr_contexts ("Id","BranchId","SalesChannelId","Kind","Code","NameAr","NameEn","ApprovalMode","IsActive","CreatedAt") VALUES
+('ffffffff-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222221','aaaaaaaa-0000-0000-0000-000000000002','Table','SUWAIQ-T01','طاولة 1 - السويق','Table 1 - Suwaiq','AutoApprove',true,now()),
+('ffffffff-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','aaaaaaaa-0000-0000-0000-000000000002','Table','KHABOORA-T01','طاولة 1 - الخابورة','Table 1 - Khaboora','AutoApprove',true,now());
 
 COMMIT;

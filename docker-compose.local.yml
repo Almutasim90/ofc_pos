@@ -1,0 +1,11 @@
+# Local dev override: publish the web UI on localhost and drop the
+# production-only Traefik network requirement. Named .local.yml (not
+# .override.yml) so a plain `docker compose up` on the deploy host does NOT
+# auto-merge this and break the web service's dokploy-network attachment.
+# Local use: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+services:
+  web:
+    ports:
+      - "8085:80"
+    networks:
+      - default
