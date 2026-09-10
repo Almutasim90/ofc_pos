@@ -54,7 +54,9 @@ public sealed class KitchenTicket
     public string? Note { get; set; }
     public bool WasPrepStartedBeforeCancellation { get; set; }
     public bool CancellationNotified { get; set; }
-    public Guid CreatedByUserId { get; set; }
+    // Null for a ticket the system dispatched on its own (an auto-approved or just-approved QR order) —
+    // there's no staff member to attribute it to.
+    public Guid? CreatedByUserId { get; set; }
     public Guid? DeviceId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? StartedAt { get; set; }

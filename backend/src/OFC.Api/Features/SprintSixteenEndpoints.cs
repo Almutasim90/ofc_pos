@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OFC.Infrastructure.Persistence;
 using OFC.Infrastructure.Security;
 using OFC.Modules.Catalog;
+using OFC.Modules.Kitchen;
 using OFC.Modules.Ordering;
 using OFC.Modules.Organization;
 using OFC.Modules.QrOrdering;
@@ -75,7 +76,7 @@ public static class SprintSixteenEndpoints
         return Results.Ok(new { context = ContextResponse(branch, channel, ctx), products = rows });
     }
 
-    private static async Task<IResult> SubmitOrder(string code, SubmitOrderRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster broadcaster, HttpContext httpContext, CancellationToken ct)
+    private static async Task<IResult> SubmitOrder(string code, SubmitOrderRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster ordersBroadcaster, IKitchenBroadcaster kitchenBroadcaster, HttpContext httpContext, CancellationToken ct)
     {
         var context = await ActiveContext(db, code, ct);
         if (context is null) return Results.NotFound();
@@ -111,12 +112,16 @@ public static class SprintSixteenEndpoints
         var requiresApproval = QrRules.RequiresStaffApproval(ctx.ApprovalMode);
         order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = OrderStatus.Pending, ChangedByUserId = null, Note = "Qr order submitted" });
         var approval = new QrOrderApproval { OrderId = order.Id, QrContextId = ctx.Id, CustomerId = customerId, Status = requiresApproval ? QrOrderApprovalStatus.Pending : QrOrderApprovalStatus.Approved };
+        // No staff approval needed → the order is confirmed the instant it's placed, so it goes straight to
+        // the kitchen here instead of sitting in Current orders until a cashier notices and dispatches it.
+        List<KitchenTicket> kitchenTickets = [];
         if (!requiresApproval)
         {
             order.Status = OrderStatus.Confirmed;
             order.UpdatedAt = at;
             approval.ReviewedAt = at;
             order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Pending, ToStatus = OrderStatus.Confirmed, ChangedByUserId = null, Note = "Auto-approved" });
+            kitchenTickets = SprintTenEndpoints.BuildTickets(db, identity, ctx.BranchId, order, products, Guid.NewGuid(), null, null, null, null, null, httpContext.TraceIdentifier);
         }
         else
         {
@@ -139,7 +144,8 @@ public static class SprintSixteenEndpoints
         // Realtime staff notification: a fresh QR order landed for this branch (pending staff approval,
         // or already auto-approved). Each connected screen re-fetches authoritative data — no state is
         // carried over the socket (docs/01-ARCHITECTURE-GUARDRAILS.md).
-        await broadcaster.QrOrderReceived(ctx.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), approval.Status.ToString(), order.GrossAmount, ctx.Code);
+        await ordersBroadcaster.QrOrderReceived(ctx.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), approval.Status.ToString(), order.GrossAmount, ctx.Code);
+        foreach (var ticket in kitchenTickets) await kitchenBroadcaster.TicketChanged(ctx.BranchId, ticket.Id, "dispatched");
 
         return Results.Created($"/api/v1/qr/{ctx.Code}/orders/{order.ClientRequestId}", OrderTracking(order, approval));
     }
@@ -193,7 +199,9 @@ public static class SprintSixteenEndpoints
 
     private static async Task<IResult> ListOrders(Guid branchId, OrderStatus? status, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
-        if (!await CanOperate(db, user, branchId, "qr.manage", ct)) return Forbidden();
+        // A cashier who can run the floor (orders.manage) needs to see and act on QR orders day to day —
+        // the qr.manage/qr.approve permissions stay for QR-code setup, not for gating routine order review.
+        if (!await CanOperate(db, user, branchId, "qr.manage", ct) && !await CanOperate(db, user, branchId, "orders.manage", ct)) return Forbidden();
         var query = db.Orders.AsNoTracking().Include(x => x.Lines).Where(x => x.BranchId == branchId && x.Source == OrderSource.Qr);
         if (status.HasValue) query = query.Where(x => x.Status == status.Value);
         var orders = await query.OrderByDescending(x => x.CreatedAt).Take(100).ToListAsync(ct);
@@ -204,11 +212,12 @@ public static class SprintSixteenEndpoints
         return Results.Ok(orders.Select(x => OrderTracking(x, approvals.TryGetValue(x.Id, out var a) ? a : null, customers)));
     }
 
-    private static async Task<IResult> ReviewApproval(Guid id, ReviewRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster broadcaster, ClaimsPrincipal user, HttpContext httpContext, CancellationToken ct)
+    private static async Task<IResult> ReviewApproval(Guid id, ReviewRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster ordersBroadcaster, IKitchenBroadcaster kitchenBroadcaster, ClaimsPrincipal user, HttpContext httpContext, CancellationToken ct)
     {
         var approval = await db.QrOrderApprovals.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
         if (approval is null) return Results.NotFound();
-        if (!await CanOperate(db, user, (await db.Orders.AsNoTracking().Where(x => x.Id == approval.OrderId).Select(x => x.BranchId).FirstOrDefaultAsync(ct)), "qr.approve", ct)) return Forbidden();
+        var reviewBranchId = await db.Orders.AsNoTracking().Where(x => x.Id == approval.OrderId).Select(x => x.BranchId).FirstOrDefaultAsync(ct);
+        if (!await CanOperate(db, user, reviewBranchId, "qr.approve", ct) && !await CanOperate(db, user, reviewBranchId, "orders.manage", ct)) return Forbidden();
         var decision = request.Decision?.Trim().ToLowerInvariant();
         if (decision is not ("approve" or "reject")) return Validation("decision", "The review decision must be approve or reject.");
         if (!QrRules.ValidNote(request.Note)) return Validation("note", "The review note is invalid.");
@@ -230,10 +239,20 @@ public static class SprintSixteenEndpoints
         trackedApproval.ReviewedAt = DateTimeOffset.UtcNow;
         trackedApproval.Note = request.Note?.Trim();
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "qr.order.review", "order", order.Id.ToString(), httpContext.TraceIdentifier, JsonSerializer.Serialize(new { fromOrderStatus }), JsonSerializer.Serialize(new { target, targetOrderStatus }));
+        // Approved → straight to the kitchen, same as an auto-approved order at submission time — the
+        // cashier who just approved it shouldn't also have to go dispatch it by hand.
+        List<KitchenTicket> kitchenTickets = [];
+        if (target == QrOrderApprovalStatus.Approved)
+        {
+            var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
+            var products = productIds.Count == 0 ? new Dictionary<Guid, Product>() : await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
+            kitchenTickets = SprintTenEndpoints.BuildTickets(db, identity, order.BranchId, order, products, Guid.NewGuid(), null, null, null, UserId(user), DeviceId(user), httpContext.TraceIdentifier);
+        }
         await db.SaveChangesAsync(ct);
         // Realtime staff notification: this QR order was approved/rejected. Screens refresh their lists;
         // the customer's own screen picks the outcome up on its next status poll.
-        await broadcaster.QrOrderReviewed(order.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), trackedApproval.Status.ToString());
+        await ordersBroadcaster.QrOrderReviewed(order.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), trackedApproval.Status.ToString());
+        foreach (var ticket in kitchenTickets) await kitchenBroadcaster.TicketChanged(order.BranchId, ticket.Id, "dispatched");
         return Results.Ok(OrderTracking(order, trackedApproval));
     }
 

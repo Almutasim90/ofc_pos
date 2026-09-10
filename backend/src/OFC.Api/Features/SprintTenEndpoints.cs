@@ -49,13 +49,26 @@ public static class SprintTenEndpoints
 
         var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
         var products = productIds.Count == 0 ? new Dictionary<Guid, Product>() : await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
-        var orderNumber = string.IsNullOrWhiteSpace(request.OrderNumber) ? order.Id.ToString("N")[..8].ToUpperInvariant() : request.OrderNumber.Trim();
-        var at = DateTimeOffset.UtcNow;
+        var orderNumber = string.IsNullOrWhiteSpace(request.OrderNumber) ? null : request.OrderNumber.Trim();
+        var created = BuildTickets(db, identity, request.BranchId, order, products, request.ClientDispatchId, orderNumber, request.Note, request.TargetMinutes, UserId(user), DeviceId(user), context.TraceIdentifier);
+        if (created.Count == 0) return Results.Ok(Array.Empty<object>());
+        await db.SaveChangesAsync(ct);
+        foreach (var ticket in created) await broadcaster.TicketChanged(request.BranchId, ticket.Id, "dispatched");
+        return Results.Created($"/api/v1/kitchen/tickets/{created[0].Id}", created.Select(x => TicketResponse(x, null)).ToList());
+    }
+
+    // Shared with QR order auto-dispatch (SprintSixteenEndpoints: an order that doesn't need staff
+    // approval, or that just got approved, goes to the kitchen immediately instead of waiting for a
+    // cashier to notice it in Current orders and dispatch it by hand). Stages tickets on `db` without
+    // saving — the caller controls the transaction so this can share a SaveChangesAsync with its own write.
+    internal static List<KitchenTicket> BuildTickets(OFCDbContext db, IdentityService identity, Guid branchId, Order order, IReadOnlyDictionary<Guid, Product> products, Guid dispatchId, string? orderNumber, string? note, int? targetMinutes, Guid? createdByUserId, Guid? deviceId, string traceIdentifier)
+    {
+        var resolvedOrderNumber = string.IsNullOrWhiteSpace(orderNumber) ? order.Id.ToString("N")[..8].ToUpperInvariant() : orderNumber;
         var created = new List<KitchenTicket>();
         foreach (var group in order.Lines.Where(x => x.VoidedQuantity < x.Quantity).GroupBy(x => products.TryGetValue(x.ProductId, out var product) ? product.PreparationStationId : null))
         {
             if (created.Count >= KitchenRules.MaxItemsPerTicket) break;
-            var ticket = new KitchenTicket { BranchId = request.BranchId, OrderId = order.Id, DispatchId = request.ClientDispatchId, OrderNumber = orderNumber, StationId = group.Key, TargetMinutes = request.TargetMinutes, Note = request.Note?.Trim(), CreatedByUserId = UserId(user), DeviceId = DeviceId(user) };
+            var ticket = new KitchenTicket { BranchId = branchId, OrderId = order.Id, DispatchId = dispatchId, OrderNumber = resolvedOrderNumber, StationId = group.Key, TargetMinutes = targetMinutes, Note = note?.Trim(), CreatedByUserId = createdByUserId, DeviceId = deviceId };
             foreach (var line in group)
             {
                 var product = products.TryGetValue(line.ProductId, out var found) ? found : null;
@@ -64,12 +77,9 @@ public static class SprintTenEndpoints
             if (ticket.Items.Count == 0) continue;
             db.KitchenTickets.Add(ticket);
             created.Add(ticket);
-            identity.Audit(UserId(user), request.BranchId, DeviceId(user), "kitchen.ticket.dispatch", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.OrderId, ticket.DispatchId, ticket.StationId, itemCount = ticket.Items.Count }));
+            identity.Audit(createdByUserId, branchId, deviceId, "kitchen.ticket.dispatch", "kitchen_ticket", ticket.Id.ToString(), traceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.OrderId, ticket.DispatchId, ticket.StationId, itemCount = ticket.Items.Count }));
         }
-        if (created.Count == 0) return Results.Ok(Array.Empty<object>());
-        await db.SaveChangesAsync(ct);
-        foreach (var ticket in created) await broadcaster.TicketChanged(request.BranchId, ticket.Id, "dispatched");
-        return Results.Created($"/api/v1/kitchen/tickets/{created[0].Id}", created.Select(x => TicketResponse(x, null)).ToList());
+        return created;
     }
 
     private static async Task<IResult> ListTickets(Guid branchId, Guid? stationId, string? status, bool? activeOnly, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
