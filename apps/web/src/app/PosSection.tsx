@@ -15,7 +15,7 @@ type Pricing = { listPrice: number; discountRate: number; taxRate: number; taxCa
 type Product = { id: string; sku: string; barcode: string | null; categoryId: string; categoryNameAr: string; categoryNameEn: string; nameAr: string; nameEn: string; basePrice: number | null; imageUrl: string | null; pricing: Pricing; selectionGroups: Group[] };
 type CartLine = { key: string; product: Product; quantity: number; note: string; selections: Record<string, string[]> };
 type Method = { id: string; nameAr: string; nameEn: string; kind: string };
-const words = { ar: { title: "نقطة البيع", search: "ابحث عن صنف", all: "الكل", cart: "السلة", empty: "أضف أصنافًا للبدء", hold: "تعليق", send: "الدفع", notes: "ملاحظة", branch: "الفرع", channel: "قناة البيع", offline: "غير متصل: ستتم المزامنة عند عودة الاتصال", online: "متصل", total: "الإجمالي", add: "إضافة", confirm: "تأكيد الاختيارات", selections: "الاختيارات", saved: "تم حفظ الطلب", unavailable: "تعذر حفظ الطلب، سيبقى في السلة", viewCart: "عرض السلة", offlinePayTitle: "دفع غير متصل", offlinePayMethod: "طريقة الدفع", offlinePayTendered: "المبلغ المستلم", offlinePayConfirm: "تأكيد الدفع وحفظ الطلب", offlinePayCancel: "إلغاء", offlineNoMethods: "لا توجد وسائل دفع محفوظة لهذا الفرع؛ اتصل بالإنترنت مرة واحدة على الأقل", offlinePayInvalid: "المبلغ المستلم غير كافٍ", heldOrders: "الطلبات الحالية", resume: "استئناف", noHeld: "لا توجد طلبات حالية", heldSince: "منذ", qrNew: "وصل طلب QR جديد", qrPending: "طلب QR جديد بانتظار الاعتماد", qrApproved: "تم اعتماد طلب QR", qrRejected: "تم رفض طلب QR" }, en: { title: "Point of sale", search: "Search products", all: "All", cart: "Cart", empty: "Add products to begin", hold: "Hold", send: "Pay", notes: "Note", branch: "Branch", channel: "Sales channel", offline: "Offline: the cart will sync when connection returns", online: "Online", total: "Total", add: "Add", confirm: "Confirm selections", selections: "Selections", saved: "Order saved", unavailable: "Unable to save; cart remains available", viewCart: "View cart", offlinePayTitle: "Offline payment", offlinePayMethod: "Payment method", offlinePayTendered: "Amount tendered", offlinePayConfirm: "Confirm payment and save order", offlinePayCancel: "Cancel", offlineNoMethods: "No payment methods are cached for this branch; connect to the internet at least once first", offlinePayInvalid: "Tendered amount does not cover the total", heldOrders: "Current orders", resume: "Resume", noHeld: "No current orders", heldSince: "Held since", qrNew: "New QR order received", qrPending: "New QR order awaiting approval", qrApproved: "QR order approved", qrRejected: "QR order rejected" } } as const;
+const words = { ar: { title: "نقطة البيع", search: "ابحث عن صنف", all: "الكل", cart: "السلة", empty: "أضف أصنافًا للبدء", hold: "تعليق", send: "الدفع", notes: "ملاحظة", branch: "الفرع", channel: "قناة البيع", offline: "غير متصل: ستتم المزامنة عند عودة الاتصال", online: "متصل", total: "الإجمالي", add: "إضافة", confirm: "تأكيد الاختيارات", selections: "الاختيارات", saved: "تم حفظ الطلب", unavailable: "تعذر حفظ الطلب، سيبقى في السلة", sessionExpired: "انتهت صلاحية الجلسة. سجّل الدخول من جديد؛ الطلب سيبقى في السلة.", viewCart: "عرض السلة", offlinePayTitle: "دفع غير متصل", offlinePayMethod: "طريقة الدفع", offlinePayTendered: "المبلغ المستلم", offlinePayConfirm: "تأكيد الدفع وحفظ الطلب", offlinePayCancel: "إلغاء", offlineNoMethods: "لا توجد وسائل دفع محفوظة لهذا الفرع؛ اتصل بالإنترنت مرة واحدة على الأقل", offlinePayInvalid: "المبلغ المستلم غير كافٍ", heldOrders: "الطلبات الحالية", resume: "استئناف", noHeld: "لا توجد طلبات حالية", heldSince: "منذ", qrNew: "وصل طلب QR جديد", qrPending: "طلب QR جديد بانتظار الاعتماد", qrApproved: "تم اعتماد طلب QR", qrRejected: "تم رفض طلب QR" }, en: { title: "Point of sale", search: "Search products", all: "All", cart: "Cart", empty: "Add products to begin", hold: "Hold", send: "Pay", notes: "Note", branch: "Branch", channel: "Sales channel", offline: "Offline: the cart will sync when connection returns", online: "Online", total: "Total", add: "Add", confirm: "Confirm selections", selections: "Selections", saved: "Order saved", unavailable: "Unable to save; cart remains available", sessionExpired: "Your session has expired. Please sign in again; your cart will stay saved.", viewCart: "View cart", offlinePayTitle: "Offline payment", offlinePayMethod: "Payment method", offlinePayTendered: "Amount tendered", offlinePayConfirm: "Confirm payment and save order", offlinePayCancel: "Cancel", offlineNoMethods: "No payment methods are cached for this branch; connect to the internet at least once first", offlinePayInvalid: "Tendered amount does not cover the total", heldOrders: "Current orders", resume: "Resume", noHeld: "No current orders", heldSince: "Held since", qrNew: "New QR order received", qrPending: "New QR order awaiting approval", qrApproved: "QR order approved", qrRejected: "QR order rejected" } } as const;
 type HeldOrder = { id: string; status: string; grossAmount: number; note: string | null; createdAt: string };
 type QrToast = { id: number; text: string };
 const channelIcons: Record<string, typeof Store> = { POS: Store, DINEIN: UtensilsCrossed, TAKEAWAY: ShoppingBag, WEBQR: QrCode };
@@ -30,6 +30,12 @@ export function PosSection({ language, kiosk, onKioskChange }: { language: Langu
   const [qrToasts, setQrToasts] = useState<QrToast[]>([]);
   const qrToastId = useRef(0);
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${store.get<string>("session-token") ?? ""}`, ...(init?.headers ?? {}) } });
+  // 401 means the token itself is invalid/expired; 403 here means the token is valid but the user/branch
+  // link it points at is gone (e.g. accounts were reseeded) — both need a fresh login, not a generic retry.
+  function handleAuthFailure(response: Response): boolean {
+    if (response.status !== 401 && response.status !== 403) return false;
+    setMessage(t.sessionExpired); store.remove("session-token"); setTimeout(() => location.reload(), 1500); return true;
+  }
   useEffect(() => { const update = () => setOnline(navigator.onLine); addEventListener("online", update); addEventListener("offline", update); return () => { removeEventListener("online", update); removeEventListener("offline", update); }; }, []);
   // When kiosk is left (toggle, navigation, or the browser exiting fullscreen), clean up fullscreen,
   // cursor and the blocked shortcuts.
@@ -73,7 +79,7 @@ export function PosSection({ language, kiosk, onKioskChange }: { language: Langu
     return () => { live = false; };
   }, [branchId, online]);
   useEffect(() => { store.set("pos-cart", cart); }, [cart]);
-  async function loadHeld() { if (!branchId || !online) return; try { const response = await auth(`/api/v1/orders?branchId=${branchId}`); if (response.ok) setHeldOrders((await response.json() as HeldOrder[]).filter((o) => ["Draft", "Pending", "Confirmed", "Paid"].includes(o.status))); } catch { setMessage(t.unavailable); } }
+  async function loadHeld() { if (!branchId || !online) return; try { const response = await auth(`/api/v1/orders?branchId=${branchId}`); if (handleAuthFailure(response)) return; if (response.ok) setHeldOrders((await response.json() as HeldOrder[]).filter((o) => ["Draft", "Pending", "Confirmed", "Paid"].includes(o.status))); } catch { setMessage(t.unavailable); } }
   useEffect(() => { void loadHeld(); }, [branchId, online]);
   // Realtime QR-order alerts for the cashier. SignalR is transport only — events never carry
   // authoritative state; they just refresh the REST-backed lists and raise a notification (SPA, no reload).
@@ -112,7 +118,7 @@ export function PosSection({ language, kiosk, onKioskChange }: { language: Langu
   async function resumeHeld(order: HeldOrder, kitchen = false) {
     if (busy) return; setBusy(true); setMessage("");
     try {
-      if (order.status === "Draft") { const response = await auth("/api/v1/orders/" + order.id + "/status", { method: "POST", body: JSON.stringify({ status: "Pending", note: null }) }); if (!response.ok) throw new Error(t.unavailable); }
+      if (order.status === "Draft") { const response = await auth("/api/v1/orders/" + order.id + "/status", { method: "POST", body: JSON.stringify({ status: "Pending", note: null }) }); if (handleAuthFailure(response)) return; if (!response.ok) throw new Error(t.unavailable); }
       if (kitchen) await dispatchOrder(order.id); else { setHeldOpen(false); setPayment({ orderId: order.id, total: order.grossAmount }); }
       await loadHeld();
     } catch (e) { setMessage(e instanceof Error ? e.message : t.unavailable); } finally { setBusy(false); }
@@ -138,11 +144,13 @@ export function PosSection({ language, kiosk, onKioskChange }: { language: Langu
       if (requestRef.current.snapshot !== snapshot) requestRef.current = { snapshot, id: createId() };
       const body = { branchId, salesChannelId: channelId, clientRequestId: requestRef.current.id, source: "Pos", note: null, lines: cart.map(line => ({ productId: line.product.id, quantity: line.quantity, note: line.note || null, selections: Object.entries(line.selections).map(([selectionGroupId, ids]) => ({ selectionGroupId, choices: ids.map(optionId => ({ optionId, quantity: 1 })) })) })) };
       const response = await auth("/api/v1/orders", { method: "POST", body: JSON.stringify(body) });
+      if (handleAuthFailure(response)) return;
       if (!response.ok) throw new Error(t.unavailable);
       const order = await response.json() as { id: string; grossAmount: number };
       setCart([]); requestRef.current = { snapshot: "", id: "" };
       if (status !== "Draft") {
         const changed = await auth("/api/v1/orders/" + order.id + "/status", { method: "POST", body: JSON.stringify({ status: "Pending", note: null }) });
+        if (handleAuthFailure(changed)) return;
         if (!changed.ok) throw new Error(language === "ar" ? "تم حفظ الطلب. أكمل من الطلبات الحالية." : "Order saved. Continue from Current orders.");
         if (status === "Kitchen") await dispatchOrder(order.id); else { setCartOpen(false); setPayment({ orderId: order.id, total: order.grossAmount }); }
       } else setMessage(t.saved);

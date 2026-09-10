@@ -39,8 +39,11 @@ services:
       retries: 10
       start_period: 30s
 
-  # One-shot: applies the seed once the API has migrated the schema.
+  # Explicit development reset only: this seed deletes orders and accounts, which invalidates every
+  # logged-in session (their user rows are recreated with new ids) on the next redeploy if run
+  # automatically. Run it deliberately with: docker compose --profile dev-reset up seed
   seed:
+    profiles: ["dev-reset"]
     image: postgres:17-alpine
     restart: "no"
     depends_on:
