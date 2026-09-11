@@ -73,7 +73,7 @@ public static class SprintFiveEndpoints
     private static async Task<IResult> List(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
-        return Results.Ok(await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId).OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt }).ToListAsync(ct));
+        return Results.Ok(await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId).OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.TableNumber, x.CreatedAt }).ToListAsync(ct));
     }
 
     // Browsable order history: unlike List (last 100 open-ish orders for the POS "current orders"
@@ -92,7 +92,7 @@ public static class SprintFiveEndpoints
         var pageIndex = ReportingRules.NormalizePage(page);
         var size = ReportingRules.NormalizePageSize(pageSize);
         var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageIndex - 1) * size).Take(size)
-            .Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, lineCount = x.Lines.Count })
+            .Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.TableNumber, x.CreatedAt, lineCount = x.Lines.Count })
             .ToListAsync(ct);
         return Results.Ok(new { total, page = pageIndex, pageSize = size, items });
     }
@@ -107,6 +107,7 @@ public static class SprintFiveEndpoints
     {
         if (!await CanOperate(db, user, request.BranchId, ct)) return Forbidden();
         if (request.Lines is not { Count: > 0 } || request.Lines.Count > 100 || request.Note?.Trim().Length > OrderRules.NoteMax) return Validation("lines", "Provide between 1 and 100 order lines and a valid note.");
+        if (request.TableNumber?.Trim().Length > OrderRules.TableNumberMax) return Validation("tableNumber", "The table number is too long.");
         var existing = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientRequestId == request.ClientRequestId, ct);
         if (existing is not null) return Results.Ok(OrderResponse(existing));
         if (!await db.SalesChannels.AnyAsync(x => x.Id == request.SalesChannelId && x.IsActive, ct)) return Validation("salesChannelId", "The sales channel is invalid.");
@@ -122,6 +123,7 @@ public static class SprintFiveEndpoints
         var built = OrderingEngine.Build(request.BranchId, request.SalesChannelId, request.Source, UserId(user), null, DeviceId(user), request.Note, request.ClientRequestId, at, request.Lines.Select(x => new OrderLineInput(x.ProductId, x.Quantity, x.Note, x.Selections?.Select(s => new GroupSelectionInput(s.SelectionGroupId, s.Choices.Select(c => new ChoiceInput(c.OptionId, c.Quantity)).ToList())).ToList())).ToList(), products, prices, promotions, taxes, version);
         if (!built.Succeeded) return Validation(built.Field!, built.Error!);
         var order = built.Order!;
+        order.TableNumber = request.TableNumber?.Trim();
         order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = OrderStatus.Draft, ChangedByUserId = UserId(user), Note = "Created" });
         db.Orders.Add(order); identity.Audit(UserId(user), request.BranchId, DeviceId(user), "order.create", "order", order.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { order.ClientRequestId, order.Source, order.GrossAmount }));
         try { await db.SaveChangesAsync(ct); } catch (DbUpdateException) { var duplicate = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientRequestId == request.ClientRequestId, ct); if (duplicate is not null) return Results.Ok(OrderResponse(duplicate)); throw; }
@@ -138,12 +140,12 @@ public static class SprintFiveEndpoints
     }
 
     private static async Task<bool> CanOperate(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationToken ct) => user.HasClaim("permission", "orders.manage") && (user.FindFirstValue("branch_id") == branchId.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId, ct));
-    private static object OrderResponse(Order order) => new { order.Id, order.BranchId, order.SalesChannelId, order.ClientRequestId, order.Source, order.Status, order.Note, order.NetAmount, order.TaxAmount, order.GrossAmount, order.CreatedAt, lines = order.Lines.Select(x => new { x.Id, x.ProductId, x.ProductNameAr, x.ProductNameEn, x.Quantity, x.Note, x.SelectionsSnapshot, x.UnitGrossAmount, x.UnitNetAmount, x.UnitTaxAmount, x.UnitDiscountAmount }), history = order.StatusHistory.OrderBy(x => x.ChangedAt).Select(x => new { x.FromStatus, x.ToStatus, x.ChangedAt, x.Note }) };
+    private static object OrderResponse(Order order) => new { order.Id, order.BranchId, order.SalesChannelId, order.ClientRequestId, order.Source, order.Status, order.Note, order.TableNumber, order.NetAmount, order.TaxAmount, order.GrossAmount, order.CreatedAt, lines = order.Lines.Select(x => new { x.Id, x.ProductId, x.ProductNameAr, x.ProductNameEn, x.Quantity, x.Note, x.SelectionsSnapshot, x.UnitGrossAmount, x.UnitNetAmount, x.UnitTaxAmount, x.UnitDiscountAmount }), history = order.StatusHistory.OrderBy(x => x.ChangedAt).Select(x => new { x.FromStatus, x.ToStatus, x.ChangedAt, x.Note }) };
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private static Guid? DeviceId(ClaimsPrincipal user) => Guid.TryParse(user.FindFirstValue("device_id"), out var id) ? id : null;
     private static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Forbidden", detail: "You do not have permission to perform this operation.");
     private static IResult Validation(string field, string detail) => Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [detail] });
-    private sealed record CreateOrderRequest(Guid BranchId, Guid SalesChannelId, Guid ClientRequestId, OrderSource Source, string? Note, List<LineRequest> Lines);
+    private sealed record CreateOrderRequest(Guid BranchId, Guid SalesChannelId, Guid ClientRequestId, OrderSource Source, string? Note, string? TableNumber, List<LineRequest> Lines);
     private sealed record LineRequest(Guid ProductId, int Quantity, string? Note, List<GroupSelection>? Selections);
     private sealed record GroupSelection(Guid SelectionGroupId, List<ChoiceRequest> Choices);
     private sealed record ChoiceRequest(Guid OptionId, int Quantity);

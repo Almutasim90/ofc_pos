@@ -108,6 +108,9 @@ public static class SprintSixteenEndpoints
         var built = OrderingEngine.Build(ctx.BranchId, channel.Id, OrderSource.Qr, null, customerId, null, request.Note, request.ClientRequestId, at, request.Lines.Select(x => new OrderLineInput(x.ProductId, x.Quantity, x.Note, x.Selections?.Select(s => new GroupSelectionInput(s.SelectionGroupId, s.Choices.Select(c => new ChoiceInput(c.OptionId, c.Quantity)).ToList())).ToList())).ToList(), products, prices, promotions, taxes, version);
         if (!built.Succeeded) return Validation(built.Field!, built.Error!);
         var order = built.Order!;
+        // Table-QR orders carry their table's code so staff can look them up the same way as a
+        // manually-entered dine-in table number (PosSection's current-orders table search).
+        if (ctx.Kind == QrContextKind.Table) order.TableNumber = ctx.Code;
 
         var requiresApproval = QrRules.RequiresStaffApproval(ctx.ApprovalMode);
         order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = OrderStatus.Pending, ChangedByUserId = null, Note = "Qr order submitted" });
@@ -342,6 +345,7 @@ public static class SprintSixteenEndpoints
             order.NetAmount,
             order.TaxAmount,
             order.GrossAmount,
+            order.TableNumber,
             order.CreatedAt,
             order.UpdatedAt,
             lines = order.Lines.Select(x => new { x.Id, x.ProductId, x.ProductNameAr, x.ProductNameEn, x.Quantity, x.Note, x.SelectionsSnapshot, x.UnitGrossAmount, x.UnitNetAmount, x.UnitTaxAmount, x.UnitDiscountAmount }),

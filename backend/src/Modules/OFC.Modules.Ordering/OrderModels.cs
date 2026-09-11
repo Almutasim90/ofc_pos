@@ -17,6 +17,10 @@ public sealed class Order
     public OrderSource Source { get; set; } = OrderSource.Pos;
     public OrderStatus Status { get; set; } = OrderStatus.Draft;
     public string? Note { get; set; }
+    // Free-text table label so staff can look an order up by table at the point of payment instead of
+    // scanning the full current-orders list. Set by the cashier for POS/DINEIN orders, or copied from the
+    // QR context's Code for table-QR orders (SprintSixteenEndpoints.SubmitOrder).
+    public string? TableNumber { get; set; }
     public decimal NetAmount { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal GrossAmount { get; set; }
@@ -66,6 +70,7 @@ public sealed class OrderStatusHistory
 public static class OrderRules
 {
     public const int NoteMax = 500;
+    public const int TableNumberMax = 20;
     public static bool CanTransition(OrderStatus from, OrderStatus to) => from == to || (from, to) switch
     {
         (OrderStatus.Draft, OrderStatus.Pending or OrderStatus.Cancelled) => true,
