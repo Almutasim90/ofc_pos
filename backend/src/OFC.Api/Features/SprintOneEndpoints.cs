@@ -16,6 +16,7 @@ public static class SprintOneEndpoints
         var api = app.MapGroup("/api/v1");
         api.MapPost("/auth/bootstrap", Bootstrap).AllowAnonymous();
         api.MapPost("/auth/login", Login).AllowAnonymous();
+        api.MapGet("/auth/me", Me).RequireAuthorization();
         api.MapPost("/devices/{id:guid}/heartbeat", Heartbeat).RequireAuthorization();
         api.MapGet("/admin/overview", Overview).RequireAuthorization();
         api.MapGet("/branches", ListBranches).RequireAuthorization();
@@ -57,6 +58,10 @@ public static class SprintOneEndpoints
         var session = result.Value;
         return Results.Ok(new { session.Token, user = new { session.User.Id, session.User.Username, session.User.DisplayName }, session.BranchId, session.DeviceId });
     }
+
+    // The claims-based "permission" set is already resolved per-request by SessionAuthenticationHandler,
+    // so this just echoes it back for the client to gate navigation/UI by role without a second lookup.
+    private static IResult Me(ClaimsPrincipal user) => Results.Ok(new { userId = UserId(user), displayName = user.FindFirstValue(ClaimTypes.Name), permissions = user.FindAll("permission").Select(c => c.Value).Distinct() });
 
     private static async Task<IResult> Overview(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {

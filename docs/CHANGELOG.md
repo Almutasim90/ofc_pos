@@ -4,6 +4,13 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Permission-aware navigation and payment-dialog fix (2026-09-12)
+
+- Fixed a flash of "no payment methods configured" in the POS payment dialog: it now waits for `/api/v1/payment-methods` to actually respond before deciding whether to show that message, instead of judging an empty initial state before the fetch resolves.
+- Added `GET /api/v1/auth/me`, returning the signed-in user's resolved permission codes (already computed per-request by `SessionAuthenticationHandler`).
+- The sidebar now hides any menu item the signed-in role lacks permission for (mirroring each endpoint group's server-side permission check), instead of showing every admin/section link to every role; navigating directly to a hash the role can't access shows a permission message instead of a broken fetch. This fixes Branch Manager accounts landing on the Users admin page and hitting a load error, since that role has no `users.manage`/`roles.manage`/`branches.manage`/`devices.manage` permission by design.
+- `AdminSection`'s Branches/Devices/Users admin panel no longer fails its whole page load if a sibling admin resource 403s (e.g. viewing Branches while lacking `devices.manage`) — only the resource for the active sub-view is required to load.
+
 ### Find order to pay by order # or table (2026-09-12)
 
 - `GET /api/v1/orders` now includes each order's dine-in table (code/name), resolved from its `QrOrderApproval` → `QrContext` when the order came from a QR table; POS-created orders simply carry no table.

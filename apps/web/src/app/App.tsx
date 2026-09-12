@@ -35,14 +35,30 @@ export function App() {
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [hash, setHash] = useState(window.location.hash);
+  const [permissions, setPermissions] = useState<string[] | null>(null);
   const ar = language === "ar";
   const tr = (a: string, e: string) => ar ? a : e;
   const text = { sync: tr("المزامنة", "Sync"), branches: tr("الفروع", "Branches"), devices: tr("الأجهزة", "Devices"), users: tr("المستخدمون", "Users"), categories: tr("التصنيفات", "Categories"), products: tr("المنتجات", "Products"), selectionGroups: tr("الوجبات والإضافات", "Combos & modifiers") };
   const navigation: Array<[View, string, typeof Building2]> = [["pos", language === "ar" ? "نقطة البيع" : "POS", ShoppingBag], ["kitchen", language === "ar" ? "المطبخ" : "Kitchen", ChefHat], ["inventory", language === "ar" ? "المخزون والوصفات" : "Inventory & recipes", Boxes], ["inventoryAdvanced", language === "ar" ? "الجرد والهدر والتكلفة" : "Counts, waste & costing", Scale], ["procurement", language === "ar" ? "المشتريات والموردون" : "Procurement & suppliers", Truck], ["shifts", language === "ar" ? "الورديات والنقد" : "Shifts & cash", BadgeDollarSign], ["printing", language === "ar" ? "الطباعة والأجهزة" : "Printing & hardware", Printer], ["cancellations", language === "ar" ? "الإلغاء والاسترجاع" : "Cancellations", BadgeDollarSign], ["orderHistory", language === "ar" ? "سجل الطلبات" : "Order history", History], ["sync", text.sync, CloudOff], ["branches", text.branches, Building2], ["devices", text.devices, Monitor], ["users", text.users, Users], ["categories", text.categories, FolderTree], ["products", text.products, Package], ["selectionGroups", text.selectionGroups, ListChecks], ["pricing", language === "ar" ? "التسعير والضريبة" : "Pricing & tax", BadgeDollarSign], ["reports", language === "ar" ? "التقارير والتدقيق" : "Reports & audit", BarChart3], ["qr", language === "ar" ? "QR" : "QR", QrCode], ["integrations", language === "ar" ? "التكاملات والذكاء" : "Integrations & AI", Sparkles]];
+  // Mirrors the server's permission checks per endpoint group (see backend Sprint*Endpoints.cs `Has`/
+  // `HasClaim("permission", ...)` guards) so the sidebar only offers what the signed-in role can actually
+  // open, instead of letting the user hit a 403 after navigating in.
+  const permissionsFor: Record<View, string[]> = {
+    pos: ["orders.manage"], kitchen: ["kitchen.view", "kitchen.manage"], inventory: ["inventory.view"], inventoryAdvanced: ["inventory.view"], procurement: ["procurement.view"],
+    shifts: ["shifts.open", "shifts.close", "shifts.manage", "shifts.approve", "shifts.report", "shifts.view-variance"],
+    printing: ["printing.view", "printing.configs.manage", "printing.templates.manage", "printing.routes.manage", "printing.jobs.manage"],
+    cancellations: ["cancellations.cancel", "cancellations.void", "cancellations.refund", "cancellations.approve", "cancellations.report", "cancellations.manage"],
+    orderHistory: ["orders.manage"], sync: ["orders.manage"], branches: ["branches.manage"], devices: ["devices.manage"], users: ["users.manage"],
+    categories: ["catalog.categories.manage"], products: ["catalog.products.manage"], selectionGroups: ["catalog.selection-groups.manage"],
+    pricing: ["pricing.manage", "pricing.override"], reports: ["reports.view", "reports.export"], qr: ["qr.manage", "qr.approve"], integrations: ["integrations.view", "integrations.manage", "integrations.ai"],
+  };
+  // While permissions haven't loaded yet (e.g. offline, before the /auth/me call resolves), fail open so
+  // the app stays usable offline rather than hiding everything.
+  function canView(key: View) { return !permissions || permissionsFor[key].some((code) => permissions.includes(code)); }
 
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = ar ? "rtl" : "ltr"; store.set("language", language); }, [language]);
   useEffect(() => { const update = () => setHash(window.location.hash); window.addEventListener("hashchange", update); return () => window.removeEventListener("hashchange", update); }, []);
-  useEffect(() => { const target = hash.slice(2); if (navigation.some(([key]) => key === target)) setView(target as View); else if (!hash || hash === "#/") setView("pos"); }, [hash]);
+  useEffect(() => { const target = hash.slice(2); if (navigation.some(([key]) => key === target) && canView(target as View)) setView(target as View); else if (!hash || hash === "#/") setView("pos"); }, [hash, permissions]);
   // While the mobile drawer is open, keep the page from scrolling behind it and close on Escape.
   useEffect(() => {
     if (!menuOpen) return;
@@ -55,14 +71,13 @@ export function App() {
   function navigate(next: View) { window.location.hash = "/" + next; setView(next); setMenuOpen(false); }
   useEffect(() => { if (view !== "pos" && kiosk) { exitKiosk(); setKiosk(false); } }, [view, kiosk]);
   useEffect(() => {
-    if (!token) { setCheckingSession(false); return; }
+    if (!token) { setCheckingSession(false); setPermissions(null); return; }
     const controller = new AbortController();
     setCheckingSession(true);
-    void fetch("/api/v1/pos/context", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
-      .then((response) => {
-        if (response.status !== 401) return;
-        store.remove("session-token");
-        setToken("");
+    void fetch("/api/v1/auth/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      .then(async (response) => {
+        if (response.status === 401) { store.remove("session-token"); setToken(""); return; }
+        if (response.ok) setPermissions((await response.json() as { permissions: string[] }).permissions);
       })
       .catch(() => undefined)
       .finally(() => { if (!controller.signal.aborted) setCheckingSession(false); });
@@ -76,12 +91,14 @@ export function App() {
   if (hash.startsWith("#/qr/")) return <QrCustomerPage code={decodeURIComponent(hash.slice(5))} />;
   if (checkingSession) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2]"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" aria-label={tr("جارٍ التحقق من الجلسة", "Checking session")} /></main>;
   if (!token) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2] p-4"><form onSubmit={login} className="w-full max-w-md space-y-5 rounded-2xl border bg-white p-8"><div className="flex justify-between"><strong>OFC</strong><button type="button" onClick={() => setLanguage(ar ? "en" : "ar")} className="min-h-11 px-3">{ar ? "English" : "العربية"}</button></div><h1 className="text-2xl font-bold">{tr("تسجيل الدخول", "Sign in")}</h1><p className="text-sm text-[#64716b]">{tr("الطلبات والمبيعات والمخزون في مكان واحد.", "Orders, sales and stock in one place.")}</p><label className="block text-sm">{tr("اسم المستخدم", "Username")}<input required autoComplete="username" value={credentials.username} onChange={e => setCredentials({ ...credentials, username: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border px-3" /></label><label className="block text-sm">{tr("كلمة المرور", "Password")}<input required type="password" autoComplete="current-password" value={credentials.password} onChange={e => setCredentials({ ...credentials, password: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border px-3" /></label>{loginError && <p role="alert">{loginError}</p>}<button disabled={loggingIn} className="min-h-12 w-full rounded-lg bg-[#0e5a4f] font-semibold text-white">{loggingIn ? "…" : tr("دخول", "Sign in")}</button></form></main>;
-  const groups: Array<{ label: string; keys: View[] }> = [
+  const allGroups: Array<{ label: string; keys: View[] }> = [
     { label: tr("العمل اليومي", "Daily work"), keys: ["pos", "kitchen", "shifts", "cancellations", "qr", "orderHistory"] },
     { label: tr("المخزون والمتابعة", "Stock & insights"), keys: ["inventory", "inventoryAdvanced", "procurement", "reports"] },
     { label: tr("إعداد القائمة", "Menu setup"), keys: ["products", "categories", "selectionGroups", "pricing"] },
     { label: tr("الإدارة والإعدادات", "Administration"), keys: ["users", "branches", "devices", "printing", "sync", "integrations"] }
   ];
+  const groups = allGroups.map((group) => ({ ...group, keys: group.keys.filter(canView) })).filter((group) => group.keys.length > 0);
+  const allowed = canView(view);
   const current = navigation.find(([key]) => key === view)?.[1];
   const menuContent = groups.map(group => (
     <div key={group.label} className="mb-4">
@@ -107,7 +124,7 @@ export function App() {
       {!kiosk && <nav aria-label={tr("القائمة الرئيسية", "Main menu")} className="hidden border-e bg-white p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto">
         {menuContent}
       </nav>}
-      <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>{view !== "pos" && <nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#64716b]"><button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>}{view === "pos" ? <PosSection language={language} kiosk={kiosk} onKioskChange={setKiosk} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "orderHistory" ? <OrderHistorySection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
+      <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>{view !== "pos" && <nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#64716b]"><button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>}{!allowed ? <p role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]">{tr("لا تملك صلاحية الوصول إلى هذه الصفحة.", "You do not have permission to access this page.")}</p> : view === "pos" ? <PosSection language={language} kiosk={kiosk} onKioskChange={setKiosk} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "orderHistory" ? <OrderHistorySection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
     </div>
   </div>;
 }

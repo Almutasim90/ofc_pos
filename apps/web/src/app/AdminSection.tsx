@@ -50,15 +50,19 @@ export function AdminSection({ language, view }: { language: Language; view: Vie
       const [branchesRes, devicesRes, usersRes, rolesRes, permissionsRes] = await Promise.all([
         auth("/api/v1/branches"), auth("/api/v1/devices"), auth("/api/v1/users"), auth("/api/v1/roles"), auth("/api/v1/permissions"),
       ]);
-      if (!branchesRes.ok || !devicesRes.ok || !usersRes.ok || !rolesRes.ok) throw new Error();
-      setBranches(await branchesRes.json() as Branch[]);
-      setDevices(await devicesRes.json() as Device[]);
-      setUsers(await usersRes.json() as AdminUser[]);
-      setRoles(await rolesRes.json() as Role[]);
+      if (branchesRes.ok) setBranches(await branchesRes.json() as Branch[]);
+      if (devicesRes.ok) setDevices(await devicesRes.json() as Device[]);
+      if (usersRes.ok) setUsers(await usersRes.json() as AdminUser[]);
+      if (rolesRes.ok) setRoles(await rolesRes.json() as Role[]);
       if (permissionsRes.ok) setPermissions(await permissionsRes.json() as Permission[]);
+      // Sidebar/route access already gates which of Branches/Devices/Users this component is even
+      // shown for; only the resource that matches the active sub-view needs to have actually loaded —
+      // a role without permission for a sibling admin resource must not fail the whole page.
+      const required = view === "branches" ? branchesRes : view === "devices" ? devicesRes : usersRes;
+      if (!required.ok) throw new Error();
     } catch { setError(true); } finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [view]);
 
   const name = (x: { nameAr: string; nameEn: string }) => (language === "ar" ? x.nameAr : x.nameEn);
   const flash = (msg: string) => { setNotice(msg); setTimeout(() => setNotice(""), 3000); };

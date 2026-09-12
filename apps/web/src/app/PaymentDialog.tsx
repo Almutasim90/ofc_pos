@@ -10,6 +10,7 @@ const text = { ar: { title: "الدفع", due: "المستحق", method: "طري
 export function PaymentDialog({ language, orderId, branchId, total, onClose }: { language: Language; orderId: string; branchId: string; total: number; onClose: () => void }) {
   const t = text[language];
   const [methods, setMethods] = useState<Method[]>([]);
+  const [methodsLoaded, setMethodsLoaded] = useState(false);
   const [method, setMethod] = useState<PaymentMethod>("Cash");
   const [cash, setCash] = useState("");
   const [card, setCard] = useState("");
@@ -23,11 +24,13 @@ export function PaymentDialog({ language, orderId, branchId, total, onClose }: {
 
   useEffect(() => {
     void (async () => {
-      const response = await auth(`/api/v1/payment-methods?branchId=${branchId}`);
-      if (!response.ok) return;
-      const value = await response.json() as Method[];
-      setMethods(value);
-      setMethod(value.some((m) => m.kind === "Cash") ? "Cash" : "Card");
+      try {
+        const response = await auth(`/api/v1/payment-methods?branchId=${branchId}`);
+        if (!response.ok) return;
+        const value = await response.json() as Method[];
+        setMethods(value);
+        setMethod(value.some((m) => m.kind === "Cash") ? "Cash" : "Card");
+      } finally { setMethodsLoaded(true); }
     })();
   }, [branchId, total]);
   useEffect(() => () => { if (closeTimer.current !== null) window.clearTimeout(closeTimer.current); }, []);
@@ -103,7 +106,7 @@ export function PaymentDialog({ language, orderId, branchId, total, onClose }: {
     <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 sm:place-items-center sm:p-5">
       <section role="dialog" aria-modal="true" aria-label={t.title} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-5 shadow-2xl sm:rounded-2xl sm:p-6">
         <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p><h2 className="text-2xl font-bold">OMR {total.toFixed(3)}</h2></div><button aria-label={t.close} onClick={onClose} className="grid size-11 place-items-center rounded-lg bg-white"><X size={19} /></button></div>
-        {methods.length === 0 ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f4] p-4 text-sm text-[#9b2922]">{t.none}</p> : <>
+        {!methodsLoaded ? null : methods.length === 0 ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f4] p-4 text-sm text-[#9b2922]">{t.none}</p> : <>
           <p className="mt-5 text-sm font-medium">{t.method}</p>
           <div className="mt-2 grid grid-cols-3 gap-2">{modeButton("Cash", t.cash, Banknote, !!cashMethod)}{modeButton("Card", t.card, CreditCard, !!cardMethod)}{modeButton("Mixed", t.mixed, null, !!cashMethod && !!cardMethod)}</div>
           {method === "Mixed" && <div className="mt-4 grid grid-cols-2 gap-3">{splitField(t.cash, cash, setCashAmount, Banknote)}{splitField(t.card, card, setCardAmount, CreditCard)}</div>}
