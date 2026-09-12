@@ -4,6 +4,11 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Find order to pay by order # or table (2026-09-12)
+
+- `GET /api/v1/orders` now includes each order's dine-in table (code/name), resolved from its `QrOrderApproval` → `QrContext` when the order came from a QR table; POS-created orders simply carry no table.
+- The POS "Current orders" picker (the on-ramp to payment) gained a search box so a cashier can filter the open-order list by order # or table code/name before opening it for payment, instead of scanning the full list.
+
 ### Realtime QR-order notifications (2026-09-09)
 
 - Added an authorized `OrdersHub` at `/hubs/orders` with an `IOrdersBroadcaster`; a freshly submitted QR order and every QR approval review now broadcast `qrOrderReceived`/`qrOrderReviewed` to the branch group. SignalR stays transport-only — screens re-fetch authoritative REST data on each event.

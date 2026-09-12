@@ -73,7 +73,16 @@ public static class SprintFiveEndpoints
     private static async Task<IResult> List(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
-        return Results.Ok(await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId).OrderByDescending(x => x.CreatedAt).Take(100).Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt }).ToListAsync(ct));
+        // The table code/name lets the cashier find a held order by table from the payment picker
+        // (QR dine-in orders link to a table via QrOrderApproval -> QrContext; POS-created orders have none).
+        return Results.Ok(await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId).OrderByDescending(x => x.CreatedAt).Take(100)
+            .Select(x => new
+            {
+                x.Id, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt,
+                table = db.QrOrderApprovals.Where(a => a.OrderId == x.Id)
+                    .Join(db.QrContexts, a => a.QrContextId, c => c.Id, (a, c) => new { c.Code, c.NameAr, c.NameEn })
+                    .FirstOrDefault()
+            }).ToListAsync(ct));
     }
 
     // Browsable order history: unlike List (last 100 open-ish orders for the POS "current orders"
