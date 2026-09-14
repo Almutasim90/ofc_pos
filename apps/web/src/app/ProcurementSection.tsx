@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Plus, RefreshCw, Save, Truck, Recycle, BadgeCheck, XCircle, Eye } from "lucide-react";
+import { Plus, RefreshCw, Save, Truck, Recycle, BadgeCheck, XCircle, Eye, Search } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
+import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -19,7 +20,7 @@ function LineDef(quantity?: string, unitCost?: string) { return { inventoryItemI
 const copy = {
   ar: {
     title: "المشتريات والموردون", intro: "ربط دخول المخزون بالموردين عبر الموردين وطلبات الشراء وسندات الاستلام، مع تتبع تاريخ تكلفة كل مورد.", intro2: "استلام البضاعة يسجّل حركة مخزنية فورية ويرفع الرصيد ويحدّث متوسط التكلفة.", loading: "جارٍ التحميل", reload: "تحديث", saved: "تم الحفظ بنجاح.", failed: "تعذر تنفيذ العملية.", empty: "لا توجد بيانات بعد.", none: "لا يوجد", branch: "الفرع / المستودع",
-    suppliers: "الموردون", addSupplier: "إضافة مورد", code: "الرمز", nameAr: "الاسم بالعربية", nameEn: "الاسم بالإنجليزية", contactPerson: "جهة الاتصال", phone: "الهاتف", email: "البريد الإلكتروني", vatNumber: "رقم الضريبة", address: "العنوان", notes: "ملاحظات", active: "نشط", inactive: "غير نشط", viewHistory: "سجل المورد", add: "إضافة",
+    suppliers: "الموردون", addSupplier: "إضافة مورد", code: "الرمز", nameAr: "الاسم بالعربية", nameEn: "الاسم بالإنجليزية", contactPerson: "جهة الاتصال", phone: "الهاتف", email: "البريد الإلكتروني", vatNumber: "رقم الضريبة", address: "العنوان", notes: "ملاحظات", active: "نشط", inactive: "غير نشط", viewHistory: "سجل المورد", add: "إضافة", search: "بحث بالاسم أو الرمز",
     purchaseOrders: "أوامر الشراء", addPo: "إضافة أمر شراء", supplier: "المورد", product: "الصنف", unit: "الوحدة", quantity: "الكمية", unitCost: "تكلفة الوحدة", addLine: "إضافة سطر", remove: "إزالة", create: "إنشاء", submit: "تقديم", approve: "اعتماد", reject: "رفض", cancelOrder: "إلغاء", receive: "استلام", lines: "أسطر", total: "الإجمالي", expectedDate: "التاريخ المتوقع", status: "الحالة",
     poDraft: "مسودة", poSubmitted: "مقدم", poApproved: "معتمد", poRejected: "مرفوض", poCancelled: "ملغي", poReceived: "مستلم",
     goodsReceipts: "سندات الاستلام", addGr: "إضافة سند استلام", reference: "مرجع", post: "ترحيل الاستلام", posted: "مرحّل", draft: "مسودة",
@@ -27,7 +28,7 @@ const copy = {
   } as const,
   en: {
     title: "Procurement & suppliers", intro: "Link stock intake to suppliers through vendors, purchase orders, and goods receipts, while tracing each supplier's cost history.", intro2: "Receiving goods posts an instant inventory movement, raises balance, and refreshs the weighted average cost.", loading: "Loading", reload: "Refresh", saved: "Saved successfully.", failed: "Unable to complete the operation.", empty: "No data yet.", none: "None", branch: "Branch / warehouse",
-    suppliers: "Suppliers", addSupplier: "Add supplier", code: "Code", nameAr: "Arabic name", nameEn: "English name", contactPerson: "Contact person", phone: "Phone", email: "Email", vatNumber: "VAT number", address: "Address", notes: "Notes", active: "Active", inactive: "Inactive", viewHistory: "Supplier history", add: "Add",
+    suppliers: "Suppliers", addSupplier: "Add supplier", code: "Code", nameAr: "Arabic name", nameEn: "English name", contactPerson: "Contact person", phone: "Phone", email: "Email", vatNumber: "VAT number", address: "Address", notes: "Notes", active: "Active", inactive: "Inactive", viewHistory: "Supplier history", add: "Add", search: "Search by name or code",
     purchaseOrders: "Purchase orders", addPo: "Add purchase order", supplier: "Supplier", product: "Item", unit: "Unit", quantity: "Quantity", unitCost: "Unit cost", addLine: "Add line", remove: "Remove", create: "Create", submit: "Submit", approve: "Approve", reject: "Reject", cancelOrder: "Cancel", receive: "Receive", lines: "Lines", total: "Total", expectedDate: "Expected date", status: "Status",
     poDraft: "Draft", poSubmitted: "Submitted", poApproved: "Approved", poRejected: "Rejected", poCancelled: "Cancelled", poReceived: "Received",
     goodsReceipts: "Goods receipts", addGr: "Add goods receipt", reference: "Reference", post: "Post receipt", posted: "Posted", draft: "Draft",
@@ -54,6 +55,10 @@ export function ProcurementSection({ language }: { language: Language }) {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [dialog, setDialog] = useState<"supplier" | "purchaseOrder" | "goodsReceipt" | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierPage, setSupplierPage] = useState(1);
+  const [orderPage, setOrderPage] = useState(1);
+  const [receiptPage, setReceiptPage] = useState(1);
 
   const [supplierForm, setSupplierForm] = useState({ code: "", nameAr: "", nameEn: "", contactPerson: "", phone: "", email: "", vatNumber: "", address: "", notes: "" });
   const [poForm, setPoForm] = useState({ supplierId: "", expectedDate: "", reference: "" });
@@ -83,7 +88,8 @@ export function ProcurementSection({ language }: { language: Language }) {
 
   useEffect(() => { void loadContext(); }, []);
   useEffect(() => { void loadSuppliers(); void loadItems(); void loadUoms(); }, []);
-  useEffect(() => { if (branchId) { void loadOrders(); void loadReceipts(); } }, [branchId]);
+  useEffect(() => { if (branchId) { void loadOrders(); void loadReceipts(); } setOrderPage(1); setReceiptPage(1); }, [branchId]);
+  useEffect(() => { setSupplierPage(1); }, [supplierSearch]);
 
   async function refreshAll() {
     setMsg(""); setLoading(true);
@@ -150,16 +156,21 @@ export function ProcurementSection({ language }: { language: Language }) {
   }
 
   const poStatusLabel = (v: string) => (v === "Draft" ? t.poDraft : v === "Submitted" ? t.poSubmitted : v === "Approved" ? t.poApproved : v === "Rejected" ? t.poRejected : v === "Cancelled" ? t.poCancelled : t.poReceived);
-  const poStatusClass = (v: string) => (v === "Approved" || v === "Received" ? "bg-[#e3f4ea] text-[#137347]" : v === "Rejected" || v === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : v === "Submitted" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]");
+  const poStatusClass = (v: string) => (v === "Approved" || v === "Received" ? "bg-[#e3f4ea] text-[#137347]" : v === "Rejected" || v === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : v === "Submitted" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]");
   const grStatus = (v: string) => v === "Posted" ? t.posted : t.draft;
 
   const editableOrder = (o: PurchaseOrder) => o.status === "Draft";
+  const filteredSuppliers = suppliers.filter((s) => `${s.code} ${s.nameAr} ${s.nameEn}`.toLowerCase().includes(supplierSearch.toLowerCase()));
+  const pageSuppliers = filteredSuppliers.slice((supplierPage - 1) * PAGE_SIZE, supplierPage * PAGE_SIZE);
+  const pageOrders = orders.slice((orderPage - 1) * PAGE_SIZE, orderPage * PAGE_SIZE);
+  const pageReceipts = receipts.slice((receiptPage - 1) * PAGE_SIZE, receiptPage * PAGE_SIZE);
+  const searchInput = "flex items-center gap-2 rounded-xl border border-[#cdd7d0] bg-white px-3 focus-within:ring-2 focus-within:ring-[#0e5a4f] focus-within:ring-offset-1";
 
   return (
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Truck size={18} /><span>{t.intro2}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
 
       <div className="mt-5 max-w-md">
@@ -169,26 +180,28 @@ export function ProcurementSection({ language }: { language: Language }) {
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
-      {loading && <div className="mt-4 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {loading && <div className="mt-4 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.suppliers}</h2><button type="button" onClick={() => setDialog("supplier")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addSupplier}</button></div>
-          {suppliers.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{suppliers.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{s.code}</span><span className="text-[#69766f]"> · {name(s)}</span>{s.vatNumber && <span className="text-[#69766f]"> · VAT {s.vatNumber}</span>}</div><button onClick={() => void viewHistory(s.id)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]"><Eye size={14} />{t.viewHistory}</button></li>)}</ul>
-          )}
+          <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
+          {filteredSuppliers.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageSuppliers.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{s.code}</span><span className="text-[#000000]"> · {name(s)}</span>{s.vatNumber && <span className="text-[#000000]"> · VAT {s.vatNumber}</span>}</div><button onClick={() => void viewHistory(s.id)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]"><Eye size={14} />{t.viewHistory}</button></li>)}</ul>
+            <Pagination page={supplierPage} pageSize={PAGE_SIZE} total={filteredSuppliers.length} onPageChange={setSupplierPage} language={language} />
+          </>)}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.purchaseOrders}</h2><button type="button" onClick={() => setDialog("purchaseOrder")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addPo}</button></div>
-          {orders.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 space-y-2">{orders.map((o) => (
+          {orders.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 space-y-2">{pageOrders.map((o) => (
               <li key={o.id} className="rounded-lg border border-[#e8ece8] px-3 py-2 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="min-w-0 font-medium">{o.number}</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${poStatusClass(o.status)}`}>{poStatusLabel(o.status)}</span>
                 </div>
-                <p className="mt-1 text-[#69766f]">{language === "ar" ? o.supplierNameAr : o.supplierNameEn ?? ""} · {o.lineCount} {t.lines} · {fmt(o.totalAmount)}</p>
+                <p className="mt-1 text-[#000000]">{language === "ar" ? o.supplierNameAr : o.supplierNameEn ?? ""} · {o.lineCount} {t.lines} · {fmt(o.totalAmount)}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {o.status === "Draft" && <button onClick={() => void actionPurchaseOrder(o.id, "submit")} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.submit}</button>}
                   {o.status === "Submitted" && <button onClick={() => void actionPurchaseOrder(o.id, "approve")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white"><BadgeCheck size={14} />{t.approve}</button>}
@@ -198,23 +211,25 @@ export function ProcurementSection({ language }: { language: Language }) {
                 </div>
               </li>
             ))}</ul>
-          )}
+            <Pagination page={orderPage} pageSize={PAGE_SIZE} total={orders.length} onPageChange={setOrderPage} language={language} />
+          </>)}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.goodsReceipts}</h2><button type="button" onClick={() => setDialog("goodsReceipt")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addGr}</button></div>
-          {receipts.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 space-y-2">{receipts.map((g) => (
+          {receipts.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 space-y-2">{pageReceipts.map((g) => (
               <li key={g.id} className="rounded-lg border border-[#e8ece8] px-3 py-2 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="min-w-0 font-medium">{g.number}</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${g.status === "Posted" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{grStatus(g.status)}</span>
                 </div>
-                <p className="mt-1 text-[#69766f]">{language === "ar" ? g.supplierNameAr : g.supplierNameEn ?? ""} · {g.lineCount} {t.lines} · {fmt(g.totalAmount)}</p>
+                <p className="mt-1 text-[#000000]">{language === "ar" ? g.supplierNameAr : g.supplierNameEn ?? ""} · {g.lineCount} {t.lines} · {fmt(g.totalAmount)}</p>
                 {g.status === "Draft" && <div className="mt-2"><button onClick={() => void postGoodsReceipt(g.id)} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white"><Recycle size={14} />{t.post}</button></div>}
               </li>
             ))}</ul>
-          )}
+            <Pagination page={receiptPage} pageSize={PAGE_SIZE} total={receipts.length} onPageChange={setReceiptPage} language={language} />
+          </>)}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
@@ -222,7 +237,7 @@ export function ProcurementSection({ language }: { language: Language }) {
           <div className="mt-3 max-w-md">
             <Select label={t.supplier} value={historySupplierId} onChange={(v) => void viewHistory(v)}><option value="">{t.none}</option>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</Select>
           </div>
-          {!history ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
+          {!history ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (
             <>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <HistMetric label={t.receiptsCount} value={String(history.summary.receiptCount)} />
@@ -231,15 +246,15 @@ export function ProcurementSection({ language }: { language: Language }) {
               </div>
               <div className="mt-5">
                 <h3 className="text-sm font-semibold">{t.latestCosts}</h3>
-                {history.itemCostSummary.length === 0 ? <p className="mt-2 text-sm text-[#69766f]">{t.empty}</p> : (
+                {history.itemCostSummary.length === 0 ? <p className="mt-2 text-sm text-[#000000]">{t.empty}</p> : (
                   <ul className="mt-2 divide-y divide-[#e8ece8]">{history.itemCostSummary.map((c) => (
-                    <li key={c.inventoryItemId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{history.history.find((h) => h.inventoryItemId === c.inventoryItemId)?.itemNameAr ?? history.history.find((h) => h.inventoryItemId === c.inventoryItemId)?.itemNameEn ?? c.inventoryItemId}</span><span className="text-[#69766f]">{t.receivedQty}: {qty(c.receivedQuantity)} {c.unitCode ?? ""} · {t.latestCost}: {fmt(c.latestUnitCost)}</span></li>
+                    <li key={c.inventoryItemId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{history.history.find((h) => h.inventoryItemId === c.inventoryItemId)?.itemNameAr ?? history.history.find((h) => h.inventoryItemId === c.inventoryItemId)?.itemNameEn ?? c.inventoryItemId}</span><span className="text-[#000000]">{t.receivedQty}: {qty(c.receivedQuantity)} {c.unitCode ?? ""} · {t.latestCost}: {fmt(c.latestUnitCost)}</span></li>
                   ))}</ul>
                 )}
               </div>
               <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-3">
-                {history.history.length === 0 ? <p className="text-sm text-[#69766f]">{t.empty}</p> : (
-                  <ol className="space-y-1 text-sm">{history.history.map((h, index) => <li key={index} className="flex flex-wrap items-center justify-between gap-2 py-0.5"><span className="min-w-0">{h.receiptNumber} · {language === "ar" ? h.itemNameAr : h.itemNameEn ?? ""}</span><span className="text-[#69766f]">{qty(h.quantity)} {h.unitCode ?? ""} · {fmt(h.unitCost)}</span></li>)}</ol>
+                {history.history.length === 0 ? <p className="text-sm text-[#000000]">{t.empty}</p> : (
+                  <ol className="space-y-1 text-sm">{history.history.map((h, index) => <li key={index} className="flex flex-wrap items-center justify-between gap-2 py-0.5"><span className="min-w-0">{h.receiptNumber} · {language === "ar" ? h.itemNameAr : h.itemNameEn ?? ""}</span><span className="text-[#000000]">{qty(h.quantity)} {h.unitCode ?? ""} · {fmt(h.unitCost)}</span></li>)}</ol>
                 )}
               </div>
             </>
@@ -305,7 +320,7 @@ export function ProcurementSection({ language }: { language: Language }) {
   );
 }
 
-function HistMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-3 text-center"><p className="text-lg font-semibold">{value}</p><p className="text-xs text-[#69766f]">{label}</p></div>; }
+function HistMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-3 text-center"><p className="text-lg font-semibold">{value}</p><p className="text-xs text-[#000000]">{label}</p></div>; }
 
 function Field({ label, value, onChange, max, type = "text" }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string }) {
   return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;

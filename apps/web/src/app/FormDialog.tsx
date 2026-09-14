@@ -6,7 +6,7 @@ export function FormDialog({ title, closeLabel, onClose, children, width = "max-
     <section role="dialog" aria-modal="true" aria-label={title} className={`flex max-h-[94dvh] w-full ${width} flex-col overflow-hidden rounded-t-2xl bg-[#f5f6f2] shadow-2xl sm:rounded-2xl`}>
       <header className="flex items-center justify-between gap-4 border-b border-[#e8ece8] bg-white px-5 py-4">
         <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-        <button type="button" onClick={onClose} aria-label={closeLabel} className="grid size-11 shrink-0 place-items-center rounded-lg border border-[#cdd7d0] text-[#53615b] hover:bg-[#f2f5f2]"><X size={18} /></button>
+        <button type="button" onClick={onClose} aria-label={closeLabel} className="grid size-11 shrink-0 place-items-center rounded-lg border border-[#cdd7d0] text-[#000000] hover:bg-[#f2f5f2]"><X size={18} /></button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
     </section>

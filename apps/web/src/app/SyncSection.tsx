@@ -166,13 +166,13 @@ export function SyncSection({ language }: { language: Language }) {
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
       <p className="mt-3 max-w-3xl text-sm text-[#66736d]">{t.note}</p>
 
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]">
         <span className={`inline-flex items-center gap-2 font-semibold ${online ? "text-[#137347]" : "text-[#b4322a]"}`}>{online ? <Wifi size={18} /> : <WifiOff size={18} />}{online ? t.online : t.offline}</span>
-        <span className="text-[#53615b]">{t.serverVersion}: <strong>{version}</strong></span>
-        <span className="text-[#53615b]">{t.catalogVersion}: <strong>{catalogVersion}</strong></span>
+        <span className="text-[#000000]">{t.serverVersion}: <strong>{version}</strong></span>
+        <span className="text-[#000000]">{t.catalogVersion}: <strong>{catalogVersion}</strong></span>
         <button onClick={() => void syncNow()} disabled={syncing || !online} className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-xs font-semibold text-white disabled:opacity-50"><RefreshCw size={15} className={syncing ? "animate-spin" : ""} />{syncing ? t.syncing : t.syncNow}</button>
       </div>
 
@@ -181,8 +181,8 @@ export function SyncSection({ language }: { language: Language }) {
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <h2 className="flex items-center justify-between font-semibold"><span>{t.pending} ({pendingItems.length})</span>{pendingItems.length > 0 && online && <button onClick={() => void syncNow()} disabled={syncing} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f] disabled:opacity-50">{t.syncNow}</button>}</h2>
-          {pendingItems.length === 0 ? <p className="mt-4 text-sm text-[#69766f]">{t.noPending}</p> : (
-            <ul className="mt-4 divide-y divide-[#e8ece8]">{pendingItems.map((item) => <li key={item.idempotencyKey} className="flex items-center justify-between gap-3 py-3 text-sm"><span className="min-w-0 truncate">{item.operationType} <span className="text-[#69766f]">· {item.idempotencyKey.slice(0, 8)}</span></span><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{online ? t.applied : t.offline}</span></li>)}</ul>
+          {pendingItems.length === 0 ? <p className="mt-4 text-sm text-[#000000]">{t.noPending}</p> : (
+            <ul className="mt-4 divide-y divide-[#e8ece8]">{pendingItems.map((item) => <li key={item.idempotencyKey} className="flex items-center justify-between gap-3 py-3 text-sm"><span className="min-w-0 truncate">{item.operationType} <span className="text-[#000000]">· {item.idempotencyKey.slice(0, 8)}</span></span><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{online ? t.applied : t.offline}</span></li>)}</ul>
           )}
           <div className="mt-5 flex flex-wrap gap-3">
             <button onClick={() => void enqueueTrial()} disabled={syncing || !online} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white disabled:opacity-50"><ShoppingBag size={18} />{t.enqueue}</button>
@@ -192,14 +192,14 @@ export function SyncSection({ language }: { language: Language }) {
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <h2 className="flex items-center justify-between font-semibold"><span>{t.conflicts} ({conflictItems.length})</span>{conflictItems.length > 0 && <button onClick={() => { cancelPending(conflictItems.map((c) => c.idempotencyKey)); refresh(); }} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.clear}</button>}</h2>
-          {conflictItems.length === 0 ? <p className="mt-4 text-sm text-[#69766f]">{t.noConflicts}</p> : (
+          {conflictItems.length === 0 ? <p className="mt-4 text-sm text-[#000000]">{t.noConflicts}</p> : (
             <ul className="mt-4 space-y-3">{conflictItems.map((item) => {
               const stale = item.conflictReason === "stale-pricing";
               return (
                 <li key={item.idempotencyKey} className="rounded-xl border border-[#e8ece8] bg-[#fafbfa] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-medium">{item.operationType}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${stale ? "bg-[#f4f1e3] text-[#8a6d1f]" : item.conflictReason === "negative-stock" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#e8ece8] text-[#53615b]"}`}>{reasonLabelFor(item.conflictReason)}</span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${stale ? "bg-[#f4f1e3] text-[#8a6d1f]" : item.conflictReason === "negative-stock" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#e8ece8] text-[#000000]"}`}>{reasonLabelFor(item.conflictReason)}</span>
                   </div>
                   {item.error && <p className="mt-2 text-sm text-[#66736d]">{item.error}</p>}
                   {stale && <p className="mt-2 text-xs text-[#8a6d1f]">{t.stalePricing}</p>}

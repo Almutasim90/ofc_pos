@@ -83,21 +83,21 @@ export function OrderHistorySection({ language }: { language: Language }) {
   const rangeTo = Math.min(page * PAGE_SIZE, total);
 
   return <div className="space-y-5">
-    <div><h1 className="text-2xl font-bold">{t.title}</h1><p className="mt-2 text-sm text-[#64716b]">{t.intro}</p></div>
+    <div><h1 className="text-2xl font-bold">{t.title}</h1><p className="mt-2 text-sm text-[#000000]">{t.intro}</p></div>
     <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#dfe5df] bg-white p-4">
-      <label className="text-xs font-medium text-[#53615b]">{t.branch}<select value={branchId} onChange={e => setBranchId(e.target.value)} className={`mt-1 block w-full ${input}`}>{branches.map(b => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
-      <label className="text-xs font-medium text-[#53615b]">{t.from}<input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className={`mt-1 block ${input}`} /></label>
-      <label className="text-xs font-medium text-[#53615b]">{t.to}<input type="date" value={to} min={from} max={todayStr()} onChange={e => setTo(e.target.value)} className={`mt-1 block ${input}`} /></label>
-      <label className="text-xs font-medium text-[#53615b]">{t.status}<select value={status} onChange={e => setStatus(e.target.value)} className={`mt-1 block ${input}`}><option value="">{t.allStatuses}</option>{Object.keys(t.statuses).map(s => <option key={s} value={s}>{t.statuses[s]}</option>)}</select></label>
-      <label className="text-xs font-medium text-[#53615b]">{t.channel}<select value={channelId} onChange={e => setChannelId(e.target.value)} className={`mt-1 block ${input}`}><option value="">{t.allChannels}</option>{channels.map(c => <option key={c.id} value={c.id}>{name(c)}</option>)}</select></label>
+      <label className="text-xs font-medium text-[#000000]">{t.branch}<select value={branchId} onChange={e => setBranchId(e.target.value)} className={`mt-1 block w-full ${input}`}>{branches.map(b => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
+      <label className="text-xs font-medium text-[#000000]">{t.from}<input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className={`mt-1 block ${input}`} /></label>
+      <label className="text-xs font-medium text-[#000000]">{t.to}<input type="date" value={to} min={from} max={todayStr()} onChange={e => setTo(e.target.value)} className={`mt-1 block ${input}`} /></label>
+      <label className="text-xs font-medium text-[#000000]">{t.status}<select value={status} onChange={e => setStatus(e.target.value)} className={`mt-1 block ${input}`}><option value="">{t.allStatuses}</option>{Object.keys(t.statuses).map(s => <option key={s} value={s}>{t.statuses[s]}</option>)}</select></label>
+      <label className="text-xs font-medium text-[#000000]">{t.channel}<select value={channelId} onChange={e => setChannelId(e.target.value)} className={`mt-1 block ${input}`}><option value="">{t.allChannels}</option>{channels.map(c => <option key={c.id} value={c.id}>{name(c)}</option>)}</select></label>
     </div>
     {loading ? <p role="status" className="rounded-xl border bg-white p-8 text-center text-sm">{t.loading}</p>
       : error ? <div role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>
-      : rows.length === 0 ? <p className="rounded-xl border bg-white p-8 text-center text-sm text-[#69766f]">{t.empty}</p>
+      : rows.length === 0 ? <p className="rounded-xl border bg-white p-8 text-center text-sm text-[#000000]">{t.empty}</p>
       : <>
         <div className="overflow-x-auto rounded-xl border border-[#dfe5df] bg-white">
           <table className="w-full text-sm">
-            <thead><tr className="border-b border-[#e8ece8] text-xs text-[#69766f]">
+            <thead><tr className="border-b border-[#e8ece8] text-xs text-[#000000]">
               <th className="px-4 py-3 text-start font-semibold">{t.time}</th>
               <th className="px-4 py-3 text-start font-semibold">{t.channel}</th>
               <th className="px-4 py-3 text-start font-semibold">{t.status}</th>
@@ -107,15 +107,15 @@ export function OrderHistorySection({ language }: { language: Language }) {
             </tr></thead>
             <tbody>{rows.map(o => { const ch = channels.find(c => c.id === o.salesChannelId); return <tr key={o.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]">
               <td className="px-4 py-3">{new Date(o.createdAt).toLocaleString(language)}</td>
-              <td className="px-4 py-3 text-[#53615b]">{ch ? name(ch) : (t.sources[o.source] ?? o.source)}</td>
+              <td className="px-4 py-3 text-[#000000]">{ch ? name(ch) : (t.sources[o.source] ?? o.source)}</td>
               <td className="px-4 py-3"><span className="rounded-full bg-[#f4f7f4] px-2.5 py-0.5 text-xs font-semibold">{t.statuses[o.status] ?? o.status}</span></td>
-              <td className="px-4 py-3 text-[#53615b]">{o.lineCount}</td>
+              <td className="px-4 py-3 text-[#000000]">{o.lineCount}</td>
               <td className="px-4 py-3 font-semibold">OMR {o.grossAmount.toFixed(3)}</td>
               <td className="px-4 py-3 text-end"><button onClick={() => void open(o.id)} className={button}>{t.view}</button></td>
             </tr>; })}</tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between gap-3 text-sm text-[#64716b]">
+        <div className="flex items-center justify-between gap-3 text-sm text-[#000000]">
           <span>{rangeFrom}–{rangeTo} / {total}</span>
           <div className="flex gap-2">
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className={`${button} disabled:opacity-50`}>{t.prev}</button>
@@ -125,15 +125,15 @@ export function OrderHistorySection({ language }: { language: Language }) {
       </>}
     {selected && <FormDialog title={t.view} closeLabel={t.close} onClose={() => setSelected(null)}>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-[#f4f7f4] px-2.5 py-0.5 text-xs font-semibold">{t.statuses[selected.order.status] ?? selected.order.status}</span><span className="text-sm text-[#64716b]">{new Date(selected.order.createdAt).toLocaleString(language)}</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-2"><span className="rounded-full bg-[#f4f7f4] px-2.5 py-0.5 text-xs font-semibold">{t.statuses[selected.order.status] ?? selected.order.status}</span><span className="text-sm text-[#000000]">{new Date(selected.order.createdAt).toLocaleString(language)}</span></div>
         <ul className="space-y-2">{selected.order.lines.map(l => <li key={l.id} className="flex items-center justify-between gap-3 rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{l.quantity} × {language === "ar" ? l.productNameAr : l.productNameEn}</span><span>OMR {(l.unitGrossAmount * l.quantity).toFixed(3)}</span></li>)}</ul>
-        {selected.order.note && <p className="text-sm text-[#64716b]">{t.note}: {selected.order.note}</p>}
+        {selected.order.note && <p className="text-sm text-[#000000]">{t.note}: {selected.order.note}</p>}
         <div className="grid grid-cols-3 gap-2 rounded-lg bg-[#f4f7f4] p-3 text-sm">
-          <div><p className="text-xs text-[#69766f]">{t.net}</p><p className="font-semibold">OMR {selected.order.netAmount.toFixed(3)}</p></div>
-          <div><p className="text-xs text-[#69766f]">{t.tax}</p><p className="font-semibold">OMR {selected.order.taxAmount.toFixed(3)}</p></div>
-          <div><p className="text-xs text-[#69766f]">{t.gross}</p><p className="font-semibold">OMR {selected.order.grossAmount.toFixed(3)}</p></div>
+          <div><p className="text-xs text-[#000000]">{t.net}</p><p className="font-semibold">OMR {selected.order.netAmount.toFixed(3)}</p></div>
+          <div><p className="text-xs text-[#000000]">{t.tax}</p><p className="font-semibold">OMR {selected.order.taxAmount.toFixed(3)}</p></div>
+          <div><p className="text-xs text-[#000000]">{t.gross}</p><p className="font-semibold">OMR {selected.order.grossAmount.toFixed(3)}</p></div>
         </div>
-        <div><h3 className="text-sm font-semibold">{t.payments}</h3>{selected.payments.length === 0 ? <p className="mt-1 text-sm text-[#69766f]">{t.noPayments}</p> : <ul className="mt-2 space-y-1 text-sm">{selected.payments.map(p => <li key={p.id} className="flex justify-between"><span>{name(p)}</span><span>OMR {p.amount.toFixed(3)}</span></li>)}</ul>}</div>
+        <div><h3 className="text-sm font-semibold">{t.payments}</h3>{selected.payments.length === 0 ? <p className="mt-1 text-sm text-[#000000]">{t.noPayments}</p> : <ul className="mt-2 space-y-1 text-sm">{selected.payments.map(p => <li key={p.id} className="flex justify-between"><span>{name(p)}</span><span>OMR {p.amount.toFixed(3)}</span></li>)}</ul>}</div>
       </div>
     </FormDialog>}
   </div>;

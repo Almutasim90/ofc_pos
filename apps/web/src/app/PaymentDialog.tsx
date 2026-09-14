@@ -92,12 +92,12 @@ export function PaymentDialog({ language, orderId, branchId, total, onClose }: {
   }
 
   const modeButton = (m: PaymentMethod, label: string, Icon: typeof Banknote | null, enabled: boolean) => (
-    <button key={m} type="button" onClick={() => chooseMethod(m)} disabled={!enabled} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40 ${method === m ? "border-[#0e5a4f] bg-[#0e5a4f] text-white" : "border-[#cdd7d0] bg-white text-[#53615b] hover:bg-[#f2f5f2]"}`}>{Icon && <Icon size={17} />}{label}</button>
+    <button key={m} type="button" onClick={() => chooseMethod(m)} disabled={!enabled} className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40 ${method === m ? "border-[#0e5a4f] bg-[#0e5a4f] text-white" : "border-[#cdd7d0] bg-white text-[#000000] hover:bg-[#f2f5f2]"}`}>{Icon && <Icon size={17} />}{label}</button>
   );
 
   const splitField = (label: string, value: string, onChange: (v: string) => void, Icon: typeof Banknote) => (
     <label className="block text-sm font-medium">
-      <span className="flex items-center gap-2 text-[#53615b]"><Icon size={17} className="text-[#0e5a4f]" />{label}</span>
+      <span className="flex items-center gap-2 text-[#000000]"><Icon size={17} className="text-[#0e5a4f]" />{label}</span>
       <input type="text" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} placeholder="0.000" className="mt-2 min-h-14 w-full rounded-xl border border-[#cdd7d0] bg-white px-4 text-lg font-semibold outline-none focus:border-[#0e5a4f]" />
     </label>
   );

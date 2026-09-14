@@ -160,9 +160,9 @@ export function QrAdminSection({ language }: { language: Language }) {
       {toastsNode}
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
 
-      {state === "loading" && <div className="mt-8 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {state === "loading" && <div className="mt-8 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
       {state === "error" && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>}
       {notice && <p role={notice.error ? "alert" : "status"} className={`mt-4 text-sm ${notice.error ? "text-[#b4322a]" : "text-[#137347]"}`}>{notice.text}</p>}
 
@@ -175,11 +175,11 @@ export function QrAdminSection({ language }: { language: Language }) {
           <section className="space-y-5">
             <div className="rounded-xl border border-[#dfe5df] bg-white">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.contexts} ({contexts.length})</h2><button onClick={() => setShowCreate(true)} disabled={!branchId || channels.length === 0} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={16} />{t.addContext}</button></div>
-              {contexts.length === 0 ? <p className="p-8 text-center text-sm text-[#69766f]">{t.noContexts}</p> : (
+              {contexts.length === 0 ? <p className="p-8 text-center text-sm text-[#000000]">{t.noContexts}</p> : (
                 <ul className="divide-y divide-[#e8ece8]">{contexts.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                    <div><p className="font-medium">{c.code} · {language === "ar" ? c.nameAr : c.nameEn}</p><p className="mt-1 text-sm text-[#69766f]">{kindLabel[c.kind]} · {modeLabel[c.approvalMode]} · {c.salesChannelNameAr ?? ""}</p></div>
-                    <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#53615b]"}`}>{c.isActive ? t.active : t.inactive}</span><button onClick={() => void toggleContext(c.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><Power size={14} />{t.toggle}</button></div>
+                    <div><p className="font-medium">{c.code} · {language === "ar" ? c.nameAr : c.nameEn}</p><p className="mt-1 text-sm text-[#000000]">{kindLabel[c.kind]} · {modeLabel[c.approvalMode]} · {c.salesChannelNameAr ?? ""}</p></div>
+                    <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{c.isActive ? t.active : t.inactive}</span><button onClick={() => void toggleContext(c.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><Power size={14} />{t.toggle}</button></div>
                     <QrCodeCard code={c.code} name={nameArEn(c, language)} language={language} />
                   </li>
                 ))}</ul>
@@ -188,10 +188,10 @@ export function QrAdminSection({ language }: { language: Language }) {
 
             <div className="rounded-xl border border-[#dfe5df] bg-white">
               <div className="flex items-center justify-between border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.pending} ({pending.length})</h2>{ordersLive && <span className="rounded-full bg-[#e3f4ea] px-2.5 py-1 text-[11px] font-semibold text-[#137347]">{t.live}</span>}</div>
-              {pending.length === 0 ? <p className="p-8 text-center text-sm text-[#69766f]">{t.noPending}</p> : (
+              {pending.length === 0 ? <p className="p-8 text-center text-sm text-[#000000]">{t.noPending}</p> : (
                 <ul className="divide-y divide-[#e8ece8]">{pending.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                    <div className="min-w-0"><p className="text-sm font-medium">{o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)} {language === "ar" ? "ر.ع" : "OMR"}</p><p className="mt-1 text-xs text-[#69766f]">{o.lines.map((l) => l.quantity + "× " + (language === "ar" ? l.productNameAr : l.productNameEn)).join(", ")}</p></div>
+                    <div className="min-w-0"><p className="text-sm font-medium">{o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)} {language === "ar" ? "ر.ع" : "OMR"}</p><p className="mt-1 text-xs text-[#000000]">{o.lines.map((l) => l.quantity + "× " + (language === "ar" ? l.productNameAr : l.productNameEn)).join(", ")}</p></div>
                     <div className="flex gap-2"><button onClick={() => void review(o.approval!.id, "approve")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><Check size={14} />{t.approve}</button><button onClick={() => void review(o.approval!.id, "reject")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><X size={14} />{t.reject}</button></div>
 
                   </li>
@@ -201,10 +201,10 @@ export function QrAdminSection({ language }: { language: Language }) {
 
             <div className="rounded-xl border border-[#dfe5df] bg-white">
               <div className="flex items-center justify-between border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.orders} ({orders.length})</h2></div>
-              {orders.length === 0 ? <p className="p-8 text-center text-sm text-[#69766f]">{t.noOrders}</p> : (
+              {orders.length === 0 ? <p className="p-8 text-center text-sm text-[#000000]">{t.noOrders}</p> : (
                 <div className="divide-y divide-[#e8ece8]">{orders.slice(0, 50).map((o) => (
                   <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                    <div><p className="text-sm font-medium">{o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)} {language === "ar" ? "ر.ع" : "OMR"}</p><p className="mt-1 text-xs text-[#69766f]">{fmtDate(o.createdAt)} · {o.lines.length} items</p></div>
+                    <div><p className="text-sm font-medium">{o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)} {language === "ar" ? "ر.ع" : "OMR"}</p><p className="mt-1 text-xs text-[#000000]">{fmtDate(o.createdAt)} · {o.lines.length} items</p></div>
                     <div className="flex items-center gap-2"><span className="rounded-full bg-[#e6f1ec] px-3 py-1 text-xs font-semibold text-[#08483f]">{o.status}</span>{o.approval && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${o.approval.status === "Approved" ? "bg-[#e3f4ea] text-[#137347]" : o.approval.status === "Rejected" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{o.approval.status}</span>}</div>
                   </div>
                 ))}</div>

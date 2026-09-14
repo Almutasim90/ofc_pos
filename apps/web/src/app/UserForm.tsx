@@ -83,10 +83,10 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
 
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
             <h3 className="text-sm font-semibold">{t.roles}</h3>
-            <p className="mt-1 text-xs text-[#69766f]">{t.roleHint}</p>
-            {roles.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noRoles}</p> : <div className="mt-3 flex flex-wrap gap-2">{roles.map((r) => <label key={r.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${roleIds.includes(r.id) ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#08483f]" : "border-[#dfe5df] text-[#53615b]"}`}><input type="checkbox" checked={roleIds.includes(r.id)} onChange={(e) => toggleRole(r.id, e.target.checked)} className="size-4 accent-[#0e5a4f]" />{r.name}</label>)}</div>}
+            <p className="mt-1 text-xs text-[#000000]">{t.roleHint}</p>
+            {roles.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noRoles}</p> : <div className="mt-3 flex flex-wrap gap-2">{roles.map((r) => <label key={r.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${roleIds.includes(r.id) ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#08483f]" : "border-[#dfe5df] text-[#000000]"}`}><input type="checkbox" checked={roleIds.includes(r.id)} onChange={(e) => toggleRole(r.id, e.target.checked)} className="size-4 accent-[#0e5a4f]" />{r.name}</label>)}</div>}
             <h3 className="mt-5 text-sm font-semibold">{t.branches}</h3>
-            {branches.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noBranches}</p> : <div className="mt-3 flex flex-wrap gap-2">{branches.map((b) => <label key={b.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${branchIds.includes(b.id) ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#08483f]" : "border-[#dfe5df] text-[#53615b]"}`}><input type="checkbox" checked={branchIds.includes(b.id)} onChange={(e) => toggleBranch(b.id, e.target.checked)} className="size-4 accent-[#0e5a4f]" />{name(b)}</label>)}</div>}
+            {branches.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noBranches}</p> : <div className="mt-3 flex flex-wrap gap-2">{branches.map((b) => <label key={b.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${branchIds.includes(b.id) ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#08483f]" : "border-[#dfe5df] text-[#000000]"}`}><input type="checkbox" checked={branchIds.includes(b.id)} onChange={(e) => toggleBranch(b.id, e.target.checked)} className="size-4 accent-[#0e5a4f]" />{name(b)}</label>)}</div>}
           </section>
 
           <section>
@@ -95,7 +95,7 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
           </section>
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-[#e8ece8] bg-white px-5 py-4">
-          <p className="text-xs text-[#69766f]">{t.selfNote}</p>
+          <p className="text-xs text-[#000000]">{t.selfNote}</p>
           <div className="flex items-center gap-2">
             {error && <p role="alert" className="text-sm text-[#b4322a]">{error}</p>}
             <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-[#cdd7d0] px-4 text-sm font-semibold">{t.cancel}</button>

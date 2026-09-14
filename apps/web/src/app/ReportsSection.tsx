@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
+import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -142,18 +143,18 @@ export function ReportsSection({ language }: { language: Language }) {
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
 
       <div className="mt-5 flex flex-wrap items-end gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3">
-        <label className="block text-xs font-medium text-[#53615b]">{t.branch}
+        <label className="block text-xs font-medium text-[#000000]">{t.branch}
           <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-1 block min-h-10 rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm">
             {branches.map((b) => <option key={b.id} value={b.id}>{language === "ar" ? b.nameAr : b.nameEn}</option>)}
           </select>
         </label>
-        <label className="block text-xs font-medium text-[#53615b]">{t.dateFrom}
+        <label className="block text-xs font-medium text-[#000000]">{t.dateFrom}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block min-h-10 rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm" />
         </label>
-        <label className="block text-xs font-medium text-[#53615b]">{t.dateTo}
+        <label className="block text-xs font-medium text-[#000000]">{t.dateTo}
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 block min-h-10 rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm" />
         </label>
         <button onClick={() => void load()} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-xs font-semibold text-white"><RefreshCw size={15} />{t.refresh}</button>
@@ -161,12 +162,12 @@ export function ReportsSection({ language }: { language: Language }) {
       </div>
 
       <div className="mt-5 flex gap-1 overflow-x-auto border-b border-[#dfe5df]">
-        {tabs.map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`shrink-0 min-h-11 rounded-t-lg px-4 text-sm font-medium ${tab === key ? "border-b-2 border-[#0e5a4f] text-[#08483f]" : "text-[#53615b] hover:text-[#0e5a4f]"}`}>{t[label as keyof typeof t]}</button>)}
+        {tabs.map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`shrink-0 min-h-11 rounded-t-lg px-4 text-sm font-medium ${tab === key ? "border-b-2 border-[#0e5a4f] text-[#08483f]" : "text-[#000000] hover:text-[#0e5a4f]"}`}>{t[label as keyof typeof t]}</button>)}
       </div>
 
       {notice && <p role="status" className="mt-4 text-sm text-[#137347]">{notice}</p>}
       {error && <p role="alert" className="mt-4 text-sm text-[#b4322a]">{error}</p>}
-      {state === "loading" && <div className="mt-8 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {state === "loading" && <div className="mt-8 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
       {state === "error" && <ErrorState label={t.error} onRetry={() => void load()} retry={t.retry} />}
       {state === "idle" && data && <div className="mt-6"> {tab === "dashboard" && <DashboardView t={t} data={data} money={money} num={num} />}
         {tab === "sales" && <SalesView t={t} data={data} money={money} num={num} language={language} empty={t.empty} />}
@@ -176,7 +177,7 @@ export function ReportsSection({ language }: { language: Language }) {
         {tab === "inventory" && <InventoryView t={t} data={data} num={num} language={language} empty={t.empty} />}
         {tab === "kitchen" && <KitchenView t={t} data={data} num={num} language={language} empty={t.empty} />}
         {tab === "branch" && <BranchComparisonView t={t} data={data} money={money} num={num} language={language} empty={t.empty} />}
-        {tab === "profitLoss" && <ProfitLossView t={t} data={data} money={money} num={num} empty={t.empty} />}
+        {tab === "profitLoss" && <ProfitLossView t={t} data={data} money={money} num={num} empty={t.empty} language={language} />}
         {tab === "foodCost" && <FoodCostView t={t} data={data} money={money} num={num} language={language} empty={t.empty} />}
         {tab === "inventoryTrends" && <InventoryTrendsView t={t} data={data} money={money} num={num} language={language} empty={t.empty} />}
         {tab === "kitchenPerformance" && <KitchenPerformanceView t={t} data={data} num={num} language={language} empty={t.empty} />}
@@ -192,9 +193,12 @@ function Cards({ cards }: { cards: SummaryCard[] }) {
   return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{cards.map((c) => <div key={c.label} className="rounded-xl border border-[#dfe5df] bg-white p-4"><div className="text-sm font-medium text-[#66736d]">{c.label}</div><p className="mt-2 text-2xl font-semibold">{c.value}</p></div>)}</div>;
 }
 
-function Table({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
-  if (rows.length === 0) return <p className="mt-4 text-sm text-[#69766f]">{empty}</p>;
-  return <div className="mt-3 overflow-x-auto rounded-xl border border-[#dfe5df] bg-white"><table className="min-w-full text-sm"><thead className="bg-[#f6f7f4] text-start"><tr>{head.map((h) => <th key={h} className="whitespace-nowrap px-4 py-3 text-start font-semibold text-[#53615b]">{h}</th>)}</tr></thead><tbody className="divide-y divide-[#e8ece8]">{rows.map((row, i) => <tr key={i} className="hover:bg-[#fafbfa]">{row.map((cell, j) => <td key={j} className="whitespace-nowrap px-4 py-3 text-[#2b3733]">{cell}</td>)}</tr>)}</tbody></table></div>;
+function Table({ head, rows, empty, language }: { head: string[]; rows: React.ReactNode[][]; empty: string; language: Language }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [rows.length]);
+  if (rows.length === 0) return <p className="mt-4 text-sm text-[#000000]">{empty}</p>;
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  return <div className="mt-3 overflow-x-auto rounded-xl border border-[#dfe5df] bg-white"><table className="min-w-full text-sm"><thead className="bg-[#f6f7f4] text-start"><tr>{head.map((h) => <th key={h} className="whitespace-nowrap px-4 py-3 text-start font-semibold text-[#000000]">{h}</th>)}</tr></thead><tbody className="divide-y divide-[#e8ece8]">{pageRows.map((row, i) => <tr key={i} className="hover:bg-[#fafbfa]">{row.map((cell, j) => <td key={j} className="whitespace-nowrap px-4 py-3 text-[#2b3733]">{cell}</td>)}</tr>)}</tbody></table>{rows.length > PAGE_SIZE && <div className="border-t border-[#e8ece8] px-4 py-3"><Pagination page={page} pageSize={PAGE_SIZE} total={rows.length} onPageChange={setPage} language={language} /></div>}</div>;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -210,10 +214,10 @@ function SalesView({ t, data, money, num, language, empty }: { t: any; data: any
   return (
     <>
       <Cards cards={[{ label: t.netSales, value: money(data.summary?.netSales) }, { label: t.tax, value: money(data.summary?.taxAmount) }, { label: t.discount, value: money(data.summary?.discountAmount) }, { label: t.todaySales, value: money(data.summary?.grossSales) }, { label: t.orders, value: num(data.summary?.orderCount) }, { label: t.averageOrder, value: money(data.summary?.averageOrderValue) }]} />
-      <Panel title={t.product}><Table head={[t.product, t.quantity, t.netSales ?? "", t.gross]} rows={(data.byProduct ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.quantity), money(row.netSales), money(row.grossSales)])} empty={empty} /></Panel>
-      <Panel title={t.channel}><Table head={[t.channel, t.orderCount, t.gross]} rows={(data.byChannel ?? []).map((row: any) => [name(row.channelNameAr, row.channelNameEn), num(row.orderCount), money(row.grossSales)])} empty={empty} /></Panel>
-      <Panel title={t.payments}><Table head={[t.payments, t.count, t.amount]} rows={(data.byPayment ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.amount)])} empty={empty} /></Panel>
-      <Panel title={t.cancellations}><Table head={[t.user, t.orderCount, t.gross]} rows={(data.byCashier ?? []).map((row: any) => [row.name ?? "—", num(row.orderCount), money(row.grossSales)])} empty={empty} /></Panel>
+      <Panel title={t.product}><Table language={language} head={[t.product, t.quantity, t.netSales ?? "", t.gross]} rows={(data.byProduct ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.quantity), money(row.netSales), money(row.grossSales)])} empty={empty} /></Panel>
+      <Panel title={t.channel}><Table language={language} head={[t.channel, t.orderCount, t.gross]} rows={(data.byChannel ?? []).map((row: any) => [name(row.channelNameAr, row.channelNameEn), num(row.orderCount), money(row.grossSales)])} empty={empty} /></Panel>
+      <Panel title={t.payments}><Table language={language} head={[t.payments, t.count, t.amount]} rows={(data.byPayment ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.cancellations}><Table language={language} head={[t.user, t.orderCount, t.gross]} rows={(data.byCashier ?? []).map((row: any) => [row.name ?? "—", num(row.orderCount), money(row.grossSales)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -223,8 +227,8 @@ function PaymentsView({ t, data, money, num, language, empty }: { t: any; data: 
   return (
     <>
       <Cards cards={[{ label: t.todaySales, value: money(data.summary?.totalCaptured) }, { label: t.refunds, value: money(data.summary?.refundsAmount) }, { label: t.count, value: num(data.summary?.paymentCount) }]} />
-      <Panel title={t.payments}><Table head={[t.payments, t.count, t.todaySales]} rows={(data.byMethod ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.captured)])} empty={empty} /></Panel>
-      <Panel title={t.status}><Table head={[t.status, t.count, t.amount]} rows={(data.byStatus ?? []).map((row: any) => [row.status, num(row.count), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.payments}><Table language={language} head={[t.payments, t.count, t.todaySales]} rows={(data.byMethod ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.captured)])} empty={empty} /></Panel>
+      <Panel title={t.status}><Table language={language} head={[t.status, t.count, t.amount]} rows={(data.byStatus ?? []).map((row: any) => [row.status, num(row.count), money(row.amount)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -235,8 +239,8 @@ function CancellationView({ t, data, money, num, language, empty }: { t: any; da
   return (
     <>
       <Cards cards={[{ label: t.cancelled, value: num(c.count) }, { label: t.amount, value: money(c.amount) }, { label: t.cancelRate, value: `${num((c.rate ?? 0) * 100)}%` }, { label: t.refunds, value: money(data.summary?.refunds?.amount) }]} />
-      <Panel title={t.reason}><Table head={[t.reason, t.count, t.amount]} rows={(data.byReason ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.amount)])} empty={empty} /></Panel>
-      <Panel title={t.hour}><Table head={[t.hour, t.count, t.amount]} rows={(data.byHour ?? []).map((row: any) => [`${row.hour}:00`, num(row.count), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.reason}><Table language={language} head={[t.reason, t.count, t.amount]} rows={(data.byReason ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.hour}><Table language={language} head={[t.hour, t.count, t.amount]} rows={(data.byHour ?? []).map((row: any) => [`${row.hour}:00`, num(row.count), money(row.amount)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -246,7 +250,7 @@ function ShiftsView({ t, data, money, language, empty }: { t: any; data: any; mo
   return (
     <>
       <Cards cards={[{ label: t.count, value: `${data.summary?.shiftCount ?? 0}` }, { label: t.todaySales, value: money(data.summary?.totalCashSales) }, { label: t.cashVariance, value: money(data.summary?.totalCashVariance) }]} />
-      <Panel title={t.shifts}><Table head={[t.user, t.open, t.close, t.expectedCash, t.actualCash, t.variance]} rows={(data.shifts ?? []).map((row: any) => [(row.openedByName ?? "—"), when(row.openedAt), when(row.closedAt), money(row.expectedCash), money(row.actualCash), money(row.cashVariance)])} empty={empty} /></Panel>
+      <Panel title={t.shifts}><Table language={language} head={[t.user, t.open, t.close, t.expectedCash, t.actualCash, t.variance]} rows={(data.shifts ?? []).map((row: any) => [(row.openedByName ?? "—"), when(row.openedAt), when(row.closedAt), money(row.expectedCash), money(row.actualCash), money(row.cashVariance)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -256,8 +260,8 @@ function InventoryView({ t, data, num, language, empty }: { t: any; data: any; n
   return (
     <>
       <Cards cards={[{ label: t.count, value: num(data.summary?.movementCount) }]} />
-      <Panel title={t.typeLabel}><Table head={[t.typeLabel, t.count, t.quantity]} rows={(data.summary?.byType ?? []).map((row: any) => [row.type, num(row.movementCount), num(row.quantity)])} empty={empty} /></Panel>
-      <Panel title={t.items}><Table head={[t.product, t.balance]} rows={(data.balances ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.balance)])} empty={empty} /></Panel>
+      <Panel title={t.typeLabel}><Table language={language} head={[t.typeLabel, t.count, t.quantity]} rows={(data.summary?.byType ?? []).map((row: any) => [row.type, num(row.movementCount), num(row.quantity)])} empty={empty} /></Panel>
+      <Panel title={t.items}><Table language={language} head={[t.product, t.balance]} rows={(data.balances ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.balance)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -267,8 +271,8 @@ function KitchenView({ t, data, num, language, empty }: { t: any; data: any; num
   return (
     <>
       <Cards cards={[{ label: t.count, value: num(data.summary?.ticketsCreated) }, { label: t.avgPrep, value: data.summary?.avgPrepMinutes == null ? "—" : `${num(data.summary.avgPrepMinutes)} ${t.items}` }, { label: t.lateOrders, value: num(data.summary?.overdue) }]} />
-      <Panel title={t.station}><Table head={[t.station, t.count, t.avgPrep]} rows={(data.byStation ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.tickets), row.avgPrepMinutes == null || row.avgPrepMinutes === 0 ? "—" : `${num(row.avgPrepMinutes)} ${t.items}`])} empty={empty} /></Panel>
-      <Panel title={t.channel}><Table head={[t.channel, t.count]} rows={(data.byChannel ?? []).map((row: any) => [row.channel, num(row.tickets)])} empty={empty} /></Panel>
+      <Panel title={t.station}><Table language={language} head={[t.station, t.count, t.avgPrep]} rows={(data.byStation ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.tickets), row.avgPrepMinutes == null || row.avgPrepMinutes === 0 ? "—" : `${num(row.avgPrepMinutes)} ${t.items}`])} empty={empty} /></Panel>
+      <Panel title={t.channel}><Table language={language} head={[t.channel, t.count]} rows={(data.byChannel ?? []).map((row: any) => [row.channel, num(row.tickets)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -277,7 +281,7 @@ function AuditView({ t, data, language, empty }: { t: any; data: any; language: 
   const when = (v: string | null | undefined) => v ? new Intl.DateTimeFormat(language, { dateStyle: "short", timeStyle: "short" }).format(new Date(v)) : "—";
   return (
     <Panel title={t.audit}>
-      <Table head={[t.when, t.user, t.action, t.entity, t.status]} rows={(data.items ?? []).map((row: any) => [when(row.occurredAt), row.userName ?? "—", row.action, row.entityType, row.entityId])} empty={empty} />
+      <Table language={language} head={[t.when, t.user, t.action, t.entity, t.status]} rows={(data.items ?? []).map((row: any) => [when(row.occurredAt), row.userName ?? "—", row.action, row.entityType, row.entityId])} empty={empty} />
     </Panel>
   );
 }
@@ -289,17 +293,17 @@ function BranchComparisonView({ t, data, money, num, language, empty }: { t: any
   return (
     <>
       <Cards cards={[{ label: t.netSales, value: money(totals.netSales) }, { label: t.gross, value: money(totals.grossSales) }, { label: t.orders, value: num(totals.orderCount) }, { label: t.bestPerforming, value: bestRow ? name(bestRow.branchNameAr, bestRow.branchNameEn) : "—" }, { label: t.cancelRate, value: `${num((totals.cancellationRate ?? 0) * 100)}%` }, { label: t.lowStock, value: num(totals.lowStockCount) }]} />
-      <Panel title={t.branchComparison}><Table head={[t.branch, t.orderCount, t.netSales, t.gross, t.averageOrder, t.cancelRate, t.waste, t.lowStock, t.lateOrders]} rows={(data.rows ?? []).map((row: any) => [name(row.branchNameAr, row.branchNameEn), num(row.orderCount), money(row.netSales), money(row.grossSales), money(row.averageOrderValue), `${num((row.cancellations?.rate ?? 0) * 100)}%`, num(row.waste?.quantity), num(row.lowStockCount), num(row.kitchen?.overdue)])} empty={empty} /></Panel>
+      <Panel title={t.branchComparison}><Table language={language} head={[t.branch, t.orderCount, t.netSales, t.gross, t.averageOrder, t.cancelRate, t.waste, t.lowStock, t.lateOrders]} rows={(data.rows ?? []).map((row: any) => [name(row.branchNameAr, row.branchNameEn), num(row.orderCount), money(row.netSales), money(row.grossSales), money(row.averageOrderValue), `${num((row.cancellations?.rate ?? 0) * 100)}%`, num(row.waste?.quantity), num(row.lowStockCount), num(row.kitchen?.overdue)])} empty={empty} /></Panel>
     </>
   );
 }
 
-function ProfitLossView({ t, data, money, num, empty }: { t: any; data: any; money: Function; num: Function; empty: string }) {
+function ProfitLossView({ t, data, money, num, empty, language }: { t: any; data: any; money: Function; num: Function; empty: string; language: Language }) {
   const s = data.summary ?? {};
   return (
     <>
       <Cards cards={[{ label: t.revenue, value: money(s.grossRevenue) }, { label: t.netSales, value: money(s.netRevenue) }, { label: t.cogs, value: money(s.cogs) }, { label: t.grossProfit, value: money(s.grossProfit) }, { label: t.netProfit, value: money(s.netProfit) }, { label: t.foodCostPercent, value: `${num(s.foodCostPercent)}%` }, { label: t.wasteCost, value: money(s.wasteCost) }, { label: t.refunds, value: money(s.refunds) }, { label: t.cancelled, value: money(s.cancellations) }, { label: t.purchases, value: money(s.purchases) }]} />
-      <Panel title={t.cogs}><Table head={[t.cogs, t.amount]} rows={[[t.cogs, money(s.cogs)], [t.wasteCost, money(s.wasteCost)], [t.refunds, money(s.refunds)], [t.cancelled, money(s.cancellations)]]} empty={empty} /></Panel>
+      <Panel title={t.cogs}><Table language={language} head={[t.cogs, t.amount]} rows={[[t.cogs, money(s.cogs)], [t.wasteCost, money(s.wasteCost)], [t.refunds, money(s.refunds)], [t.cancelled, money(s.cancellations)]]} empty={empty} /></Panel>
     </>
   );
 }
@@ -310,8 +314,8 @@ function FoodCostView({ t, data, money, num, language, empty }: { t: any; data: 
   return (
     <>
       <Cards cards={[{ label: t.gross, value: money(s.grossSales) }, { label: t.cogs, value: money(s.cogs) }, { label: t.grossProfit, value: money(s.grossMargin) }, { label: t.margin, value: `${num(s.grossMarginPercent)}%` }, { label: t.foodCostPercent, value: `${num(s.foodCostPercent)}%` }]} />
-      <Panel title={t.product}><Table head={[t.product, t.quantity, t.gross, t.cogs, t.foodCostPercent, t.margin]} rows={(data.rows ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.quantity), money(row.grossSales), money(row.cogs), `${num(row.foodCostPercent)}%`, `${num(row.grossMarginPercent)}%`])} empty={empty} /></Panel>
-      <Panel title={t.foodCostPercent}><Table head={[t.product, t.foodCostPercent, t.margin]} rows={(data.topMargin ?? []).map((row: any) => [name(row.nameAr, row.nameEn), `${num(row.foodCostPercent)}%`, `${num(row.grossMarginPercent)}%`])} empty={empty} /></Panel>
+      <Panel title={t.product}><Table language={language} head={[t.product, t.quantity, t.gross, t.cogs, t.foodCostPercent, t.margin]} rows={(data.rows ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.quantity), money(row.grossSales), money(row.cogs), `${num(row.foodCostPercent)}%`, `${num(row.grossMarginPercent)}%`])} empty={empty} /></Panel>
+      <Panel title={t.foodCostPercent}><Table language={language} head={[t.product, t.foodCostPercent, t.margin]} rows={(data.topMargin ?? []).map((row: any) => [name(row.nameAr, row.nameEn), `${num(row.foodCostPercent)}%`, `${num(row.grossMarginPercent)}%`])} empty={empty} /></Panel>
     </>
   );
 }
@@ -322,8 +326,8 @@ function InventoryTrendsView({ t, data, money, num, language, empty }: { t: any;
   return (
     <>
       <Cards cards={[{ label: t.balance, value: money(s.totalValuation) }, { label: t.consumption, value: num(s.consumption) }, { label: t.wasteCost, value: money(s.wasteCost) }, { label: t.waste, value: num(s.wasteQuantity) }]} />
-      <Panel title={t.items}><Table head={[t.product, t.balance, t.endingBalance]} rows={(data.byItem ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.net), num(row.endingBalance)])} empty={empty} /></Panel>
-      <Panel title={t.typeLabel}><Table head={[t.typeLabel, t.count, t.quantity]} rows={(data.byType ?? []).map((row: any) => [row.type, num(row.count), num(row.quantity)])} empty={empty} /></Panel>
+      <Panel title={t.items}><Table language={language} head={[t.product, t.balance, t.endingBalance]} rows={(data.byItem ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.net), num(row.endingBalance)])} empty={empty} /></Panel>
+      <Panel title={t.typeLabel}><Table language={language} head={[t.typeLabel, t.count, t.quantity]} rows={(data.byType ?? []).map((row: any) => [row.type, num(row.count), num(row.quantity)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -334,8 +338,8 @@ function KitchenPerformanceView({ t, data, num, language, empty }: { t: any; dat
   return (
     <>
       <Cards cards={[{ label: t.created, value: num(s.created) }, { label: t.completed, value: num(s.completed) }, { label: t.avgPrep, value: s.avgPrepMinutes == null ? "—" : `${num(s.avgPrepMinutes)} ${t.items}` }, { label: t.onTime, value: `${num(s.onTimePercent)}%` }, { label: t.lateOrders, value: num(s.overdue) }]} />
-      <Panel title={t.station}><Table head={[t.station, t.created, t.completed, t.avgPrep, t.onTime]} rows={(data.byStation ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.created), num(row.completed), row.avgPrepMinutes == null || row.avgPrepMinutes === 0 ? "—" : `${num(row.avgPrepMinutes)} ${t.items}`, num(row.onTime)])} empty={empty} /></Panel>
-      <Panel title={t.day}><Table head={[t.day, t.created, t.completed, t.lateOrders]} rows={(data.byDay ?? []).map((row: any) => [row.day, num(row.created), num(row.completed), num(row.overdue)])} empty={empty} /></Panel>
+      <Panel title={t.station}><Table language={language} head={[t.station, t.created, t.completed, t.avgPrep, t.onTime]} rows={(data.byStation ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.created), num(row.completed), row.avgPrepMinutes == null || row.avgPrepMinutes === 0 ? "—" : `${num(row.avgPrepMinutes)} ${t.items}`, num(row.onTime)])} empty={empty} /></Panel>
+      <Panel title={t.day}><Table language={language} head={[t.day, t.created, t.completed, t.lateOrders]} rows={(data.byDay ?? []).map((row: any) => [row.day, num(row.created), num(row.completed), num(row.overdue)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -346,9 +350,9 @@ function CancellationAnalyticsView({ t, data, money, num, language, empty }: { t
   return (
     <>
       <Cards cards={[{ label: t.cancelled, value: num(s.count) }, { label: t.amount, value: money(s.amount) }, { label: t.cancelRate, value: `${num((s.rate ?? 0) * 100)}%` }, { label: t.avgPrep, value: num(s.beforeKitchen) }, { label: t.lateOrders, value: num(s.afterKitchen) }, { label: t.refunds, value: money(s.refundAmount) }]} />
-      <Panel title={t.day}><Table head={[t.day, t.count, t.amount]} rows={(data.byDay ?? []).map((row: any) => [row.day, num(row.count), money(row.amount)])} empty={empty} /></Panel>
-      <Panel title={t.reason}><Table head={[t.reason, t.count, t.amount]} rows={(data.byReason ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.amount)])} empty={empty} /></Panel>
-      <Panel title={t.product}><Table head={[t.product, t.quantity, t.amount]} rows={(data.byProduct ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.quantity), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.day}><Table language={language} head={[t.day, t.count, t.amount]} rows={(data.byDay ?? []).map((row: any) => [row.day, num(row.count), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.reason}><Table language={language} head={[t.reason, t.count, t.amount]} rows={(data.byReason ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.count), money(row.amount)])} empty={empty} /></Panel>
+      <Panel title={t.product}><Table language={language} head={[t.product, t.quantity, t.amount]} rows={(data.byProduct ?? []).map((row: any) => [name(row.nameAr, row.nameEn), num(row.quantity), money(row.amount)])} empty={empty} /></Panel>
     </>
   );
 }
@@ -371,7 +375,7 @@ function AlertsView({ t, data, language }: { t: any; data: any; language: Langua
     }
   };
   const num = (v: number | null | undefined) => v == null ? "—" : new Intl.NumberFormat(language, { maximumFractionDigits: 2 }).format(v);
-  if (!data.alerts?.length) return <p className="mt-4 text-sm text-[#69766f]">{t.empty}</p>;
+  if (!data.alerts?.length) return <p className="mt-4 text-sm text-[#000000]">{t.empty}</p>;
   return <div className="mt-3 grid gap-3">{data.alerts.map((alert: any, i: number) => <div key={i} className={`flex items-center justify-between rounded-xl border p-4 ${levelColor(alert.level)}`}><span>{message(alert)}</span><span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold">{levelLabel(alert.level)}</span></div>)}</div>;
 }
 

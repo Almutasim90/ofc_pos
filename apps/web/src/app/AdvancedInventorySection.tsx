@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ClipboardCheck, RefreshCw, Trash2, Save, Plus } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
 import { FormDialog } from "@/app/FormDialog";
+import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 
 type Language = "ar" | "en";
 type Branch = { id: string; code: string; nameAr: string; nameEn: string };
@@ -68,6 +69,14 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
   const [countDialogOpen, setCountDialogOpen] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [wasteDialogOpen, setWasteDialogOpen] = useState(false);
+  const [countPage, setCountPage] = useState(1);
+  const [transferPage, setTransferPage] = useState(1);
+  const [wastePage, setWastePage] = useState(1);
+  const [valuationPage, setValuationPage] = useState(1);
+  const pageCounts = counts.slice((countPage - 1) * PAGE_SIZE, countPage * PAGE_SIZE);
+  const pageTransfers = transfers.slice((transferPage - 1) * PAGE_SIZE, transferPage * PAGE_SIZE);
+  const pageWaste = waste.slice((wastePage - 1) * PAGE_SIZE, wastePage * PAGE_SIZE);
+  const pageValuationRows = valuation?.rows.slice((valuationPage - 1) * PAGE_SIZE, valuationPage * PAGE_SIZE) ?? [];
 
   const setMsg = (value: string, error = false) => { setMessage(value); setIsError(error); };
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${store.get<string>("session-token") ?? ""}`, ...(init?.headers ?? {}) } });
@@ -86,7 +95,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
   async function loadWaste() { if (!branchId) return; const r = await auth(`/api/v1/inventory/waste?branchId=${branchId}`); if (r.ok) setWaste(await r.json() as WasteRow[]); }
 
   useEffect(() => { void loadContext(); void loadItems(); void loadUoms(); }, []);
-  useEffect(() => { if (branchId) { void loadCounts(); void loadTransfers(); void loadWaste(); } }, [branchId]);
+  useEffect(() => { if (branchId) { void loadCounts(); void loadTransfers(); void loadWaste(); } setCountPage(1); setTransferPage(1); setWastePage(1); }, [branchId]);
 
   async function refreshAll() {
     setMsg(""); setLoading(true);
@@ -170,7 +179,7 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ClipboardCheck size={18} /><span>{t.intro}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
 
       <div className="mt-5 max-w-md">
@@ -178,18 +187,19 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
-      {loading && <div className="mt-4 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {loading && <div className="mt-4 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.counts}</h2><button onClick={() => setCountDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Plus size={18} />{t.addCount}</button></div><p className="mt-3 rounded-lg bg-[#edf5f1] p-4 text-sm leading-7">{language === "ar" ? "١. عُدّ الكمية الموجودة فعليًا في المخزن. ٢. أدخل الكمية بوحدة المادة. ٣. راجع الفرق وسببه، ثم اعتمد الجرد وحدّث الرصيد. مثال: النظام يعرض 10 كجم دجاج، والموجود 8 كجم؛ الفرق ناقص 2 كجم. إنشاء الجرد وحده لا يغيّر الرصيد." : "1. Count the stock physically present. 2. Enter the quantity in the item’s unit. 3. Review the difference and its reason, approve, then update stock. Example: system 10 kg of chicken, counted 8 kg, difference −2 kg. Creating a count alone does not change stock."}</p>
-          {counts.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{counts.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{c.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#69766f]">{c.lineCount} {t.countLines} · {c.varianceLineCount} {t.variance}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.status === "Posted" ? "bg-[#e3f4ea] text-[#137347]" : c.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{countStatus(c.status)}</span><button onClick={() => void openCount(c.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
-          )}
+          {counts.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageCounts.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{c.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#000000]">{c.lineCount} {t.countLines} · {c.varianceLineCount} {t.variance}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${c.status === "Posted" ? "bg-[#e3f4ea] text-[#137347]" : c.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]"}`}>{countStatus(c.status)}</span><button onClick={() => void openCount(c.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
+            <Pagination page={countPage} pageSize={PAGE_SIZE} total={counts.length} onPageChange={setCountPage} language={language} />
+          </>)}
           {countDetail && (
             <div className="mt-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
               <h3 className="font-semibold">{countDetail.number}</h3>
-              <ol className="mt-2 space-y-1 text-sm">{countDetail.lines.map((l) => <li key={l.id} className="flex flex-wrap items-center justify-between gap-2"><span className="min-w-0">{l.itemNameAr ?? l.itemNameEn ?? ""}</span><span className={`font-medium ${l.variance < 0 ? "text-[#b4322a]" : l.variance > 0 ? "text-[#137347]" : "text-[#69766f]"}`}>{t.systemQty}: {fmt(l.systemQuantity)} → {t.countedQty}: {fmt(l.countedQuantity)} ({l.variance > 0 ? "+" : ""}{fmt(l.variance)})</span></li>)}</ol>
+              <ol className="mt-2 space-y-1 text-sm">{countDetail.lines.map((l) => <li key={l.id} className="flex flex-wrap items-center justify-between gap-2"><span className="min-w-0">{l.itemNameAr ?? l.itemNameEn ?? ""}</span><span className={`font-medium ${l.variance < 0 ? "text-[#b4322a]" : l.variance > 0 ? "text-[#137347]" : "text-[#000000]"}`}>{t.systemQty}: {fmt(l.systemQuantity)} → {t.countedQty}: {fmt(l.countedQuantity)} ({l.variance > 0 ? "+" : ""}{fmt(l.variance)})</span></li>)}</ol>
               <div className="mt-3 flex flex-wrap gap-2">{(countDetail.status === "Draft" && !countDetail.approvedAt) && <button onClick={() => void actCount(countDetail.id, "approve")} className="min-h-9 rounded-lg bg-[#137347] px-3 text-xs font-semibold text-white">{t.approve}</button>}{countDetail.status === "Draft" && countDetail.approvedAt && <button onClick={() => void actCount(countDetail.id, "post")} className="min-h-9 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white">{t.post}</button>}{countDetail.status === "Draft" && <button onClick={() => void actCount(countDetail.id, "cancel")} className="min-h-9 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]">{t.cancel}</button>}</div>
             </div>
           )}
@@ -213,13 +223,14 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.transfers}</h2><button onClick={() => setTransferDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Plus size={18} />{t.addTransfer}</button></div>
-          {transfers.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{transfers.map((x) => <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{x.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#69766f]">{fmt(x.totalQuantity)} · {x.lineCount}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${x.status === "Received" ? "bg-[#e3f4ea] text-[#137347]" : x.status === "InTransit" ? "bg-[#edf5f1] text-[#0e5a4f]" : x.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{transferStatus(x.status)}</span><button onClick={() => void openTransfer(x.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
-          )}
+          {transfers.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageTransfers.map((x) => <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 font-medium">{x.number}</span><div className="flex items-center gap-1.5"><span className="text-xs text-[#000000]">{fmt(x.totalQuantity)} · {x.lineCount}</span><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${x.status === "Received" ? "bg-[#e3f4ea] text-[#137347]" : x.status === "InTransit" ? "bg-[#edf5f1] text-[#0e5a4f]" : x.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]"}`}>{transferStatus(x.status)}</span><button onClick={() => void openTransfer(x.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
+            <Pagination page={transferPage} pageSize={PAGE_SIZE} total={transfers.length} onPageChange={setTransferPage} language={language} />
+          </>)}
           {transferDetail && (
             <div className="mt-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
               <h3 className="font-semibold">{transferDetail.number}</h3>
-              <ol className="mt-2 space-y-1 text-sm">{transferDetail.lines.map((l) => <li key={l.id} className="flex items-center justify-between"><span className="min-w-0">{l.itemNameAr ?? l.itemNameEn ?? ""}</span><span className="text-[#69766f]">{fmt(l.quantity)}</span></li>)}</ol>
+              <ol className="mt-2 space-y-1 text-sm">{transferDetail.lines.map((l) => <li key={l.id} className="flex items-center justify-between"><span className="min-w-0">{l.itemNameAr ?? l.itemNameEn ?? ""}</span><span className="text-[#000000]">{fmt(l.quantity)}</span></li>)}</ol>
               <div className="mt-3 flex flex-wrap gap-2">{transferDetail.status === "Draft" && <button onClick={() => void actTransfer(transferDetail.id, "ship", t.failed)} className="min-h-9 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white">{t.ship}</button>}{transferDetail.status === "InTransit" && <button onClick={() => void actTransfer(transferDetail.id, "receive", t.failed)} className="min-h-9 rounded-lg bg-[#137347] px-3 text-xs font-semibold text-white">{t.receive}</button>}{(transferDetail.status === "Draft" || transferDetail.status === "InTransit") && <button onClick={() => void actTransfer(transferDetail.id, "cancel", t.failed)} className="min-h-9 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]">{t.cancelTransfer}</button>}</div>
             </div>
           )}
@@ -246,9 +257,10 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.waste}</h2><button onClick={() => setWasteDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"><Plus size={18} />{t.addWaste}</button></div>
-          {waste.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{waste.map((w) => <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{w.itemNameAr ?? w.itemNameEn ?? ""} · {categoryLabel(w.category)}</span><span className={`font-medium ${w.quantity < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(w.quantity)}</span></li>)}</ul>
-          )}
+          {waste.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageWaste.map((w) => <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{w.itemNameAr ?? w.itemNameEn ?? ""} · {categoryLabel(w.category)}</span><span className={`font-medium ${w.quantity < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(w.quantity)}</span></li>)}</ul>
+            <Pagination page={wastePage} pageSize={PAGE_SIZE} total={waste.length} onPageChange={setWastePage} language={language} />
+          </>)}
           {wasteDialogOpen && <FormDialog title={t.addWaste} closeLabel={t.close} onClose={() => setWasteDialogOpen(false)}><form onSubmit={createWaste} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.countItem} value={wasteForm.inventoryItemId} onChange={(v) => setWasteForm({ ...wasteForm, inventoryItemId: v })}>{itemOptions}</Select>
@@ -272,13 +284,14 @@ export function AdvancedInventorySection({ language }: { language: Language }) {
           </div>
           {valuation && (
             <div className="mt-4">
-              <p className="text-sm text-[#64716b]">{t.totalValue}: <span className="font-semibold text-[#0e5a4f]">{money(valuation.totalValue)}</span></p>
-              <ul className="mt-3 max-h-72 space-y-1 overflow-y-auto text-sm">{valuation.rows.map((r) => <li key={r.id} className="flex items-center justify-between"><span className="min-w-0">{r.sku} · {language === "ar" ? r.itemNameAr : r.itemNameEn}</span><span className="text-[#69766f]">{fmt(r.balance)} × {money(r.unitCost)} = {money(r.value)}</span></li>)}</ul>
+              <p className="text-sm text-[#000000]">{t.totalValue}: <span className="font-semibold text-[#0e5a4f]">{money(valuation.totalValue)}</span></p>
+              <ul className="mt-3 space-y-1 text-sm">{pageValuationRows.map((r) => <li key={r.id} className="flex items-center justify-between"><span className="min-w-0">{r.sku} · {language === "ar" ? r.itemNameAr : r.itemNameEn}</span><span className="text-[#000000]">{fmt(r.balance)} × {money(r.unitCost)} = {money(r.value)}</span></li>)}</ul>
+              <Pagination page={valuationPage} pageSize={PAGE_SIZE} total={valuation.rows.length} onPageChange={setValuationPage} language={language} />
             </div>
           )}
           {costRows && (
             <div className="mt-4">
-              <ul className="mt-2 divide-y divide-[#e8ece8] text-sm">{costRows.map((r, i) => <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2"><span className="min-w-0 font-medium">{r.productNameAr ?? r.productNameEn}</span><span className="text-[#69766f]">{t.recipeCost}: {money(r.recipeCost)} · {t.sellingPrice}: {money(r.sellingPrice)}<br />{t.foodCostPercent}: {money(r.foodCostPercent)}% · {t.grossMargin}: {money(r.grossMargin)} ({money(r.grossMarginPercent)}%)</span></li>)}</ul>
+              <ul className="mt-2 divide-y divide-[#e8ece8] text-sm">{costRows.map((r, i) => <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2"><span className="min-w-0 font-medium">{r.productNameAr ?? r.productNameEn}</span><span className="text-[#000000]">{t.recipeCost}: {money(r.recipeCost)} · {t.sellingPrice}: {money(r.sellingPrice)}<br />{t.foodCostPercent}: {money(r.foodCostPercent)}% · {t.grossMargin}: {money(r.grossMargin)} ({money(r.grossMarginPercent)}%)</span></li>)}</ul>
             </div>
           )}
         </section>

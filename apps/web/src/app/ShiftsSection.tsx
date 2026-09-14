@@ -88,7 +88,7 @@ export function ShiftsSection({ language }: { language: Language }) {
             <div className="rounded-lg border border-[#0e5a4f]/25 bg-[#edf5f1] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-semibold text-[#08483f]">{t.closeResult}</h2>
-                <span className="rounded-full bg-[#e8ece8] px-3 py-1 text-xs font-semibold text-[#53615b]">{shiftStatusLabel(closeResult.status)}</span>
+                <span className="rounded-full bg-[#e8ece8] px-3 py-1 text-xs font-semibold text-[#000000]">{shiftStatusLabel(closeResult.status)}</span>
               </div>
               <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <Metric label={t.expectedCash} value={money(closeResult.expectedCash)} />
@@ -97,7 +97,7 @@ export function ShiftsSection({ language }: { language: Language }) {
                 <Metric label={t.cardVariance} value={money(closeResult.cardVariance)} tone={closeResult.cardVariance >= 0 ? "good" : "bad"} />
                 <Metric label={t.amount} value={money(closeResult.denominationTotal)} />
               </dl>
-              <p className="mt-4 text-sm text-[#69766f]">{t.closeAt}: {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(closeResult.closedAt))}</p>
+              <p className="mt-4 text-sm text-[#000000]">{t.closeAt}: {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(closeResult.closedAt))}</p>
             </div>
           ) : displayCurrent && displayCurrent.status === "Open" ? (
             <>
@@ -114,9 +114,9 @@ export function ShiftsSection({ language }: { language: Language }) {
 
               <div className="mt-5">
                 <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{t.movements}</h3><button onClick={() => setDialog("movement")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white">{t.addMovement}</button></div>
-                {displayCurrent.movements.length === 0 ? <p className="mt-2 text-sm text-[#69766f]">{t.none}</p> : (
+                {displayCurrent.movements.length === 0 ? <p className="mt-2 text-sm text-[#000000]">{t.none}</p> : (
                   <ul className="mt-2 divide-y divide-[#e8ece8]">
-                    {displayCurrent.movements.slice().reverse().map((m) => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{movementLabel(m.type)}</span><span className="font-medium">{money(m.amount)}</span><span className="text-[#69766f]">{m.reason ?? m.note ?? ""}</span></li>)}
+                    {displayCurrent.movements.slice().reverse().map((m) => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{movementLabel(m.type)}</span><span className="font-medium">{money(m.amount)}</span><span className="text-[#000000]">{m.reason ?? m.note ?? ""}</span></li>)}
                   </ul>
                 )}
               </div>
@@ -136,18 +136,18 @@ export function ShiftsSection({ language }: { language: Language }) {
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <h2 className="font-semibold">{t.history}</h2>
-          {!canReview ? <p className="mt-3 text-sm text-[#69766f]">{t.none}</p> : history.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.none}</p> : (
+          {!canReview ? <p className="mt-3 text-sm text-[#000000]">{t.none}</p> : history.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.none}</p> : (
             <ul className="mt-3 divide-y divide-[#e8ece8]">
               {history.map((row) => (
                 <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.status === "Open" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#53615b]"}`}>{shiftStatusLabel(row.status)}</span>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.status === "Open" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{shiftStatusLabel(row.status)}</span>
                       {row.status !== "Open" && <span className={`rounded-full px-2 py-1 text-xs font-semibold ${row.reviewStatus === "Approved" ? "bg-[#e3f4ea] text-[#137347]" : row.reviewStatus === "Rejected" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{reviewStatusLabel(row.reviewStatus)}</span>}
                     </div>
-                    <p className="mt-1 text-sm text-[#69766f]">{t.openAt}: {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.openedAt))}</p>
+                    <p className="mt-1 text-sm text-[#000000]">{t.openAt}: {new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.openedAt))}</p>
                     {row.status === "Open" && <span className="mt-1 inline-block text-sm font-medium text-[#0e5a4f]">{money(row.openingCash)}</span>}
-                    {row.status !== "Open" && <div className="mt-1 flex flex-wrap gap-4 text-sm"><span className="text-[#69766f]">{t.expectedCash}: {money(row.expectedCash)}</span><span className="text-[#69766f]">{t.actual}: {money(row.actualCash)}</span><span className={`font-semibold ${(row.cashVariance ?? 0) >= 0 ? "text-[#137347]" : "text-[#b4322a]"}`}>{t.cashVariance}: {money(row.cashVariance)}</span></div>}
+                    {row.status !== "Open" && <div className="mt-1 flex flex-wrap gap-4 text-sm"><span className="text-[#000000]">{t.expectedCash}: {money(row.expectedCash)}</span><span className="text-[#000000]">{t.actual}: {money(row.actualCash)}</span><span className={`font-semibold ${(row.cashVariance ?? 0) >= 0 ? "text-[#137347]" : "text-[#b4322a]"}`}>{t.cashVariance}: {money(row.cashVariance)}</span></div>}
                   </div>
                   {row.status !== "Open" && row.reviewStatus === "NotReviewed" && (
                     <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export function ShiftsSection({ language }: { language: Language }) {
       </div>
       {dialog === "open" && <FormDialog title={t.open} closeLabel={t.dialogClose} onClose={() => setDialog(null)} width="max-w-md"><form onSubmit={openShift}><label className="block text-sm font-medium">{t.openingCash}<input required type="number" min="0" step="0.001" value={openForm.openingCash} onChange={(e) => setOpenForm({ openingCash: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label><button disabled={loading} className="mt-4 min-h-12 w-full rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white disabled:opacity-60">{loading ? t.saving : t.open}</button></form></FormDialog>}
       {dialog === "movement" && <FormDialog title={t.addMovement} closeLabel={t.dialogClose} onClose={() => setDialog(null)} width="max-w-xl"><form onSubmit={addMovement} className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium">{t.movementType}<select value={movementForm.type} onChange={(e) => setMovementForm({ ...movementForm, type: e.target.value as Movement["type"] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{movementTypes.map((m) => <option key={m} value={m}>{movementLabel(m)}</option>)}</select></label><label className="block text-sm font-medium">{t.amount}<input required type="number" min="0.001" step="0.001" value={movementForm.amount} onChange={(e) => setMovementForm({ ...movementForm, amount: e.target.value })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label><label className="block text-sm font-medium">{t.reason}<input value={movementForm.reason} onChange={(e) => setMovementForm({ ...movementForm, reason: e.target.value })} maxLength={200} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label><label className="block text-sm font-medium">{t.note}<input value={movementForm.note} onChange={(e) => setMovementForm({ ...movementForm, note: e.target.value })} maxLength={500} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label><button disabled={loading} className="min-h-11 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white disabled:opacity-60">{loading ? t.saving : t.addMovement}</button></form></FormDialog>}
-      {dialog === "close" && <FormDialog title={t.blindClose} closeLabel={t.dialogClose} onClose={() => setDialog(null)}><form onSubmit={blindClose}><div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium">{t.actualCash}<input required type="number" min="0" step="0.001" value={blind.actualCash} onChange={(e) => setBlind({ ...blind, actualCash: e.target.value })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label><label className="block text-sm font-medium">{t.cardTotal}<input required type="number" min="0" step="0.001" value={blind.cardTotal} onChange={(e) => setBlind({ ...blind, cardTotal: e.target.value })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label></div><div className="mt-4"><h4 className="text-sm font-semibold">{t.denominationsTitle}</h4><p className="mt-1 text-xs text-[#69766f]">{t.denominationsHint}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{denominations.map((d) => <label key={d} className="flex items-center justify-between gap-2 rounded-lg border border-[#cdd7d0] px-3 py-2 text-sm"><span>{money(d)}</span><input type="number" min="0" step="1" value={denom[String(d)] ?? ""} onChange={(e) => setDenom({ ...denom, [String(d)]: e.target.value })} className="w-16 rounded border border-[#cdd7d0] px-2 py-1 text-right" /></label>)}</div><p className="mt-3 text-sm font-medium">{t.counted}: {money(denominationTotal)}</p>{Math.abs(denominationTotal - (Number(blind.actualCash) || 0)) > 0.0001 && <p className="mt-1 text-xs text-[#b4322a]">{t.needActualCashMatch}</p>}</div><button disabled={loading} className="mt-4 min-h-11 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white disabled:opacity-60">{loading ? t.saving : t.close}</button></form></FormDialog>}
+      {dialog === "close" && <FormDialog title={t.blindClose} closeLabel={t.dialogClose} onClose={() => setDialog(null)}><form onSubmit={blindClose}><div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-medium">{t.actualCash}<input required type="number" min="0" step="0.001" value={blind.actualCash} onChange={(e) => setBlind({ ...blind, actualCash: e.target.value })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label><label className="block text-sm font-medium">{t.cardTotal}<input required type="number" min="0" step="0.001" value={blind.cardTotal} onChange={(e) => setBlind({ ...blind, cardTotal: e.target.value })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3" /></label></div><div className="mt-4"><h4 className="text-sm font-semibold">{t.denominationsTitle}</h4><p className="mt-1 text-xs text-[#000000]">{t.denominationsHint}</p><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{denominations.map((d) => <label key={d} className="flex items-center justify-between gap-2 rounded-lg border border-[#cdd7d0] px-3 py-2 text-sm"><span>{money(d)}</span><input type="number" min="0" step="1" value={denom[String(d)] ?? ""} onChange={(e) => setDenom({ ...denom, [String(d)]: e.target.value })} className="w-16 rounded border border-[#cdd7d0] px-2 py-1 text-right" /></label>)}</div><p className="mt-3 text-sm font-medium">{t.counted}: {money(denominationTotal)}</p>{Math.abs(denominationTotal - (Number(blind.actualCash) || 0)) > 0.0001 && <p className="mt-1 text-xs text-[#b4322a]">{t.needActualCashMatch}</p>}</div><button disabled={loading} className="mt-4 min-h-11 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white disabled:opacity-60">{loading ? t.saving : t.close}</button></form></FormDialog>}
     </div>
   );
 }
@@ -176,7 +176,7 @@ function denominationCounts(denom: Record<string, string>): number {
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
   return (
     <div className="rounded-lg border border-[#e8ece8] bg-white p-3">
-      <p className="text-xs font-medium text-[#69766f]">{label}</p>
+      <p className="text-xs font-medium text-[#000000]">{label}</p>
       <p key={tone} className={`mt-1 text-lg font-semibold ${tone === "good" ? "text-[#137347]" : tone === "bad" ? "text-[#b4322a]" : "text-[#17211f]"}`}>{value}</p>
     </div>
   );

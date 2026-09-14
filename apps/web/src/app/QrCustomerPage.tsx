@@ -257,7 +257,7 @@ export function QrCustomerPage({ code }: { code: string }) {
         </div>
       </header>
 
-      {state === "loading" && <div className="grid min-h-[70vh] place-items-center"><div className="flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div></div>}
+      {state === "loading" && <div className="grid min-h-[70vh] place-items-center"><div className="flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div></div>}
       {state === "error" && <div role="alert" className="mx-auto max-w-md rounded-2xl border border-[#efc5c1] bg-[#fff5f4] p-6 mt-16 text-center text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-4 font-semibold underline">{t.retry}</button></div>}
 
       {state === "ready" && !result && (
@@ -269,10 +269,10 @@ export function QrCustomerPage({ code }: { code: string }) {
           </div>}
 
           <nav className="scrollbar-none mt-4 flex gap-2 overflow-x-auto pb-1">
-            {categories.map((c) => <button key={c.id} onClick={() => setCategory(c.id)} className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-medium ${category === c.id ? "bg-[#0e5a4f] text-white" : "bg-white text-[#53615b] border border-[#dfe5df]"}`}>{language === "ar" ? c.nameAr : c.nameEn}</button>)}
+            {categories.map((c) => <button key={c.id} onClick={() => setCategory(c.id)} className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-medium ${category === c.id ? "bg-[#0e5a4f] text-white" : "bg-white text-[#000000] border border-[#dfe5df]"}`}>{language === "ar" ? c.nameAr : c.nameEn}</button>)}
           </nav>
 
-          {shown.length === 0 ? <div className="mt-10 text-center text-[#69766f]"><ShoppingBag className="mx-auto mb-3 text-[#0e5a4f]" />{t.empty}</div> : (
+          {shown.length === 0 ? <div className="mt-10 text-center text-[#000000]"><ShoppingBag className="mx-auto mb-3 text-[#0e5a4f]" />{t.empty}</div> : (
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {shown.map((product) => (
                 <button key={product.id} onClick={() => openProduct(product)} className="group flex flex-col rounded-2xl border border-[#dfe5df] bg-white p-3 text-start transition hover:border-[#0e5a4f]/40 hover:shadow-sm">
@@ -352,7 +352,7 @@ export function QrCustomerPage({ code }: { code: string }) {
         <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onClick={() => setCartOpen(false)}>
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{t.cart}</h2><button onClick={() => setCartOpen(false)} className="min-h-10 rounded-lg p-1 text-[#66736d] hover:bg-[#f2f5f2]"><X size={20} /></button></div>
-            {cart.length === 0 ? <p className="mt-10 text-center text-[#69766f]">{t.emptyCart}</p> : (
+            {cart.length === 0 ? <p className="mt-10 text-center text-[#000000]">{t.emptyCart}</p> : (
               <ul className="mt-4 space-y-3">
                 {cart.map((line) => (
                   <li key={line.key} className="rounded-xl border border-[#e8ece8] p-3">

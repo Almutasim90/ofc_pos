@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Boxes, PackagePlus, RefreshCw, Save, Scale, Plus } from "lucide-react";
+import { Boxes, PackagePlus, RefreshCw, Save, Scale, Plus, Search } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
 import { FormDialog } from "@/app/FormDialog";
+import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
@@ -24,7 +25,7 @@ const copy = {
   ar: {
     title: "المخزون والوصفات", intro: "المواد الخام ووحدات القياس والتحويلات ووصفات المنتجات وسجل الحركات المخزنية.", isolated: "التتبع يتم بسجل حركات غير قابل للتعديل.", loading: "جارٍ التحميل", reload: "تحديث", saved: "تم الحفظ بنجاح.", failed: "تعذر تنفيذ العملية.", empty: "لا توجد بيانات بعد.", none: "لا يوجد", close: "إغلاق",
     branch: "الفرع", units: "وحدات القياس", conversions: "التحويلات", convert: "تحويل", addUnit: "إضافة وحدة", code: "الرمز", nameAr: "الاسم بالعربية", nameEn: "الاسم بالإنجليزية", symbol: "الرمز المختصر", sortOrder: "الترتيب", addConversion: "إضافة تحويل", fromUnit: "من وحدة", toUnit: "إلى وحدة", factor: "المعامل", convertTitle: "حساب تحويل", quantity: "الكمية", result: "النتيجة", convertAction: "تحويل", add: "إضافة",
-    items: "المواد الخام", addItem: "إضافة مادة", sku: "رمز الصنف", barcode: "الباركود", type: "النوع", baseUnit: "الوحدة الأساسية", unitCost: "تكلفة الوحدة", active: "نشط", inactive: "غير نشط", typeRawMaterial: "مادة خام", typePackaging: "تغليف", typeSemiFinished: "نصف مصنّع", typeFinishedProduct: "منتج نهائي",
+    items: "المواد الخام", addItem: "إضافة مادة", sku: "رمز الصنف", barcode: "الباركود", type: "النوع", baseUnit: "الوحدة الأساسية", unitCost: "تكلفة الوحدة", active: "نشط", inactive: "غير نشط", typeRawMaterial: "مادة خام", typePackaging: "تغليف", typeSemiFinished: "نصف مصنّع", typeFinishedProduct: "منتج نهائي", search: "بحث بالاسم أو الرمز",
     recipes: "الوصفات (BOM)", addRecipe: "إضافة وصفة", product: "المنتج", version: "الإصدار", status: "الحالة", linesCount: "أسطر", activate: "تفعيل", revise: "نسخة جديدة", draft: "مسودة", activeRecipe: "نشطة", archived: "مؤرشفة", addLine: "إضافة سطر", ingredient: "المادة", lineQuantity: "الكمية", lineUnit: "الوحدة", remove: "إزالة", create: "إنشاء", recipeLines: "الأسطر", view: "عرض", effectiveFrom: "بدء السريان",
     stock: "المخزون والحركات", balance: "الرصيد", addMovement: "تسجيل حركة", movementType: "نوع الحركة", reference: "مرجع", reason: "السبب", record: "تسجيل", movements: "سجل الحركات", saleDeduction: "خصم المبيعات", productQty: "الكمية المباعة", preview: "معاينة الخصم", post: "تنفيذ الخصم", deductionTitle: "خصومات المكونات", noMovement: "لا توجد حركات",
     stOpening: "افتتاحي", stPurchase: "شراء", stSaleDeduction: "خصم مبيعات", stWaste: "هدر", stTransferIn: "تحويل وارد", stTransferOut: "تحويل صادر", stAdjustment: "تسوية", stReturn: "مرتجع", stCountAdjustment: "تسوية جرد"
@@ -32,7 +33,7 @@ const copy = {
   en: {
     title: "Inventory & recipes", intro: "Raw materials, units of measure and conversions, product recipes, and the stock movement ledger.", isolated: "Ledger entries are immutable; the balance is rebuilt from movements.", loading: "Loading", reload: "Refresh", saved: "Saved successfully.", failed: "Unable to complete the operation.", empty: "No data yet.", none: "None", close: "Close",
     branch: "Branch", units: "Units of measure", conversions: "Conversions", convert: "Convert", addUnit: "Add unit", code: "Code", nameAr: "Arabic name", nameEn: "English name", symbol: "Symbol", sortOrder: "Sort order", addConversion: "Add conversion", fromUnit: "From unit", toUnit: "To unit", factor: "Factor", convertTitle: "Convert quantity", quantity: "Quantity", result: "Result", convertAction: "Convert", add: "Add",
-    items: "Raw materials", addItem: "Add item", sku: "SKU", barcode: "Barcode", type: "Type", baseUnit: "Base unit", unitCost: "Unit cost", active: "Active", inactive: "Inactive", typeRawMaterial: "Raw material", typePackaging: "Packaging", typeSemiFinished: "Semi-finished", typeFinishedProduct: "Finished product",
+    items: "Raw materials", addItem: "Add item", sku: "SKU", barcode: "Barcode", type: "Type", baseUnit: "Base unit", unitCost: "Unit cost", active: "Active", inactive: "Inactive", typeRawMaterial: "Raw material", typePackaging: "Packaging", typeSemiFinished: "Semi-finished", typeFinishedProduct: "Finished product", search: "Search by name or SKU",
     recipes: "Recipes (BOM)", addRecipe: "Add recipe", product: "Product", version: "Version", status: "Status", linesCount: "Lines", activate: "Activate", revise: "New version", draft: "Draft", activeRecipe: "Active", archived: "Archived", addLine: "Add line", ingredient: "Ingredient", lineQuantity: "Quantity", lineUnit: "Unit", remove: "Remove", create: "Create", recipeLines: "Lines", view: "View", effectiveFrom: "Effective from",
     stock: "Stock & movements", balance: "Balance", addMovement: "Record movement", movementType: "Movement type", reference: "Reference", reason: "Reason", record: "Record", movements: "Movement ledger", saleDeduction: "Sale deduction", productQty: "Sold quantity", preview: "Preview deduction", post: "Post deduction", deductionTitle: "Ingredient deductions", noMovement: "No movements",
     stOpening: "Opening", stPurchase: "Purchase", stSaleDeduction: "Sale deduction", stWaste: "Waste", stTransferIn: "Transfer in", stTransferOut: "Transfer out", stAdjustment: "Adjustment", stReturn: "Return", stCountAdjustment: "Count adjustment"
@@ -65,6 +66,11 @@ export function InventorySection({ language }: { language: Language }) {
   const [itemForm, setItemForm] = useState({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial" as (typeof itemTypes)[number], baseUnitId: "", unitCost: "" });
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [inventoryTab, setInventoryTab] = useState("stock");
+  const [itemSearch, setItemSearch] = useState("");
+  const [itemPage, setItemPage] = useState(1);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockPage, setStockPage] = useState(1);
+  const [movementPage, setMovementPage] = useState(1);
   const [recipeFilter, setRecipeFilter] = useState("");
   const [recipeForm, setRecipeForm] = useState({ productId: "", nameAr: "", nameEn: "", effectiveFrom: "" });
   const [recipeLines, setRecipeLines] = useState<RecipeLineForm[]>([]);
@@ -105,7 +111,9 @@ export function InventorySection({ language }: { language: Language }) {
   useEffect(() => { void loadContext(); void loadProducts(); }, []);
   useEffect(() => { void loadUoms(); void loadItems(); }, []);
   useEffect(() => { void loadRecipes(); }, [recipeFilter]);
-  useEffect(() => { if (branchId) { void loadStock(); void loadMovements(); } }, [branchId]);
+  useEffect(() => { if (branchId) { void loadStock(); void loadMovements(); } setStockPage(1); setMovementPage(1); }, [branchId]);
+  useEffect(() => { setItemPage(1); }, [itemSearch]);
+  useEffect(() => { setStockPage(1); }, [stockSearch]);
 
   async function refreshAll() {
     setMsg(""); setLoading(true);
@@ -214,12 +222,18 @@ export function InventorySection({ language }: { language: Language }) {
   const movementLabel = (v: string) => v === "Opening" ? t.stOpening : v === "Purchase" ? t.stPurchase : v === "SaleDeduction" ? t.stSaleDeduction : v === "Waste" ? t.stWaste : v === "TransferIn" ? t.stTransferIn : v === "TransferOut" ? t.stTransferOut : v === "Adjustment" ? t.stAdjustment : v === "Return" ? t.stReturn : v === "CountAdjustment" ? t.stCountAdjustment : v;
   const unitOptions = units.map((u) => <option key={u.id} value={u.id}>{u.code} · {name(u)}</option>);
   const itemOptions = items.map((i) => <option key={i.id} value={i.id}>{i.sku} · {name(i)}</option>);
+  const filteredItems = items.filter((i) => `${i.sku} ${i.nameAr} ${i.nameEn}`.toLowerCase().includes(itemSearch.toLowerCase()));
+  const pageItems = filteredItems.slice((itemPage - 1) * PAGE_SIZE, itemPage * PAGE_SIZE);
+  const filteredStock = stock.filter((s) => `${s.sku} ${s.itemNameAr} ${s.itemNameEn}`.toLowerCase().includes(stockSearch.toLowerCase()));
+  const pageStock = filteredStock.slice((stockPage - 1) * PAGE_SIZE, stockPage * PAGE_SIZE);
+  const pageMovements = movements.slice((movementPage - 1) * PAGE_SIZE, movementPage * PAGE_SIZE);
+  const searchInput = "flex items-center gap-2 rounded-xl border border-[#cdd7d0] bg-white px-3 focus-within:ring-2 focus-within:ring-[#0e5a4f] focus-within:ring-offset-1";
 
   return (
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Boxes size={18} /><span>{t.isolated}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
 
       <div className="mt-5 max-w-md">
@@ -229,13 +243,13 @@ export function InventorySection({ language }: { language: Language }) {
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
-      {loading && <div className="mt-4 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {loading && <div className="mt-4 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
       <nav aria-label={language === "ar" ? "أقسام المخزون" : "Inventory sections"} className="mt-5 flex flex-wrap gap-2">{[["stock", t.stock], ["items", t.items], ["recipes", t.recipes], ["units", t.units]].map(([id, label]) => <button key={id} onClick={() => setInventoryTab(id)} aria-pressed={inventoryTab === id} className={`min-h-11 rounded-lg border px-4 text-sm ${inventoryTab === id ? "bg-[#0e5a4f] text-white" : "bg-white"}`}>{label}</button>)}</nav>
       <div className="mt-6 grid gap-5">
         <section hidden={inventoryTab !== "units"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.units}</h2><button onClick={() => setUnitDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addUnit}</button></div>
-          {units.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">{units.map((u) => <li key={u.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{u.code} · {name(u)}</span><span className="text-xs text-[#69766f]">{u.symbol ?? ""}</span></li>)}</ul>
+          {units.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">{units.map((u) => <li key={u.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{u.code} · {name(u)}</span><span className="text-xs text-[#000000]">{u.symbol ?? ""}</span></li>)}</ul>
           )}
           {unitDialogOpen && <FormDialog title={t.addUnit} closeLabel={t.close} onClose={() => setUnitDialogOpen(false)}><form onSubmit={createUnit} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -248,7 +262,7 @@ export function InventorySection({ language }: { language: Language }) {
           </form></FormDialog>}
           <section className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{t.conversions}</h3><button onClick={() => setConversionDialogOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white"><Plus size={16} />{t.addConversion}</button></div>
-            {conversions.length === 0 ? <p className="mt-2 text-sm text-[#69766f]">{t.empty}</p> : (
+            {conversions.length === 0 ? <p className="mt-2 text-sm text-[#000000]">{t.empty}</p> : (
               <ul className="mt-2 divide-y divide-[#e8ece8]">{conversions.map((c) => <li key={c.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span>{c.fromCode} → {c.toCode}</span><span className="font-medium">{fmt(c.factor)}</span></li>)}</ul>
             )}
             {conversionDialogOpen && <FormDialog title={t.addConversion} closeLabel={t.close} onClose={() => setConversionDialogOpen(false)}><form onSubmit={createConversion} className="grid gap-3 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-3">
@@ -268,9 +282,11 @@ export function InventorySection({ language }: { language: Language }) {
         </section>
 
         <section hidden={inventoryTab !== "items"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.items}</h2><button onClick={() => { setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); setItemDialogOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addItem}</button></div>
-          {items.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{item.sku}</span><span className="text-[#69766f]"> · {name(item)}</span></div><span className="text-xs text-[#69766f]">{typeLabel(item.type)} · {fmt(item.unitCost)}</span><button onClick={() => { setEditingItem(item); setItemForm({ sku: item.sku, barcode: item.barcode ?? "", nameAr: item.nameAr, nameEn: item.nameEn, type: item.type, baseUnitId: item.baseUnitId, unitCost: item.unitCost.toString() }); setItemDialogOpen(true); }} className="min-h-11 rounded-lg border px-3 font-semibold text-[#0e5a4f]">{language === "ar" ? "تعديل" : "Edit"}</button></li>)}</ul>
-          )}
+          <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
+          {filteredItems.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageItems.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{item.sku}</span><span className="text-[#000000]"> · {name(item)}</span></div><span className="text-xs text-[#000000]">{typeLabel(item.type)} · {fmt(item.unitCost)}</span><button onClick={() => { setEditingItem(item); setItemForm({ sku: item.sku, barcode: item.barcode ?? "", nameAr: item.nameAr, nameEn: item.nameEn, type: item.type, baseUnitId: item.baseUnitId, unitCost: item.unitCost.toString() }); setItemDialogOpen(true); }} className="min-h-11 rounded-lg border px-3 font-semibold text-[#0e5a4f]">{language === "ar" ? "تعديل" : "Edit"}</button></li>)}</ul>
+            <Pagination page={itemPage} pageSize={PAGE_SIZE} total={filteredItems.length} onPageChange={setItemPage} language={language} />
+          </>)}
           {itemDialogOpen && <FormDialog title={editingItem ? (language === "ar" ? "تعديل المادة" : "Edit item") : t.addItem} closeLabel={t.close} onClose={() => { setItemDialogOpen(false); setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }}><form onSubmit={createItem} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field required label={t.sku} value={itemForm.sku} onChange={(v) => setItemForm({ ...itemForm, sku: v })} max={64} />
@@ -282,17 +298,17 @@ export function InventorySection({ language }: { language: Language }) {
               <Field label={t.unitCost} value={itemForm.unitCost} onChange={(v) => setItemForm({ ...itemForm, unitCost: v })} type="number" />
             </div>
             <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{editingItem ? (language === "ar" ? "حفظ التعديلات" : "Save changes") : t.add}</button>
-          {editingItem && <><label className="mt-3 flex min-h-11 items-center gap-2"><input type="checkbox" checked={editingItem.isActive} onChange={e => setEditingItem({ ...editingItem, isActive: e.target.checked })} />{t.active}</label><p className="mt-2 text-xs text-[#64716b]">{language === "ar" ? "الوحدة ونوع المادة ثابتان لحماية الحركات السابقة. تكلفة مادة لها حركات تُحدّث من المشتريات." : "Unit and type stay fixed to preserve past movements. Cost for an item with movements is updated through purchasing."}</p><button type="button" onClick={() => { setItemDialogOpen(false); setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }} className="mt-3 min-h-11 rounded-lg border px-4">{language === "ar" ? "إلغاء التعديل" : "Cancel editing"}</button></>}</form></FormDialog>}
+          {editingItem && <><label className="mt-3 flex min-h-11 items-center gap-2"><input type="checkbox" checked={editingItem.isActive} onChange={e => setEditingItem({ ...editingItem, isActive: e.target.checked })} />{t.active}</label><p className="mt-2 text-xs text-[#000000]">{language === "ar" ? "الوحدة ونوع المادة ثابتان لحماية الحركات السابقة. تكلفة مادة لها حركات تُحدّث من المشتريات." : "Unit and type stay fixed to preserve past movements. Cost for an item with movements is updated through purchasing."}</p><button type="button" onClick={() => { setItemDialogOpen(false); setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }} className="mt-3 min-h-11 rounded-lg border px-4">{language === "ar" ? "إلغاء التعديل" : "Cancel editing"}</button></>}</form></FormDialog>}
         </section>
 
         <section hidden={inventoryTab !== "recipes"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.recipes}</h2><button onClick={() => setRecipeDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addRecipe}</button></div>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <Select label={t.product} value={recipeFilter} onChange={setRecipeFilter}><option value="">{t.none}</option>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
           </div>
-          {recipes.length === 0 ? <p className="mt-4 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-4 space-y-2">{recipes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8ece8] px-3 py-2 text-sm"><span className="min-w-0">{r.productSku ?? "—"} · v{r.versionNumber} <span className="text-[#69766f]">({r.lineCount} {t.linesCount})</span></span><div className="flex items-center gap-1.5"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.status === "Active" ? "bg-[#e3f4ea] text-[#137347]" : r.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{statusLabel(r.status)}</span>{r.status === "Active" && <button onClick={() => void revise(r.id)} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.revise}</button>}{r.status === "Draft" && <button onClick={() => void activate(r.id)} className="min-h-8 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white">{t.activate}</button>}<button onClick={() => void openRecipe(r.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
+          {recipes.length === 0 ? <p className="mt-4 text-sm text-[#000000]">{t.empty}</p> : (
+            <ul className="mt-4 space-y-2">{recipes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8ece8] px-3 py-2 text-sm"><span className="min-w-0">{r.productSku ?? "—"} · v{r.versionNumber} <span className="text-[#000000]">({r.lineCount} {t.linesCount})</span></span><div className="flex items-center gap-1.5"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.status === "Active" ? "bg-[#e3f4ea] text-[#137347]" : r.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]"}`}>{statusLabel(r.status)}</span>{r.status === "Active" && <button onClick={() => void revise(r.id)} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.revise}</button>}{r.status === "Draft" && <button onClick={() => void activate(r.id)} className="min-h-8 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white">{t.activate}</button>}<button onClick={() => void openRecipe(r.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
           )}
-          {(detail || recipeForm.productId) && <div className="mt-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4"><h3 className="font-semibold">{t.recipeLines}</h3>{detail ? <ol className="mt-2 space-y-1 text-sm">{detail.lines.map((l) => <li key={l.id} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn ?? ""} · {fmt(l.quantity)} {l.unitCode ?? ""}</span></li>)}</ol> : <p className="mt-2 text-sm text-[#69766f]">{t.empty}</p>}</div>}
+          {(detail || recipeForm.productId) && <div className="mt-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4"><h3 className="font-semibold">{t.recipeLines}</h3>{detail ? <ol className="mt-2 space-y-1 text-sm">{detail.lines.map((l) => <li key={l.id} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn ?? ""} · {fmt(l.quantity)} {l.unitCode ?? ""}</span></li>)}</ol> : <p className="mt-2 text-sm text-[#000000]">{t.empty}</p>}</div>}
           {recipeDialogOpen && <FormDialog title={t.addRecipe} closeLabel={t.close} onClose={() => setRecipeDialogOpen(false)}><form onSubmit={createRecipe} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.product} value={recipeForm.productId} onChange={(v) => setRecipeForm({ ...recipeForm, productId: v })}>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
@@ -316,9 +332,11 @@ export function InventorySection({ language }: { language: Language }) {
         </section>
 
         <section hidden={inventoryTab !== "stock"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.stock}</h2><button onClick={() => setMovementDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><PackagePlus size={18} />{t.addMovement}</button></div>
-          {!branchId ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : stock.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : (
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{stock.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{row.sku} · {language === "ar" ? row.itemNameAr : row.itemNameEn}</span><span className={`font-semibold ${(row.balance ?? 0) < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(row.balance)} <span className="text-xs text-[#69766f]">{row.baseUnitCode ?? ""}</span></span></li>)}</ul>
-          )}
+          {branchId && <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={stockSearch} onChange={(e) => setStockSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>}
+          {!branchId ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : filteredStock.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageStock.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{row.sku} · {language === "ar" ? row.itemNameAr : row.itemNameEn}</span><span className={`font-semibold ${(row.balance ?? 0) < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(row.balance)} <span className="text-xs text-[#000000]">{row.baseUnitCode ?? ""}</span></span></li>)}</ul>
+            <Pagination page={stockPage} pageSize={PAGE_SIZE} total={filteredStock.length} onPageChange={setStockPage} language={language} />
+          </>)}
           {movementDialogOpen && <FormDialog title={t.addMovement} closeLabel={t.close} onClose={() => setMovementDialogOpen(false)}><form onSubmit={recordMovement} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.ingredient} value={movementForm.itemId} onChange={(v) => setMovementForm({ ...movementForm, itemId: v })}>{itemOptions}</Select>
@@ -332,9 +350,10 @@ export function InventorySection({ language }: { language: Language }) {
           </form></FormDialog>}
           <div className="mt-5">
             <h3 className="font-semibold">{t.movements}</h3>
-            {movements.length === 0 ? <p className="mt-2 text-sm text-[#69766f]">{t.noMovement}</p> : (
-              <ul className="mt-2 max-h-72 space-y-2 overflow-y-auto">{movements.map((m) => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span className="min-w-0">{language === "ar" ? m.itemNameAr : m.itemNameEn ?? ""}</span><span className="rounded-full bg-[#edf5f1] px-2 py-0.5 text-xs font-medium text-[#0e5a4f]">{movementLabel(m.type)}</span><span className={`font-medium ${m.quantity < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(m.quantity)}</span></li>)}</ul>
-            )}
+            {movements.length === 0 ? <p className="mt-2 text-sm text-[#000000]">{t.noMovement}</p> : (<>
+              <ul className="mt-2 space-y-2">{pageMovements.map((m) => <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span className="min-w-0">{language === "ar" ? m.itemNameAr : m.itemNameEn ?? ""}</span><span className="rounded-full bg-[#edf5f1] px-2 py-0.5 text-xs font-medium text-[#0e5a4f]">{movementLabel(m.type)}</span><span className={`font-medium ${m.quantity < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(m.quantity)}</span></li>)}</ul>
+              <Pagination page={movementPage} pageSize={PAGE_SIZE} total={movements.length} onPageChange={setMovementPage} language={language} />
+            </>)}
           </div>
           <div className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <h3 className="font-semibold">{t.saleDeduction}</h3>
@@ -346,7 +365,7 @@ export function InventorySection({ language }: { language: Language }) {
             {deductionPreview && (
               <div className="mt-4">
                 <h4 className="text-sm font-semibold">{t.deductionTitle}</h4>
-                <ul className="mt-2 space-y-1 text-sm">{deductionPreview.flatMap((d) => d.lines.map((l) => <li key={`${d.productId}-${l.inventoryItemId}`} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn}</span><span className="text-[#69766f]">{fmt(l.sourceQuantity)} {l.sourceUnitCode ?? ""}</span></li>))}</ul>
+                <ul className="mt-2 space-y-1 text-sm">{deductionPreview.flatMap((d) => d.lines.map((l) => <li key={`${d.productId}-${l.inventoryItemId}`} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn}</span><span className="text-[#000000]">{fmt(l.sourceQuantity)} {l.sourceUnitCode ?? ""}</span></li>))}</ul>
                 <button onClick={() => void postDeduction()} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.post}</button>
               </div>
             )}

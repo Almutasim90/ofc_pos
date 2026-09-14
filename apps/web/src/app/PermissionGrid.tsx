@@ -40,12 +40,12 @@ export function PermissionGrid({ language, permissions, mode, states, roleDefaul
     <div className="overflow-hidden rounded-xl border border-[#dfe5df] bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-4 py-3">
         <p className="text-sm font-semibold">{shown.length} {t.count}</p>
-        <label className="flex min-h-10 items-center gap-2 rounded-lg border border-[#cdd7d0] px-3"><Search size={15} className="text-[#69766f]" /><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t.search} className="min-w-[160px] bg-transparent text-sm outline-none" /></label>
+        <label className="flex min-h-10 items-center gap-2 rounded-lg border border-[#cdd7d0] px-3"><Search size={15} className="text-[#000000]" /><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t.search} className="min-w-[160px] bg-transparent text-sm outline-none" /></label>
       </div>
       <div className="max-h-[50vh] overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-white">
-            <tr className="text-[#69766f]">
+            <tr className="text-[#000000]">
               <th className="px-4 py-2 text-start text-xs font-semibold">{t.code}</th>
               {mode === "user" && <th className="px-4 py-2 text-center text-xs font-semibold">{t.fromRole}</th>}
               <th className="px-4 py-2 text-start text-xs font-semibold">{mode === "role" ? t.included : t.override}</th>
@@ -80,7 +80,7 @@ export function PermissionGrid({ language, permissions, mode, states, roleDefaul
                 })}
               </Fragment>
             ))}
-            {shown.length === 0 && <tr><td colSpan={mode === "user" ? 4 : 2} className="px-4 py-8 text-center text-sm text-[#69766f]">{t.empty}</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={mode === "user" ? 4 : 2} className="px-4 py-8 text-center text-sm text-[#000000]">{t.empty}</td></tr>}
           </tbody>
         </table>
       </div>

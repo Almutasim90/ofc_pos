@@ -91,7 +91,7 @@ export function PrintingSection({ language }: { language: Language }) {
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ShieldCheck size={18} /><span>{t.isolated}</span><span className="rounded-full bg-white px-2 py-1 text-xs font-semibold">{t.agent}</span></div>
 
       <div className="mt-5 flex max-w-md flex-col gap-3 sm:flex-row sm:items-end">
@@ -101,18 +101,18 @@ export function PrintingSection({ language }: { language: Language }) {
       </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
-        {tabs.map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === key ? "bg-[#0e5a4f] text-white" : "bg-white text-[#53615b]"}`}>{label}</button>)}
+        {tabs.map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === key ? "bg-[#0e5a4f] text-white" : "bg-white text-[#000000]"}`}>{label}</button>)}
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
-      {loading && <div className="mt-6 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {loading && <div className="mt-6 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
       {!loading && tab === "configs" && (
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.configs}</h2><button type="button" onClick={() => setDialog("config")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addConfig}</button></div>
-            {configs.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noConfigs}</p> : (
-              <ul className="mt-3 divide-y divide-[#e8ece8]">{configs.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{name(c)}</p><p className="text-sm text-[#69766f]">{c.code} · {printerKindLabel(c.kind)}{c.deviceName ? ` · ${c.deviceName}` : ""}</p>{c.lastHealthError && <p className="text-xs text-[#b4322a]">{c.lastHealthError}</p>}</div><div className="flex items-center gap-1.5"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#53615b]"}`}>{c.isActive ? t.active : t.inactive}</span><span title={c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString(language) : undefined} className={`rounded-full px-3 py-1 text-xs font-semibold ${c.online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{c.online ? t.agentOnline : t.agentOffline}</span></div></li>)}</ul>
+            {configs.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noConfigs}</p> : (
+              <ul className="mt-3 divide-y divide-[#e8ece8]">{configs.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{name(c)}</p><p className="text-sm text-[#000000]">{c.code} · {printerKindLabel(c.kind)}{c.deviceName ? ` · ${c.deviceName}` : ""}</p>{c.lastHealthError && <p className="text-xs text-[#b4322a]">{c.lastHealthError}</p>}</div><div className="flex items-center gap-1.5"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{c.isActive ? t.active : t.inactive}</span><span title={c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString(language) : undefined} className={`rounded-full px-3 py-1 text-xs font-semibold ${c.online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{c.online ? t.agentOnline : t.agentOffline}</span></div></li>)}</ul>
             )}
           </section>
         </div>
@@ -122,8 +122,8 @@ export function PrintingSection({ language }: { language: Language }) {
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.templates}</h2><button type="button" onClick={() => setDialog("template")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addTemplate}</button></div>
-            {templates.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noTemplates}</p> : (
-              <ul className="mt-3 divide-y divide-[#e8ece8]">{templates.map((x) => <li key={x.id} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{name(x)}</p><span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{printerKindLabel(x.kind)}</span></div><p className="mt-1 text-sm text-[#69766f]">{x.code} · {x.widthChars}</p></li>)}</ul>
+            {templates.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noTemplates}</p> : (
+              <ul className="mt-3 divide-y divide-[#e8ece8]">{templates.map((x) => <li key={x.id} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{name(x)}</p><span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{printerKindLabel(x.kind)}</span></div><p className="mt-1 text-sm text-[#000000]">{x.code} · {x.widthChars}</p></li>)}</ul>
             )}
           </section>
         </div>
@@ -133,8 +133,8 @@ export function PrintingSection({ language }: { language: Language }) {
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.routes}</h2><button type="button" onClick={() => setDialog("route")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addRoute}</button></div>
-            {routes.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.noRoutes}</p> : (
-              <ul className="mt-3 divide-y divide-[#e8ece8]">{routes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{r.stationCode ? `${r.stationCode} · ${r.stationNameAr ?? r.stationNameEn}` : t.defaultRoute}</p><p className="text-sm text-[#69766f]">{r.printerNameAr ?? r.printerCode} → {r.templateCode}</p></div><span className="rounded-full bg-[#e8ece8] px-3 py-1 text-xs font-semibold text-[#53615b]">{r.priority}</span></li>)}</ul>
+            {routes.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noRoutes}</p> : (
+              <ul className="mt-3 divide-y divide-[#e8ece8]">{routes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{r.stationCode ? `${r.stationCode} · ${r.stationNameAr ?? r.stationNameEn}` : t.defaultRoute}</p><p className="text-sm text-[#000000]">{r.printerNameAr ?? r.printerCode} → {r.templateCode}</p></div><span className="rounded-full bg-[#e8ece8] px-3 py-1 text-xs font-semibold text-[#000000]">{r.priority}</span></li>)}</ul>
             )}
           </section>
         </div>
@@ -144,15 +144,15 @@ export function PrintingSection({ language }: { language: Language }) {
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
             <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.queue}</h2><button type="button" onClick={() => setDialog("enqueue")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.enqueue}</button></div>
-            {jobs.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.jobsEmpty}</p> : (
+            {jobs.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.jobsEmpty}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{jobs.map((job) => (
                 <li key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${job.status === "Printed" ? "bg-[#e3f4ea] text-[#137347]" : job.status === "Failed" ? "bg-[#fbe4e2] text-[#b4322a]" : job.status === "Printing" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#53615b]"}`}>{statusLabel(job.status)}</span>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${job.status === "Printed" ? "bg-[#e3f4ea] text-[#137347]" : job.status === "Failed" ? "bg-[#fbe4e2] text-[#b4322a]" : job.status === "Printing" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]"}`}>{statusLabel(job.status)}</span>
                       <span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{jobKindLabel(job.kind)}</span>
                     </div>
-                    <p className="mt-1 text-sm text-[#69766f]">{t.attempt} {job.attemptCount}/{job.maxAttempts} · {job.templateCode ?? t.none}{job.nextAttemptAt && job.status !== "Printed" ? ` · ${new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(job.nextAttemptAt))}` : ""}</p>
+                    <p className="mt-1 text-sm text-[#000000]">{t.attempt} {job.attemptCount}/{job.maxAttempts} · {job.templateCode ?? t.none}{job.nextAttemptAt && job.status !== "Printed" ? ` · ${new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(job.nextAttemptAt))}` : ""}</p>
                     {job.lastError && <p className="mt-1 text-xs text-[#b4322a]">{job.lastError}</p>}
                   </div>
                   {job.status === "Pending" && <button onClick={() => void jobAction(job.id, "claim")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.claim}</button>}

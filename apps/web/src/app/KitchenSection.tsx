@@ -39,7 +39,7 @@ export function KitchenSection({ language }: { language: Language }) {
   const name = (x: { nameAr: string; nameEn: string }) => (language === "ar" ? x.nameAr : x.nameEn);
   const dispatchLabel = (s: DispatchStatus) => s === "Pending" ? t.stPending : s === "SentToKds" ? t.stSentToKds : s === "KdsAcknowledged" ? t.stKdsAcknowledged : s === "PrintFallbackPending" ? t.stPrintFallbackPending : s === "PrintedFallback" ? t.stPrintedFallback : s === "Failed" ? t.stFailed : t.stCancelled;
   const itemLabel = (s: ItemStatus) => s === "New" ? t.itNew : s === "Preparing" ? t.itPreparing : s === "Ready" ? t.itReady : s === "Completed" ? t.itCompleted : t.itCancelled;
-  const statusPill = (s: DispatchStatus) => s === "PrintedFallback" || s === "PrintFallbackPending" ? "bg-[#f4f1e3] text-[#8a6d1f]" : s === "Failed" || s === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : s === "KdsAcknowledged" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#53615b]";
+  const statusPill = (s: DispatchStatus) => s === "PrintedFallback" || s === "PrintFallbackPending" ? "bg-[#f4f1e3] text-[#8a6d1f]" : s === "Failed" || s === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : s === "KdsAcknowledged" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]";
 
   const auth = (path: string, init?: RequestInit) => fetch(path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${store.get<string>("session-token") ?? ""}`, ...(init?.headers ?? {}) } });
 
@@ -130,7 +130,7 @@ export function KitchenSection({ language }: { language: Language }) {
     <div>
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
-      <p className="mt-3 max-w-3xl text-[#64716b]">{t.intro}</p>
+      <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ChefHat size={18} /><span>{t.isolated}</span><span className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-semibold ${live ? "bg-[#0e5a4f] text-white" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{live ? t.kdsOn : t.kdsOff}</span></div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -145,12 +145,12 @@ export function KitchenSection({ language }: { language: Language }) {
       <div className="mt-6">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
           <h2 className="font-semibold">{t.station}</h2>
-          {stations.length === 0 ? <p className="mt-3 text-sm text-[#69766f]">{t.empty}</p> : <ul className="mt-3 grid gap-2 sm:grid-cols-2">{stations.map((s) => <li key={s.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{s.code} · {name(s)}</span><button onClick={() => setStationId(s.id)} className="text-xs font-semibold text-[#0e5a4f]">{t.reload}</button></li>)}</ul>}
+          {stations.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : <ul className="mt-3 grid gap-2 sm:grid-cols-2">{stations.map((s) => <li key={s.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{s.code} · {name(s)}</span><button onClick={() => setStationId(s.id)} className="text-xs font-semibold text-[#0e5a4f]">{t.reload}</button></li>)}</ul>}
         </section>
       </div>
 
       {showDispatch && <FormDialog title={t.dispatch} closeLabel={t.cancel} onClose={() => setShowDispatch(false)} width="max-w-xl">
-        <p className="text-sm text-[#69766f]">{t.dispatchNote}</p>
+        <p className="text-sm text-[#000000]">{t.dispatchNote}</p>
         <form onSubmit={dispatch} className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium sm:col-span-2">{t.order}<select value={dispatchForm.orderId} onChange={(e) => setDispatchForm({ ...dispatchForm, orderId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{orders.length === 0 && <option value="">{t.empty}</option>}{orders.map((o) => <option key={o.id} value={o.id}>{o.status} · {o.grossAmount}</option>)}</select></label>
           <label className="block text-sm font-medium">{t.targetMinutes}<input type="number" value={dispatchForm.targetMinutes} onChange={(e) => setDispatchForm({ ...dispatchForm, targetMinutes: e.target.value })} min={1} max={999} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>
@@ -158,9 +158,9 @@ export function KitchenSection({ language }: { language: Language }) {
         </form>
       </FormDialog>}
 
-      {loading && <div className="mt-6 flex items-center gap-3 text-[#53615b]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
+      {loading && <div className="mt-6 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
-      {!loading && tickets.length === 0 && <p className="mt-6 rounded-xl border border-[#dfe5df] bg-white p-8 text-center text-sm text-[#69766f]">{t.empty}</p>}
+      {!loading && tickets.length === 0 && <p className="mt-6 rounded-xl border border-[#dfe5df] bg-white p-8 text-center text-sm text-[#000000]">{t.empty}</p>}
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {tickets.map((ticket) => (
@@ -168,7 +168,7 @@ export function KitchenSection({ language }: { language: Language }) {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <p className="font-semibold">{t.orderNo} {ticket.orderNumber}</p>
-                <p className="mt-1 text-xs text-[#69766f]">{new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(ticket.createdAt))}{ticket.targetMinutes ? ` · ${t.targetMinutes} ${language === "ar" ? "دقيقة" : "min"}` : ""}</p>
+                <p className="mt-1 text-xs text-[#000000]">{new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(ticket.createdAt))}{ticket.targetMinutes ? ` · ${t.targetMinutes} ${language === "ar" ? "دقيقة" : "min"}` : ""}</p>
               </div>
               <div className="flex flex-wrap items-center gap-1">
                 {ticket.fallbackPrinted && <span className="rounded-full bg-[#f4f1e3] px-2 py-1 text-xs font-semibold text-[#8a6d1f]">{t.fallbackBadge}</span>}
@@ -183,10 +183,10 @@ export function KitchenSection({ language }: { language: Language }) {
             <ul className="mt-3 space-y-3">
               {ticket.items.map((item) => (
                 <li key={item.id} className={`rounded-lg border p-2 ${item.status === "Completed" ? "border-[#e3f4ea] bg-[#f6fbf8]" : item.status === "Cancelled" ? "border-[#fbe4e2] bg-[#fff5f4]" : "bg-[#f4f7f4]"}`}>
-                  <div className="flex items-center justify-between gap-2"><span className="min-w-0 font-medium">{language === "ar" ? item.productNameAr : item.productNameEn}</span><span className="text-xs text-[#69766f]">{t.quantity} {item.quantity}</span></div>
-                  {item.note && <p className="mt-1 text-xs text-[#69766f]">{t.note}: {item.note}</p>}
+                  <div className="flex items-center justify-between gap-2"><span className="min-w-0 font-medium">{language === "ar" ? item.productNameAr : item.productNameEn}</span><span className="text-xs text-[#000000]">{t.quantity} {item.quantity}</span></div>
+                  {item.note && <p className="mt-1 text-xs text-[#000000]">{t.note}: {item.note}</p>}
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.status === "Completed" ? "bg-[#e3f4ea] text-[#137347]" : item.status === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#e8ece8] text-[#53615b]"}`}>{itemLabel(item.status)}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${item.status === "Completed" ? "bg-[#e3f4ea] text-[#137347]" : item.status === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#e8ece8] text-[#000000]"}`}>{itemLabel(item.status)}</span>
                     <div className="flex gap-1.5">
                       {itemNext(item) && ticket.dispatchStatus !== "Cancelled" && <button onClick={() => void setItem(ticket.id, item.id, itemNext(item)!)} className="min-h-8 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white">{itemNext(item) === "Preparing" ? t.start : itemNext(item) === "Ready" ? t.ready : t.complete}</button>}
                     </div>
