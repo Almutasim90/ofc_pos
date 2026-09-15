@@ -54,7 +54,7 @@ Sprint 18 review gate.
 
 ## Known Issues
 
-- Database credentials disclosed in chat must be rotated (2026-09-15: still open — the in-repo `docker-compose.yml`/`.env.example` only holds an overridable local-dev default (`DB_PASSWORD`), no live connection string is present in the repository; the actual credentials needing rotation live outside this repo and require direct owner action). Local development accesses PostgreSQL through an SSH tunnel.
+- Database credentials disclosed in chat must be rotated (2026-09-15: confirmed the real database is self-hosted Supabase on a VPS, deployed via Dokploy — not reachable from this repo or from the connected Supabase Cloud account; owner deferred acting on this to a later session). Local development accesses PostgreSQL through an SSH tunnel.
 - The local dev machine's Node.js was on 18.13.0 (Vite requires 20.19+/22.12+). A working Node 22.23.2 was installed side-by-side at `%LOCALAPPDATA%\nodejs-v22` and added to the user PATH (2026-09-15), but the old Node 18 MSI could not be removed (Windows Installer error 1612: its cached install source is missing/corrupted) without admin rights, so it still wins PATH resolution in new shells system-wide. An administrator needs to remove the old Node 18 install (or fix the MSI cache) to complete the upgrade machine-wide.
 
 ## Next Recommended Story
