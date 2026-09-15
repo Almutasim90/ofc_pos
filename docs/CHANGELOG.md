@@ -4,6 +4,20 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Searchable dropdowns (2026-09-15)
+
+- Added a dependency-free `SearchableSelect` combobox component (`apps/web/src/app/SearchableSelect.tsx`) — an accessible (ARIA combobox/listbox, full keyboard navigation), RTL-aware searchable dropdown built with plain React/Tailwind, avoiding a jQuery-based library like select2 or a heavier package like react-select in a dependency-light React app.
+- Converted every native `<select>` in the web app (~40 usages across 17 files) to use it, including the four files that already had a shared local `Select`/`SelectField` wrapper component (upgraded once each, at the wrapper, covering every call site automatically).
+- Added a `hideLabel` option (visually hidden but still the accessible name) for compact/repeated contexts — a permissions-grid table row and the POS header's branch picker — where a always-visible caption would have broken the existing tight layout.
+
+### Collapsible sidebar, pagination, and permission-gated inventory entry (2026-09-15)
+
+- The desktop sidebar can now collapse to an icon-only rail via a new toggle button (state persisted in local storage), in addition to the existing mobile drawer toggle.
+- Replaced the muted grey text color used across every screen (`#69766f`, `#53615b`, `#64716b`) with black for stronger contrast.
+- Added a shared `Pagination` component (20 rows/page) and applied it to every list that could grow large: the catalog (products/categories, with search), inventory (items/stock/movements, with search), procurement (suppliers/purchase orders/goods receipts), the admin users table, advanced inventory (counts/transfers/waste/valuation), and every Reports & Audit table (via the shared `Table` component, covering all report tabs in one change).
+- Restricted the inventory stock-entry controls (record movement, post sale deductions, add/edit items, add units & conversions, create/activate/revise recipes, counts, transfers, and waste) to signed-in users whose permissions include the matching backend permission (`inventory.movements.manage`, `inventory.items.manage`, `inventory.uoms.manage`, `inventory.recipes.manage`, `inventory.counts.manage`, `inventory.transfers.manage`, `inventory.waste.manage`). Previously these buttons were shown to anyone with `inventory.view` and only failed with a generic error at submit time; a role (e.g. a dedicated "General Manager" role set up in Admin → Users & Roles) must now be explicitly granted these permissions to see the entry controls at all.
+- Improved keyboard focus states and loading/empty affordances on the catalog screen and pagination controls.
+
 ### Permission-aware navigation and payment-dialog fix (2026-09-12)
 
 - Fixed a flash of "no payment methods configured" in the POS payment dialog: it now waits for `/api/v1/payment-methods` to actually respond before deciding whether to show that message, instead of judging an empty initial state before the fetch resolves.

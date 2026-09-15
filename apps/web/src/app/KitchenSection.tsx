@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChefHat, RefreshCw, Send } from "lucide-react";
 import * as signalR from "@microsoft/signalr";
 import { FormDialog } from "@/app/FormDialog";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -134,8 +135,8 @@ export function KitchenSection({ language }: { language: Language }) {
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ChefHat size={18} /><span>{t.isolated}</span><span className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-semibold ${live ? "bg-[#0e5a4f] text-white" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{live ? t.kdsOn : t.kdsOff}</span></div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
-        <label className="block flex-1 text-sm font-medium">{t.branch}<select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
-        <label className="block flex-1 text-sm font-medium">{t.station}<select value={stationId} onChange={(e) => setStationId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.allStations}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
+        <div className="flex-1"><SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect></div>
+        <div className="flex-1"><SearchableSelect label={t.station} value={stationId} onChange={setStationId}><option value="">{t.allStations}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</SearchableSelect></div>
         <button onClick={() => void refresh()} className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-[#0e5a4f] px-4 font-semibold text-[#0e5a4f]"><RefreshCw size={18} />{t.reload}</button>
         <button onClick={() => setShowDispatch(true)} className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Send size={18} />{t.dispatchAction}</button>
       </div>
@@ -152,7 +153,7 @@ export function KitchenSection({ language }: { language: Language }) {
       {showDispatch && <FormDialog title={t.dispatch} closeLabel={t.cancel} onClose={() => setShowDispatch(false)} width="max-w-xl">
         <p className="text-sm text-[#000000]">{t.dispatchNote}</p>
         <form onSubmit={dispatch} className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-medium sm:col-span-2">{t.order}<select value={dispatchForm.orderId} onChange={(e) => setDispatchForm({ ...dispatchForm, orderId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{orders.length === 0 && <option value="">{t.empty}</option>}{orders.map((o) => <option key={o.id} value={o.id}>{o.status} · {o.grossAmount}</option>)}</select></label>
+          <div className="sm:col-span-2"><SearchableSelect label={t.order} value={dispatchForm.orderId} onChange={(v) => setDispatchForm({ ...dispatchForm, orderId: v })}>{orders.length === 0 && <option value="">{t.empty}</option>}{orders.map((o) => <option key={o.id} value={o.id}>{o.status} · {o.grossAmount}</option>)}</SearchableSelect></div>
           <label className="block text-sm font-medium">{t.targetMinutes}<input type="number" value={dispatchForm.targetMinutes} onChange={(e) => setDispatchForm({ ...dispatchForm, targetMinutes: e.target.value })} min={1} max={999} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>
           <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={18} />{t.dispatchAction}</button>
         </form>

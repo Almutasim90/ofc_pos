@@ -4,6 +4,7 @@ import { FormDialog } from "@/app/FormDialog";
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -149,7 +150,7 @@ function DevicesPanel({ t, devices, branches, name, auth, onSaved }: { t: Copy; 
     {creating && <FormDialog title={t.addDevice} closeLabel={t.cancel} onClose={() => setCreating(false)}>
       <form onSubmit={createDevice}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-medium">{t.branch}<select required value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">—</option>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
+          <SearchableSelect label={t.branch} value={form.branchId} onChange={(v) => setForm({ ...form, branchId: v })}><option value="">—</option>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
           <Field label={t.deviceName} value={form.name} onChange={(v) => setForm({ ...form, name: v })} max={100} />
           <Field label={t.registrationCode} value={form.registrationCode} onChange={(v) => setForm({ ...form, registrationCode: v })} max={100} />
         </div>

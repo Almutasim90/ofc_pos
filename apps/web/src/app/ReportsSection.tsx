@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -146,11 +147,9 @@ export function ReportsSection({ language }: { language: Language }) {
       <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
 
       <div className="mt-5 flex flex-wrap items-end gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3">
-        <label className="block text-xs font-medium text-[#000000]">{t.branch}
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-1 block min-h-10 rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm">
-            {branches.map((b) => <option key={b.id} value={b.id}>{language === "ar" ? b.nameAr : b.nameEn}</option>)}
-          </select>
-        </label>
+        <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>
+          {branches.map((b) => <option key={b.id} value={b.id}>{language === "ar" ? b.nameAr : b.nameEn}</option>)}
+        </SearchableSelect>
         <label className="block text-xs font-medium text-[#000000]">{t.dateFrom}
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block min-h-10 rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm" />
         </label>

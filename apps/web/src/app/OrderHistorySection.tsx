@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FormDialog } from "@/app/FormDialog";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -85,11 +86,11 @@ export function OrderHistorySection({ language }: { language: Language }) {
   return <div className="space-y-5">
     <div><h1 className="text-2xl font-bold">{t.title}</h1><p className="mt-2 text-sm text-[#000000]">{t.intro}</p></div>
     <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#dfe5df] bg-white p-4">
-      <label className="text-xs font-medium text-[#000000]">{t.branch}<select value={branchId} onChange={e => setBranchId(e.target.value)} className={`mt-1 block w-full ${input}`}>{branches.map(b => <option key={b.id} value={b.id}>{name(b)}</option>)}</select></label>
+      <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map(b => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
       <label className="text-xs font-medium text-[#000000]">{t.from}<input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className={`mt-1 block ${input}`} /></label>
       <label className="text-xs font-medium text-[#000000]">{t.to}<input type="date" value={to} min={from} max={todayStr()} onChange={e => setTo(e.target.value)} className={`mt-1 block ${input}`} /></label>
-      <label className="text-xs font-medium text-[#000000]">{t.status}<select value={status} onChange={e => setStatus(e.target.value)} className={`mt-1 block ${input}`}><option value="">{t.allStatuses}</option>{Object.keys(t.statuses).map(s => <option key={s} value={s}>{t.statuses[s]}</option>)}</select></label>
-      <label className="text-xs font-medium text-[#000000]">{t.channel}<select value={channelId} onChange={e => setChannelId(e.target.value)} className={`mt-1 block ${input}`}><option value="">{t.allChannels}</option>{channels.map(c => <option key={c.id} value={c.id}>{name(c)}</option>)}</select></label>
+      <SearchableSelect label={t.status} value={status} onChange={setStatus}><option value="">{t.allStatuses}</option>{Object.keys(t.statuses).map(s => <option key={s} value={s}>{t.statuses[s]}</option>)}</SearchableSelect>
+      <SearchableSelect label={t.channel} value={channelId} onChange={setChannelId}><option value="">{t.allChannels}</option>{channels.map(c => <option key={c.id} value={c.id}>{name(c)}</option>)}</SearchableSelect>
     </div>
     {loading ? <p role="status" className="rounded-xl border bg-white p-8 text-center text-sm">{t.loading}</p>
       : error ? <div role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>

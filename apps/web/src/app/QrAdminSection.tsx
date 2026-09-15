@@ -1,5 +1,6 @@
 import { QrCodeCard } from "@/app/QrCodeCard";
 import { FormDialog } from "@/app/FormDialog";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { useEffect, useRef, useState } from "react";
 import { Check, Plus, Power, RefreshCw, X } from "lucide-react";
 import { store } from "@/lib/local-store";
@@ -169,7 +170,7 @@ export function QrAdminSection({ language }: { language: Language }) {
       {state === "idle" && (
         <div className="mt-6 grid gap-5 lg:grid-cols-[260px_1fr]">
           <aside>
-            <label className="block text-sm font-medium">{t.selectBranch}<select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f]">{branches.length === 0 && <option value="">{t.empty}</option>}{branches.map((b) => <option key={b.id} value={b.id}>{nameArEn(b, language)}</option>)}</select></label>
+            <SearchableSelect label={t.selectBranch} value={branchId} onChange={setBranchId}>{branches.length === 0 && <option value="">{t.empty}</option>}{branches.map((b) => <option key={b.id} value={b.id}>{nameArEn(b, language)}</option>)}</SearchableSelect>
           </aside>
 
           <section className="space-y-5">
@@ -218,9 +219,9 @@ export function QrAdminSection({ language }: { language: Language }) {
           <input aria-label={t.code} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder={language === "ar" ? "رمز داخلي — يُنشأ تلقائيًا" : "Internal code — generated automatically"} maxLength={50} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f] sm:col-span-2" />
           <label className="block text-sm">{t.nameAr} *<input required aria-label={t.nameAr} value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} placeholder={t.nameAr} maxLength={160} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
           <label className="block text-sm">{t.nameEn} *<input required aria-label={t.nameEn} value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder={t.nameEn} maxLength={160} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
-          <label className="block text-sm">{t.type}<select aria-label={t.type} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as QrContextItem["kind"] })} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm"><option value="Table">{t.table}</option><option value="Parking">{t.parking}</option><option value="Branch">{t.branch}</option></select></label>
-          <label className="block text-sm">{t.channel}<select aria-label={t.channel} value={form.channelId} onChange={(e) => setForm({ ...form, channelId: e.target.value })} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm">{channels.map((c) => <option key={c.id} value={c.id}>{nameArEn(c, language)}</option>)}</select></label>
-          <label className="block text-sm sm:col-span-2">{t.approvalMode}<select aria-label={t.approvalMode} value={form.approvalMode} onChange={(e) => setForm({ ...form, approvalMode: e.target.value as QrContextItem["approvalMode"] })} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm"><option value="AutoApprove">{t.auto}</option><option value="RequiresStaffApproval">{t.manual}</option><option value="None">{t.none}</option></select></label>
+          <SearchableSelect label={t.type} value={form.kind} onChange={(v) => setForm({ ...form, kind: v as QrContextItem["kind"] })}><option value="Table">{t.table}</option><option value="Parking">{t.parking}</option><option value="Branch">{t.branch}</option></SearchableSelect>
+          <SearchableSelect label={t.channel} value={form.channelId} onChange={(v) => setForm({ ...form, channelId: v })}>{channels.map((c) => <option key={c.id} value={c.id}>{nameArEn(c, language)}</option>)}</SearchableSelect>
+          <div className="sm:col-span-2"><SearchableSelect label={t.approvalMode} value={form.approvalMode} onChange={(v) => setForm({ ...form, approvalMode: v as QrContextItem["approvalMode"] })}><option value="AutoApprove">{t.auto}</option><option value="RequiresStaffApproval">{t.manual}</option><option value="None">{t.none}</option></SearchableSelect></div>
           <button disabled={saving || !branchId || channels.length === 0} className="inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={16} />{t.create}</button>
         </form>
       </FormDialog>}

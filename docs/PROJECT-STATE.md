@@ -2,7 +2,7 @@
 
 ## Current Sprint
 
-Sprint 18 - Good-to-Have Integrations & AI (implemented, awaiting review gate).
+Sprint 18 - Good-to-Have Integrations & AI (implemented; migration applied and full backend test suite verified green 2026-09-15 — see Latest Migration; remaining review-gate items from `04-GLOBAL-DEFINITION-OF-DONE.md` — UI/e2e walkthrough, Arabic/English + RTL/LTR validation, acceptance-criteria demonstration — still need a human reviewer's sign-off).
 
 ## Completed Stories
 
@@ -32,13 +32,13 @@ Sprint 18 review gate.
 - `OFC.Modules.Integrations`: integration/notification/AI extension contracts, adapter + AI-assist rules, and the notification/webhook outbox entity (`ExternalOutboxEntry`, `IntegrationRules`, `IExternalIntegrationAdapter`, `IAiAssistProvider`).
 - Business modules: Identity, Organization, Catalog, Ordering, Payments, Shifts, Printing, Kitchen, Inventory, Reporting, Sync, Procurement.
 - `OrderingEngine` (in `OFC.Modules.Ordering`): the shared pricing/selection/order-line builder now used by both the POS order endpoint and the QR order endpoint (same `PricingRules` + `CatalogRules` engine, one unified path).
-- `apps/web`: Vite React TypeScript application with a bilingual, responsive shell, POS, inventory, sync recovery, Procurement, a Reports & Audit section, an Advanced Inventory section, a QR admin section, and an Integrations & AI section; a public hash-routed customer QR ordering page (`#/qr/<code>`).
+- `apps/web`: Vite React TypeScript application with a bilingual, responsive shell, POS, inventory, sync recovery, Procurement, a Reports & Audit section, an Advanced Inventory section, a QR admin section, and an Integrations & AI section; a public hash-routed customer QR ordering page (`#/qr/<code>`). A collapsible desktop sidebar, a shared `Pagination` component applied to every large list (catalog, inventory, procurement, admin users, advanced inventory, reports), permission-gated inventory stock-entry controls, and a dependency-free `SearchableSelect` combobox replacing every native `<select>` in the app were added 2026-09-15 (see `CHANGELOG.md`).
 - Sprint 16 endpoints: customer-facing `/api/v1/qr/{code}` context, `/{code}/menu` menu, `/{code}/orders` submit, `/{code}/orders/{clientRequestId}` track (all anonymous), plus authorized `/api/v1/qr/contexts*`, `/api/v1/qr/orders`, and `/api/v1/qr/approvals/{id}/review`. QR orders use `OrderSource.Qr` and flow through the existing order/payment/kitchen pipeline.
 - Sprint 18 endpoints: authorized `/api/v1/integrations/preferences` (list + set), `/preferences/{kind}/test`, `/outbox` (enqueue + list + dispatch), and `/ai/suggest`, all scoped to accessible branches, audit-logged, and disabled-by-default so core POS/ordering is unaffected.
 
 ## Latest Migration
 
-`20260905104237_AddSprintEighteenIntegrationsAi` (migration file generated; not applied to the database — no working `ConnectionStrings__DefaultConnection` was configured in this environment). Creates the `external_outbox` table in `ofc` with a unique `(BranchId, IdempotencyKey)` index and a `(BranchId, Status, CreatedAt)` index. Sprint 18 preferences need no migration: they reuse the existing `branch_settings` table.
+`20260910145010_MakeKitchenTicketCreatedByUserIdNullable` — confirmed applied 2026-09-15 (`dotnet ef database update` against the local docker-compose PostgreSQL; `dotnet ef migrations list` shows zero pending migrations). This also confirms `20260905104237_AddSprintEighteenIntegrationsAi` (creating the `external_outbox` table in `ofc` with a unique `(BranchId, IdempotencyKey)` index and a `(BranchId, Status, CreatedAt)` index) is applied — the local `db-data` volume already had it from a prior run; only `MakeKitchenTicketCreatedByUserIdNullable` was pending and has now been applied too. Sprint 18 preferences need no migration: they reuse the existing `branch_settings` table.
 
 ## Architecture Decisions
 
@@ -54,7 +54,8 @@ Sprint 18 review gate.
 
 ## Known Issues
 
-- Database credentials disclosed in chat must be rotated. Local development accesses PostgreSQL through an SSH tunnel.
+- Database credentials disclosed in chat must be rotated (2026-09-15: still open — the in-repo `docker-compose.yml`/`.env.example` only holds an overridable local-dev default (`DB_PASSWORD`), no live connection string is present in the repository; the actual credentials needing rotation live outside this repo and require direct owner action). Local development accesses PostgreSQL through an SSH tunnel.
+- The local dev machine's Node.js was on 18.13.0 (Vite requires 20.19+/22.12+). A working Node 22.23.2 was installed side-by-side at `%LOCALAPPDATA%\nodejs-v22` and added to the user PATH (2026-09-15), but the old Node 18 MSI could not be removed (Windows Installer error 1612: its cached install source is missing/corrupted) without admin rights, so it still wins PATH resolution in new shells system-wide. An administrator needs to remove the old Node 18 install (or fix the MSI cache) to complete the upgrade machine-wide.
 
 ## Next Recommended Story
 

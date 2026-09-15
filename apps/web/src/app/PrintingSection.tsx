@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -95,9 +96,7 @@ export function PrintingSection({ language }: { language: Language }) {
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><ShieldCheck size={18} /><span>{t.isolated}</span><span className="rounded-full bg-white px-2 py-1 text-xs font-semibold">{t.agent}</span></div>
 
       <div className="mt-5 flex max-w-md flex-col gap-3 sm:flex-row sm:items-end">
-        <label className="block flex-1 text-sm font-medium">{t.branch}
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{branches.map((branch) => <option key={branch.id} value={branch.id}>{name(branch)}</option>)}</select>
-        </label>
+        <div className="flex-1"><SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((branch) => <option key={branch.id} value={branch.id}>{name(branch)}</option>)}</SearchableSelect></div>
       </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
@@ -191,7 +190,7 @@ export function PrintingSection({ language }: { language: Language }) {
 
       {dialog === "route" && <FormDialog title={t.addRoute} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
         <form onSubmit={submitRoute} className="grid gap-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-2">
-          <label className="block text-sm font-medium">{t.station}<select value={routeForm.stationId} onChange={(e) => setRouteForm({ ...routeForm, stationId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
+          <SearchableSelect label={t.station} value={routeForm.stationId} onChange={(v) => setRouteForm({ ...routeForm, stationId: v })}><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</SearchableSelect>
           <SelectField label={t.printer} required value={routeForm.configId} onChange={(v) => setRouteForm({ ...routeForm, configId: v })} options={configs.map((c) => [c.id, `${name(c)} (${c.code})`])} />
           <SelectField label={t.template} required value={routeForm.templateId} onChange={(v) => setRouteForm({ ...routeForm, templateId: v })} options={templates.map((x) => [x.id, `${name(x)} (${x.code})`])} />
           <Field label={t.priority} value={routeForm.priority} onChange={(v) => setRouteForm({ ...routeForm, priority: v })} type="number" />
@@ -203,7 +202,7 @@ export function PrintingSection({ language }: { language: Language }) {
         <form onSubmit={enqueue} className="grid gap-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4 sm:grid-cols-2">
           <SelectField label={t.kind} value={enqueueForm.kind} onChange={(v) => setEnqueueForm({ ...enqueueForm, kind: v as JobKind })} options={jobKinds.map((k) => [k, jobKindLabel(k)])} />
           <Field label={t.orderId} value={enqueueForm.orderId} onChange={(v) => setEnqueueForm({ ...enqueueForm, orderId: v })} />
-          <label className="block text-sm font-medium">{t.station}<select value={enqueueForm.stationId} onChange={(e) => setEnqueueForm({ ...enqueueForm, stationId: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3"><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</select></label>
+          <SearchableSelect label={t.station} value={enqueueForm.stationId} onChange={(v) => setEnqueueForm({ ...enqueueForm, stationId: v })}><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</SearchableSelect>
           <Field label={t.templateCode} value={enqueueForm.templateCode} onChange={(v) => setEnqueueForm({ ...enqueueForm, templateCode: v })} max={50} />
           <label className="block text-sm font-medium sm:col-span-2">{t.payload}<textarea value={enqueueForm.payload} onChange={(e) => setEnqueueForm({ ...enqueueForm, payload: e.target.value })} rows={3} className="mt-2 min-h-20 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 py-2 font-mono text-xs outline-none focus:border-[#0e5a4f]" /></label>
           <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60">{t.sendToAgent}</button>
@@ -217,6 +216,6 @@ function Field({ label, value, onChange, max, type = "text" }: { label: string; 
   return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 
-function SelectField({ label, value, onChange, options, required }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]>; required?: boolean }) {
-  return <label className="block text-sm font-medium">{label}<select required={required} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{options.map(([v, text]) => <option key={v} value={v}>{text}</option>)}</select></label>;
+function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]>; required?: boolean }) {
+  return <SearchableSelect label={label} value={value} onChange={onChange}>{options.map(([v, text]) => <option key={v} value={v}>{text}</option>)}</SearchableSelect>;
 }

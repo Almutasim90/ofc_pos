@@ -3,6 +3,7 @@ import { ClipboardCheck, RefreshCw, Trash2, Save, Plus } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
 import { FormDialog } from "@/app/FormDialog";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
+import { SearchableSelect } from "@/app/SearchableSelect";
 
 type Language = "ar" | "en";
 type Branch = { id: string; code: string; nameAr: string; nameEn: string };
@@ -268,7 +269,7 @@ export function AdvancedInventorySection({ language, permissions }: { language: 
           {wasteDialogOpen && <FormDialog title={t.addWaste} closeLabel={t.close} onClose={() => setWasteDialogOpen(false)}><form onSubmit={createWaste} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.countItem} value={wasteForm.inventoryItemId} onChange={(v) => setWasteForm({ ...wasteForm, inventoryItemId: v })}>{itemOptions}</Select>
-              <label className="block text-sm font-medium">{t.category}<select value={wasteForm.category} onChange={(e) => setWasteForm({ ...wasteForm, category: e.target.value as (typeof wasteCategories)[number] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{wasteCategories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</select></label>
+              <SearchableSelect label={t.category} value={wasteForm.category} onChange={(v) => setWasteForm({ ...wasteForm, category: v as (typeof wasteCategories)[number] })}>{wasteCategories.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}</SearchableSelect>
               <Select label={t.unit} value={wasteForm.unitId} onChange={(v) => setWasteForm({ ...wasteForm, unitId: v })}>{unitOptions}</Select>
               <Field label={t.quantity} value={wasteForm.quantity} onChange={(v) => setWasteForm({ ...wasteForm, quantity: v })} type="number" />
               <Field label={t.reason} value={wasteForm.reason} onChange={(v) => setWasteForm({ ...wasteForm, reason: v })} max={500} />
@@ -312,5 +313,5 @@ function Field({ label, value, onChange, max, type = "text", required = false }:
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="block text-sm font-medium">{label}<select value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{children}</select></label>;
+  return <SearchableSelect label={label} value={value} onChange={onChange}>{children}</SearchableSelect>;
 }

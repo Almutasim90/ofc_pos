@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { SearchableSelect } from "@/app/SearchableSelect";
 
 type Language = "ar" | "en";
 type Permission = { id: string; code: string };
@@ -67,11 +68,11 @@ export function PermissionGrid({ language, permissions, mode, states, roleDefaul
                         {mode === "role" ? (
                           <label className="inline-flex min-h-8 items-center gap-2"><input type="checkbox" checked={override === "grant"} onChange={(e) => onChange(p.code, e.target.checked ? "grant" : "inherit")} className="size-4 accent-[#0e5a4f]" /></label>
                         ) : (
-                          <select value={override} onChange={(e) => onChange(p.code, e.target.value as PermissionOverride)} className="min-h-9 rounded-lg border border-[#cdd7d0] bg-white px-2 text-xs outline-none focus:border-[#0e5a4f]">
+                          <SearchableSelect label={`${t.override} · ${p.code}`} hideLabel value={override} onChange={(v) => onChange(p.code, v as PermissionOverride)}>
                             <option value="inherit">{t.inherit}</option>
                             <option value="grant">{t.grant}</option>
                             <option value="revoke">{t.revoke}</option>
-                          </select>
+                          </SearchableSelect>
                         )}
                       </td>
                       {mode === "user" && <td className="px-4 py-2 text-center">{granted ? <span className="rounded-full bg-[#e3f4ea] px-2.5 py-0.5 text-xs font-semibold text-[#137347]">{t.granted}</span> : <span className="rounded-full bg-[#fbe4e2] px-2.5 py-0.5 text-xs font-semibold text-[#b4322a]">{t.denied}</span>}</td>}

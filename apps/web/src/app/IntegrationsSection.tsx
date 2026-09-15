@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Bot, Inbox, Plug, RefreshCw, Rocket, Send, ShieldCheck, ToggleLeft, ToggleRight } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -160,7 +161,7 @@ export function IntegrationsSection({ language }: { language: Language }) {
       {state === "idle" && (
         <div className="mt-6 grid gap-5 lg:grid-cols-[260px_1fr]">
           <aside className="space-y-5">
-            <label className="block text-sm font-medium">{t.selectBranch}<select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f]">{branches.length === 0 && <option value="">{t.empty}</option>}{branches.map((b) => <option key={b.id} value={b.id}>{nameArEn(b, language)}</option>)}</select></label>
+            <SearchableSelect label={t.selectBranch} value={branchId} onChange={setBranchId}>{branches.length === 0 && <option value="">{t.empty}</option>}{branches.map((b) => <option key={b.id} value={b.id}>{nameArEn(b, language)}</option>)}</SearchableSelect>
 
             <section className="rounded-xl border border-[#dfe5df] bg-white p-4">
               <h2 className="flex items-center gap-2 font-semibold"><Bot size={16} />{t.ai}</h2>

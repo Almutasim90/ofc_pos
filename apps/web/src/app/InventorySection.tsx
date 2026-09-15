@@ -3,6 +3,7 @@ import { Boxes, PackagePlus, RefreshCw, Save, Scale, Plus, Search } from "lucide
 import { createId, store } from "@/lib/local-store";
 import { FormDialog } from "@/app/FormDialog";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
+import { SearchableSelect } from "@/app/SearchableSelect";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
@@ -242,9 +243,7 @@ export function InventorySection({ language, permissions }: { language: Language
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Boxes size={18} /><span>{t.isolated}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
 
       <div className="mt-5 max-w-md">
-        <label className="block text-sm font-medium">{t.branch}
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</select>
-        </label>
+        <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
@@ -298,7 +297,7 @@ export function InventorySection({ language, permissions }: { language: Language
               <Field label={t.barcode} value={itemForm.barcode} onChange={(v) => setItemForm({ ...itemForm, barcode: v })} max={64} />
               <Field required label={t.nameAr} value={itemForm.nameAr} onChange={(v) => setItemForm({ ...itemForm, nameAr: v })} max={160} />
               <Field required label={t.nameEn} value={itemForm.nameEn} onChange={(v) => setItemForm({ ...itemForm, nameEn: v })} max={160} />
-              <label className="block text-sm font-medium">{t.type}<select disabled={!!editingItem} value={itemForm.type} onChange={(e) => setItemForm({ ...itemForm, type: e.target.value as (typeof itemTypes)[number] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{itemTypes.map((tt) => <option key={tt} value={tt}>{typeLabel(tt)}</option>)}</select></label>
+              <SearchableSelect label={t.type} disabled={!!editingItem} value={itemForm.type} onChange={(v) => setItemForm({ ...itemForm, type: v as (typeof itemTypes)[number] })}>{itemTypes.map((tt) => <option key={tt} value={tt}>{typeLabel(tt)}</option>)}</SearchableSelect>
               <Select disabled={!!editingItem} label={t.baseUnit} value={itemForm.baseUnitId} onChange={(v) => setItemForm({ ...itemForm, baseUnitId: v })}>{unitOptions}</Select>
               <Field label={t.unitCost} value={itemForm.unitCost} onChange={(v) => setItemForm({ ...itemForm, unitCost: v })} type="number" />
             </div>
@@ -345,7 +344,7 @@ export function InventorySection({ language, permissions }: { language: Language
           {movementDialogOpen && <FormDialog title={t.addMovement} closeLabel={t.close} onClose={() => setMovementDialogOpen(false)}><form onSubmit={recordMovement} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.ingredient} value={movementForm.itemId} onChange={(v) => setMovementForm({ ...movementForm, itemId: v })}>{itemOptions}</Select>
-              <label className="block text-sm font-medium">{t.movementType}<select value={movementForm.type} onChange={(e) => setMovementForm({ ...movementForm, type: e.target.value as (typeof movementTypes)[number] })} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3">{movementTypes.map((m) => <option key={m} value={m}>{movementLabel(m)}</option>)}</select></label>
+              <SearchableSelect label={t.movementType} value={movementForm.type} onChange={(v) => setMovementForm({ ...movementForm, type: v as (typeof movementTypes)[number] })}>{movementTypes.map((m) => <option key={m} value={m}>{movementLabel(m)}</option>)}</SearchableSelect>
               <Select label={t.lineUnit} value={movementForm.unitId} onChange={(v) => setMovementForm({ ...movementForm, unitId: v })}>{unitOptions}</Select>
               <Field label={t.quantity} value={movementForm.quantity} onChange={(v) => setMovementForm({ ...movementForm, quantity: v })} type="number" />
               <Field label={t.reference} value={movementForm.reference} onChange={(v) => setMovementForm({ ...movementForm, reference: v })} max={200} />
@@ -388,5 +387,5 @@ function Field({ label, value, onChange, max, type = "text", required = false }:
 }
 
 function Select({ label, value, onChange, children, disabled = false }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode; disabled?: boolean }) {
-  return <label className="block text-sm font-medium">{label}<select disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{children}</select></label>;
+  return <SearchableSelect label={label} value={value} onChange={onChange} disabled={disabled}>{children}</SearchableSelect>;
 }

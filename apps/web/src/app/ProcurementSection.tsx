@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Save, Truck, Recycle, BadgeCheck, XCircle, Eye, Search } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
+import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -174,9 +175,7 @@ export function ProcurementSection({ language }: { language: Language }) {
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Truck size={18} /><span>{t.intro2}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
 
       <div className="mt-5 max-w-md">
-        <label className="block text-sm font-medium">{t.branch}
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</select>
-        </label>
+        <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
@@ -327,5 +326,5 @@ function Field({ label, value, onChange, max, type = "text" }: { label: string; 
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="block text-sm font-medium">{label}<select value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20">{children}</select></label>;
+  return <SearchableSelect label={label} value={value} onChange={onChange}>{children}</SearchableSelect>;
 }
