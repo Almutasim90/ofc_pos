@@ -4,6 +4,11 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### POS: auto-dispatch to kitchen, searchable Current Orders table (2026-09-16)
+
+- Removed the separate "Send to kitchen" confirmation step from the POS cart: both "Hold" and "Pay" now dispatch the order to the kitchen automatically right after it's created — the cashier is trusted staff, so there's no extra manual step for the normal case. A manual "Kitchen" retry action remains in Current Orders as a safety net (the dispatch endpoint is idempotent per order, so retrying never creates a duplicate kitchen ticket).
+- Redesigned the "Current Orders" picker from a card list into a searchable table (order #, table, status, time, total, actions) in a centered popup, matching the pattern used for other data-heavy screens in the app.
+
 ### Realistic historical sales test data (2026-09-16)
 
 - Added `seed-transactions-data.sql`, a PL/pgSQL generator run on top of `seed-dev-data.sql` that produces ~75 days of realistic orders/order lines/payments/shifts/financial transactions/cancellations/refunds (ending 2026-09-15) across both branches, with real menu prices, 5% VAT, weekday/weekend volume variation, a per-branch demo cashier roster, and small randomized shift cash variances — meant for exercising reports, pagination, and dashboards against real-looking volume rather than an empty database.
