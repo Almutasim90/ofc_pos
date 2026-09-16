@@ -4,6 +4,11 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Fix: searchable dropdowns showed raw IDs instead of names (2026-09-16)
+
+- `SearchableSelect` mishandled any `<option>` whose label is built from more than one JSX child (e.g. `{sku} · {name}` — three children: a string, the literal " · ", and another string), silently falling back to displaying the option's raw id instead of that label. This affected most dropdowns across the app that combine a code/SKU with a name (products, branches, stations, etc.), making them look empty of recognizable data and the popup look cramped with long id strings. Now joins all primitive text in an option's children, however they're nested.
+- Gave the recipe form's product picker its own full-width row instead of sharing a half-width grid cell with the effective-date field, since product names can run long.
+
 ### POS: auto-dispatch to kitchen, searchable Current Orders table (2026-09-16)
 
 - Removed the separate "Send to kitchen" confirmation step from the POS cart: both "Hold" and "Pay" now dispatch the order to the kitchen automatically right after it's created — the cashier is trusted staff, so there's no extra manual step for the normal case. A manual "Kitchen" retry action remains in Current Orders as a safety net (the dispatch endpoint is idempotent per order, so retrying never creates a duplicate kitchen ticket).

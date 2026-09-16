@@ -2,14 +2,26 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type Option = { value: string; label: string; disabled?: boolean };
 
+// An <option>'s children is often several nodes (e.g. `{sku} · {name}` is three children:
+// a string, the literal " · ", and another string), not one plain string — join every
+// primitive descendant instead of only handling the single-string-child case, otherwise a
+// multi-part label silently falls back to showing the raw id.
+function childrenToText(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(childrenToText).join("");
+  if (typeof node === "object" && "props" in node) return childrenToText((node as { props: { children?: React.ReactNode } }).props.children);
+  return "";
+}
+
 function optionsFromChildren(children: React.ReactNode): Option[] {
   const options: Option[] = [];
   for (const child of Array.isArray(children) ? children.flat(Infinity) : [children]) {
     if (!child || typeof child !== "object" || !("props" in child)) continue;
     const props = (child as { props: { value?: string; children?: React.ReactNode; disabled?: boolean } }).props;
     if (props.value === undefined) continue;
-    const label = typeof props.children === "string" || typeof props.children === "number" ? String(props.children) : String(props.value);
-    options.push({ value: String(props.value), label, disabled: props.disabled });
+    const label = childrenToText(props.children).trim();
+    options.push({ value: String(props.value), label: label || String(props.value), disabled: props.disabled });
   }
   return options;
 }

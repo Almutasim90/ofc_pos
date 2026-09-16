@@ -314,8 +314,8 @@ export function InventorySection({ language, permissions }: { language: Language
           )}
           {(detail || recipeForm.productId) && <div className="mt-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4"><h3 className="font-semibold">{t.recipeLines}</h3>{detail ? <ol className="mt-2 space-y-1 text-sm">{detail.lines.map((l) => <li key={l.id} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn ?? ""} · {fmt(l.quantity)} {l.unitCode ?? ""}</span></li>)}</ol> : <p className="mt-2 text-sm text-[#000000]">{t.empty}</p>}</div>}
           {recipeDialogOpen && <FormDialog title={t.addRecipe} closeLabel={t.close} onClose={() => setRecipeDialogOpen(false)}><form onSubmit={createRecipe} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
+            <Select label={t.product} value={recipeForm.productId} onChange={(v) => setRecipeForm({ ...recipeForm, productId: v })}>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <Select label={t.product} value={recipeForm.productId} onChange={(v) => setRecipeForm({ ...recipeForm, productId: v })}>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
               <Field label={t.effectiveFrom} value={recipeForm.effectiveFrom} onChange={(v) => setRecipeForm({ ...recipeForm, effectiveFrom: v })} type="date" />
               <Field label={t.nameAr} value={recipeForm.nameAr} onChange={(v) => setRecipeForm({ ...recipeForm, nameAr: v })} max={160} />
               <Field label={t.nameEn} value={recipeForm.nameEn} onChange={(v) => setRecipeForm({ ...recipeForm, nameEn: v })} max={160} />
