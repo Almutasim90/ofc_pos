@@ -22,7 +22,7 @@ export function ThemeControls({ language, theme, accent, onThemeChange, onAccent
   const tr = (a: string, e: string) => ar ? a : e;
 
   return (
-    <div className="theme-dock">
+    <div className="theme-navbar-control">
       {open && <div className="theme-popover" role="dialog" aria-label={tr("تخصيص المظهر", "Customize appearance")}>
         <div className="theme-popover-title"><span>{tr("المظهر", "Appearance")}</span><button onClick={() => setOpen(false)} aria-label={tr("إغلاق", "Close")}><X size={17} /></button></div>
         <p>{tr("الوضع", "Mode")}</p>
