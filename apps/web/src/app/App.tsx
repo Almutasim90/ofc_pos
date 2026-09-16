@@ -20,6 +20,8 @@ import { QrCustomerPage } from "@/app/QrCustomerPage";
 import { IntegrationsSection } from "@/app/IntegrationsSection";
 import { AdminSection } from "@/app/AdminSection";
 import { OrderHistorySection } from "@/app/OrderHistorySection";
+import { LoginScreen, type Accent, type ThemeMode } from "@/app/LoginScreen";
+import { ThemeControls } from "@/app/ThemeControls";
 
 import { CatalogScreen } from "@/app/CatalogScreen";
 type Language = "ar" | "en";
@@ -33,6 +35,11 @@ export function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => store.get<boolean>("sidebar-collapsed") ?? false);
   const [kiosk, setKiosk] = useState(false);
   const [credentials, setCredentials] = useState({ username: "", password: "" });
+  const [theme, setTheme] = useState<ThemeMode>(() => store.get<ThemeMode>("theme") === "dark" ? "dark" : "light");
+  const [accent, setAccent] = useState<Accent>(() => {
+    const saved = store.get<Accent>("accent");
+    return saved === "teal" || saved === "violet" ? saved : "sky";
+  });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [hash, setHash] = useState(window.location.hash);
@@ -58,6 +65,8 @@ export function App() {
   function canView(key: View) { return !permissions || permissionsFor[key].some((code) => permissions.includes(code)); }
 
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = ar ? "rtl" : "ltr"; store.set("language", language); }, [language]);
+  useEffect(() => { document.documentElement.dataset.theme = theme; store.set("theme", theme); }, [theme]);
+  useEffect(() => { document.documentElement.dataset.accent = accent; store.set("accent", accent); }, [accent]);
   useEffect(() => { store.set("sidebar-collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
   useEffect(() => { const update = () => setHash(window.location.hash); window.addEventListener("hashchange", update); return () => window.removeEventListener("hashchange", update); }, []);
   useEffect(() => { const target = hash.slice(2); if (navigation.some(([key]) => key === target) && canView(target as View)) setView(target as View); else if (!hash || hash === "#/") setView("pos"); }, [hash, permissions]);
@@ -92,7 +101,7 @@ export function App() {
   }
   if (hash.startsWith("#/qr/")) return <QrCustomerPage code={decodeURIComponent(hash.slice(5))} />;
   if (checkingSession) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2]"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" aria-label={tr("جارٍ التحقق من الجلسة", "Checking session")} /></main>;
-  if (!token) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2] p-4"><form onSubmit={login} className="w-full max-w-md space-y-5 rounded-2xl border bg-white p-8"><div className="flex justify-between"><strong>OFC</strong><button type="button" onClick={() => setLanguage(ar ? "en" : "ar")} className="min-h-11 px-3">{ar ? "English" : "العربية"}</button></div><h1 className="text-2xl font-bold">{tr("تسجيل الدخول", "Sign in")}</h1><p className="text-sm text-[#000000]">{tr("الطلبات والمبيعات والمخزون في مكان واحد.", "Orders, sales and stock in one place.")}</p><label className="block text-sm">{tr("اسم المستخدم", "Username")}<input required autoComplete="username" value={credentials.username} onChange={e => setCredentials({ ...credentials, username: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border px-3" /></label><label className="block text-sm">{tr("كلمة المرور", "Password")}<input required type="password" autoComplete="current-password" value={credentials.password} onChange={e => setCredentials({ ...credentials, password: e.target.value })} className="mt-2 min-h-12 w-full rounded-lg border px-3" /></label>{loginError && <p role="alert">{loginError}</p>}<button disabled={loggingIn} className="min-h-12 w-full rounded-lg bg-[#0e5a4f] font-semibold text-white">{loggingIn ? "…" : tr("دخول", "Sign in")}</button></form></main>;
+  if (!token) return <LoginScreen language={language} credentials={credentials} error={loginError} loggingIn={loggingIn} theme={theme} accent={accent} onLanguageChange={() => setLanguage(ar ? "en" : "ar")} onCredentialsChange={setCredentials} onThemeChange={setTheme} onAccentChange={setAccent} onSubmit={login} />;
   const allGroups: Array<{ label: string; keys: View[] }> = [
     { label: tr("العمل اليومي", "Daily work"), keys: ["pos", "kitchen", "shifts", "cancellations", "qr", "orderHistory"] },
     { label: tr("المخزون والمتابعة", "Stock & insights"), keys: ["inventory", "inventoryAdvanced", "procurement", "reports"] },
@@ -112,7 +121,8 @@ export function App() {
   }
   const menuContent = renderMenu(false);
   const desktopMenuContent = renderMenu(sidebarCollapsed);
-  return <div className="min-h-screen bg-[#f5f6f2] text-[#17211f]">
+  return <div className="app-shell min-h-screen bg-[#f5f6f2] text-[#17211f]">
+    <ThemeControls language={language} theme={theme} accent={accent} onThemeChange={setTheme} onAccentChange={setAccent} />
     <header className="flex min-h-16 items-center justify-between gap-2 border-b bg-white px-4"><div className="flex items-center gap-2"><button aria-controls="mobile-nav" className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`} aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{!kiosk && menuOpen ? <X /> : <Menu />}</button>{!kiosk && <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button>}</div><div className="flex items-center gap-1">{view === "pos" && (kiosk ? <button aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} className="min-h-11 px-3" onClick={() => { exitKiosk(); setKiosk(false); }}><Minimize2 size={18} /></button> : <button aria-label={tr("وضع الأكشاك", "Kiosk mode")} title={tr("وضع الأكشاك", "Kiosk mode")} className="min-h-11 px-3" onClick={async () => { const success = await enterKiosk(); if (success) setKiosk(true); }}><Maximize2 size={18} /></button>)}<button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></button><button className="min-h-11 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}>{tr("خروج", "Sign out")}</button></div></header>
     {menuOpen && (
       <div className={`fixed inset-0 z-50 ${kiosk ? "" : "lg:hidden"}`}>
