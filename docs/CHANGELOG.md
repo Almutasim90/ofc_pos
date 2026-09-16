@@ -4,6 +4,12 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Realistic historical sales test data (2026-09-16)
+
+- Added `seed-transactions-data.sql`, a PL/pgSQL generator run on top of `seed-dev-data.sql` that produces ~75 days of realistic orders/order lines/payments/shifts/financial transactions/cancellations/refunds (ending 2026-09-15) across both branches, with real menu prices, 5% VAT, weekday/weekend volume variation, a per-branch demo cashier roster, and small randomized shift cash variances — meant for exercising reports, pagination, and dashboards against real-looking volume rather than an empty database.
+- Wired it into `docker-compose.yml` as an opt-in `seed-transactions` service under the existing `dev-reset` profile (`docker compose --profile dev-reset run --rm seed-transactions`), separate from the master-data seed since it's for testing, not a normal dev reset.
+- Verified end-to-end against a local Postgres: 4,863 orders (92% Completed, 5% Cancelled, 3% Refunded), 12,101 order lines, referential integrity intact, shift cash reconciliation figures internally consistent.
+
 ### Searchable dropdowns (2026-09-15)
 
 - Added a dependency-free `SearchableSelect` combobox component (`apps/web/src/app/SearchableSelect.tsx`) — an accessible (ARIA combobox/listbox, full keyboard navigation), RTL-aware searchable dropdown built with plain React/Tailwind, avoiding a jQuery-based library like select2 or a heavier package like react-select in a dependency-light React app.

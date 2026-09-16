@@ -56,6 +56,24 @@ services:
     entrypoint: ["sh", "-c"]
     command: ["until pg_isready -h db -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done; psql -h db -U postgres -d postgres -v ON_ERROR_STOP=1 -f /seed.sql"]
 
+  # Optional: realistic historical sales test data (orders/payments/shifts)
+  # on top of the seed above. Opt-in and separate from it since it's for
+  # testing reports/pagination, not needed for a normal dev reset.
+  # Run with: docker compose --profile dev-reset run --rm seed-transactions
+  seed-transactions:
+    profiles: ["dev-reset"]
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:-ofc-demo-password}
+    volumes:
+      - ./seed-transactions-data.sql:/seed.sql:ro
+    entrypoint: ["sh", "-c"]
+    command: ["until pg_isready -h db -U postgres -d postgres >/dev/null 2>&1; do sleep 2; done; psql -h db -U postgres -d postgres -v ON_ERROR_STOP=1 -f /seed.sql"]
+
   web:
     build:
       context: ./apps/web
