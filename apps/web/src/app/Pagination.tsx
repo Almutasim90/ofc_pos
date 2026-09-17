@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 10;
 
 export function Pagination({ page, pageSize, total, onPageChange, language }: { page: number; pageSize: number; total: number; onPageChange: (page: number) => void; language: "ar" | "en" }) {
   const ar = language === "ar";

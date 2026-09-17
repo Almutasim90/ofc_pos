@@ -13,7 +13,7 @@ type PaymentRow = { id: string; amount: number; status: string; code: string; na
 
 const input = "min-h-11 min-w-0 rounded-lg border border-[#cdd7d0] bg-white px-3 text-sm";
 const button = "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-[#cdd7d0] px-3 text-sm font-semibold";
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 

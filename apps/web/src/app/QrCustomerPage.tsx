@@ -276,7 +276,7 @@ export function QrCustomerPage({ code }: { code: string }) {
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {shown.map((product) => (
                 <button key={product.id} onClick={() => openProduct(product)} className="group flex flex-col rounded-2xl border border-[#dfe5df] bg-white p-3 text-start transition hover:border-[#0e5a4f]/40 hover:shadow-sm">
-                  <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-[#edf5f1] text-[#0e5a4f]">{product.imageUrl ? <img src={product.imageUrl} alt={product.nameAr} className="h-full w-full object-cover" /> : <ChefHat size={30} />}</div>
+                  <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-[#edf5f1] text-[#0e5a4f]">{product.imageUrl ? <img src={product.imageUrl} alt={product.nameAr} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <ChefHat size={30} />}</div>
                   <p className="mt-3 line-clamp-1 text-sm font-semibold">{language === "ar" ? product.nameAr : product.nameEn}</p>
                   <p className="mt-1 text-sm font-bold text-[#0e5a4f]">{new Intl.NumberFormat(language, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(product.listAmount)} <span className="text-xs font-medium text-[#66736d]">{t.currency}</span></p>
                 </button>

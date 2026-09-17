@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Building2, FolderTree, Languages, Monitor, Package, Users, Menu, X, Home, ListChecks, BadgeDollarSign, ShoppingBag, Printer, ChefHat, Boxes, CloudOff, BarChart3, Truck, Scale, QrCode, Sparkles, Maximize2, Minimize2, History, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { store } from "@/lib/local-store";
@@ -6,7 +6,6 @@ import { enterKiosk, exitKiosk } from "@/lib/fullscreen-kiosk";
 import { SelectionGroupsSection } from "@/app/SelectionGroupsSection";
 import { PricingSection } from "@/app/PricingSection";
 import { PosSection } from "@/app/PosSection";
-import { CancellationSection } from "@/app/CancellationSection";
 import { ShiftsSection } from "@/app/ShiftsSection";
 import { PrintingSection } from "@/app/PrintingSection";
 import { KitchenSection } from "@/app/KitchenSection";
@@ -19,13 +18,14 @@ import { QrAdminSection } from "@/app/QrAdminSection";
 import { QrCustomerPage } from "@/app/QrCustomerPage";
 import { IntegrationsSection } from "@/app/IntegrationsSection";
 import { AdminSection } from "@/app/AdminSection";
-import { OrderHistorySection } from "@/app/OrderHistorySection";
 import { LoginScreen, type Accent, type ThemeMode } from "@/app/LoginScreen";
 import { ThemeControls } from "@/app/ThemeControls";
 
 import { CatalogScreen } from "@/app/CatalogScreen";
 type Language = "ar" | "en";
 type View = "branches" | "devices" | "users" | "categories" | "products" | "selectionGroups" | "pricing" | "pos" | "cancellations" | "shifts" | "printing" | "kitchen" | "inventory" | "inventoryAdvanced" | "procurement" | "sync" | "reports" | "qr" | "integrations" | "orderHistory";
+const CancellationSection = lazy(() => import("@/app/CancellationSection").then((module) => ({ default: module.CancellationSection })));
+const OrderHistorySection = lazy(() => import("@/app/OrderHistorySection").then((module) => ({ default: module.OrderHistorySection })));
 export function App() {
   const [language, setLanguage] = useState<Language>(() => store.get<Language>("language") === "en" ? "en" : "ar");
   const [token, setToken] = useState(() => store.get<string>("session-token") ?? "");
@@ -121,7 +121,7 @@ export function App() {
   }
   const menuContent = renderMenu(false);
   const desktopMenuContent = renderMenu(sidebarCollapsed);
-  return <div className="app-shell min-h-screen bg-[#f5f6f2] text-[#17211f]">
+  return <Suspense fallback={<main className="grid min-h-screen place-items-center bg-white"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" /></main>}><div className="app-shell min-h-screen bg-[#f5f6f2] text-[#17211f]">
     <header className="flex min-h-16 items-center justify-between gap-2 border-b bg-white px-4">
       <div className="flex items-center gap-2">
         <button aria-controls="mobile-nav" className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`} aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{!kiosk && menuOpen ? <X /> : <Menu />}</button>
@@ -155,5 +155,5 @@ export function App() {
       </nav>}
       <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>{view !== "pos" && <nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#000000]"><button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>}{!allowed ? <p role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]">{tr("لا تملك صلاحية الوصول إلى هذه الصفحة.", "You do not have permission to access this page.")}</p> : view === "pos" ? <PosSection language={language} kiosk={kiosk} onKioskChange={setKiosk} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} permissions={permissions} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} permissions={permissions} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "orderHistory" ? <OrderHistorySection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
     </div>
-  </div>;
+  </div></Suspense>;
 }

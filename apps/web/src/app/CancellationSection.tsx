@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
+import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -26,6 +27,7 @@ export function CancellationSection({ language }: { language: Language }) {
   const [branchId, setBranchId] = useState("");
   const [reasons, setReasons] = useState<Reason[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderPage, setOrderPage] = useState(1);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [reasonId, setReasonId] = useState("");
@@ -55,7 +57,7 @@ export function CancellationSection({ language }: { language: Language }) {
     setReport(response.ok ? await response.json() as Report : null);
   }
   useEffect(() => { void (async () => { const response = await auth("/api/v1/pos/context"); if (!response.ok) return; const value = await response.json() as { branches: Branch[] }; setBranches(value.branches); setBranchId(value.branches[0]?.id ?? ""); })(); }, []);
-  useEffect(() => { if (branchId) void loadBranch(branchId); }, [branchId]);
+  useEffect(() => { if (branchId) { setOrderPage(1); void loadBranch(branchId); } }, [branchId]);
   useEffect(() => { if (branchId && tab === "reports") void loadReport(); }, [branchId, tab, range.from, range.to]);
 
   async function select(order: Order) {
@@ -90,6 +92,8 @@ export function CancellationSection({ language }: { language: Language }) {
     setMessage(t.success); await loadBranch(branchId); await select({ ...detail, createdAt: "" });
   }
 
+  const pageOrders = orders.slice((orderPage - 1) * PAGE_SIZE, orderPage * PAGE_SIZE);
+
   return <div>
     <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
     <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
@@ -113,7 +117,7 @@ export function CancellationSection({ language }: { language: Language }) {
       <section className="mt-6 rounded-xl border border-[#dfe5df] bg-white">
         <div className="border-b p-5"><h2 className="font-semibold">{t.orders}</h2></div>
         <div className="grid divide-y lg:grid-cols-[minmax(260px,1fr)_minmax(0,2fr)] lg:divide-x lg:divide-y-0">
-          <div className="max-h-[460px] overflow-y-auto">{orders.length ? orders.map((order) => <button key={order.id} onClick={() => void select(order)} className={`block w-full border-b p-4 text-start hover:bg-[#f4f7f4] ${detail?.id === order.id ? "bg-[#e6f1ec]" : ""}`}><strong>{order.status}</strong><span className="float-end">OMR {order.grossAmount.toFixed(3)}</span><p className="mt-1 text-xs text-[#000000]">{new Date(order.createdAt).toLocaleString(language)}</p></button>) : <p className="p-5 text-sm text-[#000000]">{t.none}</p>}</div>
+          <div className="min-w-0"><div className="max-h-[460px] overflow-y-auto">{orders.length ? pageOrders.map((order) => <button key={order.id} onClick={() => void select(order)} className={`block w-full border-b p-4 text-start hover:bg-[#f4f7f4] ${detail?.id === order.id ? "bg-[#e6f1ec]" : ""}`}><strong>{order.status}</strong><span className="float-end">OMR {order.grossAmount.toFixed(3)}</span><p className="mt-1 text-xs text-[#000000]">{new Date(order.createdAt).toLocaleString(language)}</p></button>) : <p className="p-5 text-sm text-[#000000]">{t.none}</p>}</div>{orders.length > PAGE_SIZE && <div className="p-4"><Pagination page={orderPage} pageSize={PAGE_SIZE} total={orders.length} onPageChange={setOrderPage} language={language} /></div>}</div>
           <div className="p-5">{!detail ? <p className="text-sm text-[#000000]">{t.selectOrder}</p> : <>
             <p className="text-sm font-semibold">{detail.status}<span className="ms-3">OMR {detail.grossAmount.toFixed(3)}</span></p>
             <div className="mt-4"><SearchableSelect label={t.reason} value={reasonId} onChange={setReasonId}>{reasons.map((reason) => <option key={reason.id} value={reason.id}>{name(reason)}{reason.requiresNote ? " *" : ""}</option>)}</SearchableSelect></div>
