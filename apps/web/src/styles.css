@@ -6,19 +6,31 @@
 
 @layer base {
   html {
-    background: #f7f7f5;
+    background: var(--app-bg, #fff);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     min-width: 320px;
     margin: 0;
-    background: #f7f7f5;
+    background: var(--app-bg, #fff);
     color: #17211f;
     font-family: var(--font-sans);
   }
 
   button {
     font: inherit;
+  }
+
+  img,
+  svg {
+    shape-rendering: geometricPrecision;
+  }
+
+  img {
+    image-rendering: auto;
   }
 }
 
@@ -62,20 +74,20 @@
 :root[data-accent="violet"] { --login-accent: #7c3aed; --login-accent-bright: #a78bfa; --login-accent-soft: #ede9fe; --app-primary: #7c3aed; --app-primary-hover: #6d28d9; --app-primary-soft: #ede9fe; }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --login-bg: #07131b;
-  --login-surface: rgba(12, 28, 39, 0.9);
-  --login-text: #eaf7fb;
-  --login-muted: #94aeba;
-  --login-border: rgba(148, 210, 231, 0.16);
+  --login-bg: #020303;
+  --login-surface: rgba(8, 10, 11, 0.94);
+  --login-text: #f8fafc;
+  --login-muted: #a8b0b7;
+  --login-border: rgba(255, 255, 255, 0.12);
   --login-accent-soft: rgba(56, 189, 248, 0.13);
-  --app-bg: #07131b;
-  --app-surface: #0d202b;
-  --app-surface-raised: #122a37;
-  --app-text: #eaf5f8;
+  --app-bg: #030404;
+  --app-surface: #090b0c;
+  --app-surface-raised: #111416;
+  --app-text: #f1f5f9;
   --app-black: #f8fafc;
-  --app-muted: #9ab0ba;
-  --app-border: #24404c;
-  --app-hover: #17323f;
+  --app-muted: #a1aab2;
+  --app-border: #272c30;
+  --app-hover: #171b1e;
   --app-primary-soft: rgba(56, 189, 248, .14);
   --app-success: #4ade80;
   --app-success-hover: #22c55e;
@@ -85,7 +97,7 @@
   --app-danger-soft: rgba(239, 68, 68, .15);
   --app-warning: #fbbf24;
   --app-warning-soft: rgba(245, 158, 11, .15);
-  --app-shadow: rgba(0, 0, 0, .3);
+  --app-shadow: rgba(0, 0, 0, .68);
 }
 :root[data-theme="dark"][data-accent="teal"] { --login-accent-soft: rgba(45, 212, 191, 0.13); --app-primary-soft: rgba(45, 212, 191, .14); }
 :root[data-theme="dark"][data-accent="violet"] { --login-accent-soft: rgba(167, 139, 250, 0.13); --app-primary-soft: rgba(167, 139, 250, .14); }
