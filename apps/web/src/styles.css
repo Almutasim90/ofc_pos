@@ -44,6 +44,10 @@
   --app-border: #d9e6ec;
   --app-hover: #edf6fa;
   --app-shadow: rgba(22, 66, 86, .12);
+  --app-radius-sm: 10px;
+  --app-radius-md: 14px;
+  --app-radius-lg: 18px;
+  --app-radius-xl: 24px;
 }
 
 :root[data-accent="teal"] { --login-accent: #0f766e; --login-accent-bright: #2dd4bf; --login-accent-soft: #ccfbf1; --app-primary: #0f766e; --app-primary-hover: #115e59; --app-primary-soft: #ccfbf1; }
@@ -199,6 +203,72 @@
 .app-shell table { color: var(--app-text); }
 :root[data-theme="dark"] .app-shell { --tw-shadow-color: var(--app-shadow); }
 :root[data-theme="dark"] .app-shell [class*="shadow"] { --tw-shadow-color: var(--app-shadow); }
+
+/* Consistent modern geometry across legacy and newer screens. Pills stay fully
+   rounded, while controls and surfaces share a predictable radius scale. */
+.app-shell [class~="rounded-lg"] { border-radius: var(--app-radius-sm) !important; }
+.app-shell [class~="rounded-xl"] { border-radius: var(--app-radius-lg) !important; }
+.app-shell [class~="rounded-2xl"] { border-radius: var(--app-radius-xl) !important; }
+
+.app-shell > header {
+  position: sticky;
+  z-index: 80;
+  inset-block-start: 0;
+  border-color: color-mix(in srgb, var(--app-border) 80%, transparent) !important;
+  background: color-mix(in srgb, var(--app-surface) 90%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--app-border) 60%, transparent), 0 8px 24px color-mix(in srgb, var(--app-shadow) 55%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.app-shell button,
+.app-shell a,
+.app-shell input,
+.app-shell textarea,
+.app-shell select {
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.app-shell button:not(:disabled):active { transform: translateY(1px); }
+.app-shell button:focus-visible,
+.app-shell a:focus-visible,
+.app-shell input:focus-visible,
+.app-shell textarea:focus-visible,
+.app-shell select:focus-visible {
+  outline: none;
+  border-color: var(--app-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-primary) 18%, transparent);
+}
+
+.app-shell input:not([type="checkbox"]):not([type="radio"]),
+.app-shell textarea,
+.app-shell select {
+  border-radius: var(--app-radius-sm);
+}
+
+.app-shell [class~="rounded-xl"][class~="border"][class~="bg-white"],
+.app-shell [class~="rounded-2xl"][class~="border"][class~="bg-white"] {
+  border-color: color-mix(in srgb, var(--app-border) 88%, transparent) !important;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--app-shadow) 40%, transparent), 0 10px 30px color-mix(in srgb, var(--app-shadow) 35%, transparent);
+}
+
+.app-shell table thead {
+  background: color-mix(in srgb, var(--app-hover) 72%, var(--app-surface));
+}
+.app-shell table th { letter-spacing: .01em; }
+.app-shell table tbody tr { transition: background-color .16s ease; }
+.app-shell table tbody tr:hover { background: color-mix(in srgb, var(--app-primary-soft) 55%, transparent); }
+
+.app-shell nav[aria-label] button[aria-current="page"] {
+  box-shadow: inset 3px 0 0 var(--app-primary);
+}
+[dir="rtl"] .app-shell nav[aria-label] button[aria-current="page"] {
+  box-shadow: inset -3px 0 0 var(--app-primary);
+}
+
+.app-shell ::-webkit-scrollbar { width: 9px; height: 9px; }
+.app-shell ::-webkit-scrollbar-track { background: transparent; }
+.app-shell ::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--app-muted) 35%, transparent); background-clip: padding-box; }
+.app-shell ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--app-primary) 55%, transparent); background-clip: padding-box; }
 
 .theme-navbar-control { position: relative; z-index: 100; }
 .theme-fab { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--app-border); border-radius: 12px; background: var(--app-primary-soft); color: var(--app-primary); transition: transform .18s ease, background-color .18s ease; }
