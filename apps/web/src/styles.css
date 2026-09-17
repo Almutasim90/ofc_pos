@@ -35,6 +35,14 @@
   --app-primary: #0284c7;
   --app-primary-hover: #0369a1;
   --app-primary-soft: #e0f2fe;
+  --app-success: #15803d;
+  --app-success-hover: #166534;
+  --app-success-soft: #dcfce7;
+  --app-danger: #dc2626;
+  --app-danger-hover: #b91c1c;
+  --app-danger-soft: #fee2e2;
+  --app-warning: #a16207;
+  --app-warning-soft: #fef3c7;
   --app-bg: #ffffff;
   --app-surface: #ffffff;
   --app-surface-raised: #ffffff;
@@ -69,6 +77,14 @@
   --app-border: #24404c;
   --app-hover: #17323f;
   --app-primary-soft: rgba(56, 189, 248, .14);
+  --app-success: #4ade80;
+  --app-success-hover: #22c55e;
+  --app-success-soft: rgba(34, 197, 94, .15);
+  --app-danger: #f87171;
+  --app-danger-hover: #ef4444;
+  --app-danger-soft: rgba(239, 68, 68, .15);
+  --app-warning: #fbbf24;
+  --app-warning-soft: rgba(245, 158, 11, .15);
   --app-shadow: rgba(0, 0, 0, .3);
 }
 :root[data-theme="dark"][data-accent="teal"] { --login-accent-soft: rgba(45, 212, 191, 0.13); --app-primary-soft: rgba(45, 212, 191, .14); }
@@ -186,6 +202,7 @@
 .app-shell [class~="text-black"] { color: var(--app-black) !important; }
 .app-shell [class~="text-[#52605d]"] { color: var(--app-muted) !important; }
 .app-shell [class~="border-[#cdd7d0]"],
+.app-shell [class~="border-[#dfe5df]"],
 .app-shell [class~="border-[#d9dfd7]"],
 .app-shell [class~="border-[#e8ece8]"],
 .app-shell [class~="border-[#eef1ee]"] { border-color: var(--app-border) !important; }
@@ -260,6 +277,70 @@
 
 .app-shell nav[aria-label] button[aria-current="page"] {
   box-shadow: inset 3px 0 0 var(--app-primary);
+}
+
+/* Semantic button colors. Existing utility tokens are mapped to accessible
+   theme roles so every screen follows the selected accent and color mode. */
+.app-shell button[class~="bg-[#0e5a4f]"],
+.app-shell button[class~="bg-[#08483f]"] {
+  border-color: transparent !important;
+  background: var(--app-primary) !important;
+  color: #fff !important;
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--app-primary) 24%, transparent);
+}
+.app-shell button[class~="bg-[#0e5a4f]"]:hover:not(:disabled),
+.app-shell button[class~="bg-[#08483f]"]:hover:not(:disabled) {
+  background: var(--app-primary-hover) !important;
+  box-shadow: 0 9px 22px color-mix(in srgb, var(--app-primary) 32%, transparent);
+  transform: translateY(-1px);
+}
+
+.app-shell button[class~="border-[#0e5a4f]"] {
+  border-color: color-mix(in srgb, var(--app-primary) 58%, var(--app-border)) !important;
+  background: var(--app-surface) !important;
+  color: var(--app-primary) !important;
+}
+.app-shell button[class~="border-[#0e5a4f]"]:hover:not(:disabled) {
+  border-color: var(--app-primary) !important;
+  background: var(--app-primary-soft) !important;
+}
+
+.app-shell button[class~="bg-[#137347]"] {
+  border-color: transparent !important;
+  background: var(--app-success) !important;
+  color: #fff !important;
+}
+:root[data-theme="dark"] .app-shell button[class~="bg-[#137347]"] { color: #052e16 !important; }
+.app-shell button[class~="bg-[#137347]"]:hover:not(:disabled) { background: var(--app-success-hover) !important; }
+.app-shell button[class~="text-[#137347]"] { color: var(--app-success) !important; }
+
+.app-shell button[class~="bg-[#b4322a]"] {
+  border-color: transparent !important;
+  background: var(--app-danger) !important;
+  color: #fff !important;
+}
+.app-shell button[class~="bg-[#b4322a]"]:hover:not(:disabled) { background: var(--app-danger-hover) !important; }
+.app-shell button[class~="border-[#b4322a]"] {
+  border-color: color-mix(in srgb, var(--app-danger) 62%, var(--app-border)) !important;
+  background: var(--app-surface) !important;
+  color: var(--app-danger) !important;
+}
+.app-shell button[class~="border-[#b4322a]"]:hover:not(:disabled) { background: var(--app-danger-soft) !important; }
+
+.app-shell button[class~="border"]:not([class~="border-[#0e5a4f]"]):not([class~="border-[#b4322a]"]) {
+  border-color: var(--app-border) !important;
+}
+.app-shell button[class~="border"]:not([class*="bg-[#"]):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--app-primary) 45%, var(--app-border)) !important;
+  background: var(--app-hover) !important;
+  color: var(--app-text) !important;
+}
+.app-shell button:disabled {
+  cursor: not-allowed;
+  box-shadow: none !important;
+  filter: saturate(.65);
+  opacity: .5;
+  transform: none !important;
 }
 [dir="rtl"] .app-shell nav[aria-label] button[aria-current="page"] {
   box-shadow: inset -3px 0 0 var(--app-primary);
