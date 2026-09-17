@@ -39,6 +39,7 @@
   --app-surface: #ffffff;
   --app-surface-raised: #ffffff;
   --app-text: #102a3a;
+  --app-black: #090d12;
   --app-muted: #5f7480;
   --app-border: #d9e6ec;
   --app-hover: #edf6fa;
@@ -59,6 +60,7 @@
   --app-surface: #0d202b;
   --app-surface-raised: #122a37;
   --app-text: #eaf5f8;
+  --app-black: #f8fafc;
   --app-muted: #9ab0ba;
   --app-border: #24404c;
   --app-hover: #17323f;
@@ -177,6 +179,7 @@
 .app-shell [class~="bg-[#e8ece8]"] { background-color: var(--app-hover) !important; }
 .app-shell [class~="text-[#17211f]"] { color: var(--app-text) !important; }
 .app-shell [class~="text-[#000000]"],
+.app-shell [class~="text-black"] { color: var(--app-black) !important; }
 .app-shell [class~="text-[#52605d]"] { color: var(--app-muted) !important; }
 .app-shell [class~="border-[#cdd7d0]"],
 .app-shell [class~="border-[#d9dfd7]"],
