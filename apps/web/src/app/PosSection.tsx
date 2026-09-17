@@ -151,7 +151,7 @@ export function PosSection({ language, kiosk, onKioskChange }: { language: Langu
     qrNotify(`${payload.approvalStatus === "Approved" ? t.qrApproved : t.qrRejected} · ${payload.clientRequestId.slice(0, 8)}`);
     void refreshOrders();
   }
-  useQrOrdersLive(branchId && online ? branchId : null, onQrOrderReceived, onQrOrderReviewed);
+  useQrOrdersLive(branchId && online ? branchId : null, onQrOrderReceived, onQrOrderReviewed, () => { void refreshOrders(); });
   const qrToastsNode = qrToasts.length > 0 && (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4">
       {qrToasts.map((toast) => (

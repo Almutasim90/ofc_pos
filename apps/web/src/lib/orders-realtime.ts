@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import * as signalR from "@microsoft/signalr";
-import { store } from "@/lib/local-store";
+import { useEffect, useRef } from "react";
+import { useReliableBranchHub } from "@/lib/reliable-hub";
 
 export type QrOrderReceivedEvent = {
   branchId: string;
@@ -27,27 +26,25 @@ export function useQrOrdersLive(
   branchId: string | null,
   onReceived?: (payload: QrOrderReceivedEvent) => void,
   onReviewed?: (payload: QrOrderReviewedEvent) => void,
+  onSynchronized?: () => void,
 ): boolean {
-  const [live, setLive] = useState(false);
   const receivedRef = useRef(onReceived);
   receivedRef.current = onReceived;
   const reviewedRef = useRef(onReviewed);
   reviewedRef.current = onReviewed;
+  const synchronizedRef = useRef(onSynchronized);
+  synchronizedRef.current = onSynchronized;
+
+  const live = useReliableBranchHub("/hubs/orders", branchId, (connection) => {
+    connection.on("qrOrderReceived", (payload: QrOrderReceivedEvent) => { if (payload.branchId === branchId) receivedRef.current?.(payload); });
+    connection.on("qrOrderReviewed", (payload: QrOrderReviewedEvent) => { if (payload.branchId === branchId) reviewedRef.current?.(payload); });
+  }, () => synchronizedRef.current?.());
 
   useEffect(() => {
     if (!branchId) return;
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl("/hubs/orders", { accessTokenFactory: () => store.get<string>("session-token") ?? "" })
-      .withAutomaticReconnect()
-      .build();
-    connection.on("qrOrderReceived", (payload: QrOrderReceivedEvent) => { if (payload.branchId === branchId) receivedRef.current?.(payload); });
-    connection.on("qrOrderReviewed", (payload: QrOrderReviewedEvent) => { if (payload.branchId === branchId) reviewedRef.current?.(payload); });
-    connection.onreconnected(() => { setLive(true); void connection.invoke("JoinBranch", branchId); });
-    connection.onreconnecting(() => setLive(false));
-    connection.onclose(() => setLive(false));
-    connection.start().then(() => { setLive(true); return connection.invoke("JoinBranch", branchId); }).catch(() => setLive(false));
-    return () => { setLive(false); void connection.stop(); };
-  }, [branchId]);
+    const interval = window.setInterval(() => synchronizedRef.current?.(), live ? 60_000 : 10_000);
+    return () => window.clearInterval(interval);
+  }, [branchId, live]);
 
   return live;
 }

@@ -144,7 +144,7 @@ export function QrAdminSection({ language }: { language: Language }) {
     void loadBranch();
     notify(`${payload.approvalStatus === "Approved" ? t.approvedToast : t.rejectedToast} · ${payload.clientRequestId.slice(0, 8)}`);
   }
-  const ordersLive = useQrOrdersLive(branchId || null, onQrOrderReceived, onQrOrderReviewed);
+  const ordersLive = useQrOrdersLive(branchId || null, onQrOrderReceived, onQrOrderReviewed, () => { void loadBranch(); });
   const toastsNode = toasts.length > 0 && (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex flex-col items-center gap-2 px-4">
       {toasts.map((toast) => (

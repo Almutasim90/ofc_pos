@@ -35,7 +35,7 @@ public sealed class KitchenFallbackWatcher(IServiceScopeFactory scopeFactory, IK
         foreach (var ticket in candidates)
         {
             if (!KitchenRules.ShouldTriggerFallback(kdsAvailable: false, ticket.KdsAttempts, ticket.CreatedAt, now)) continue;
-            var (ok, _) = await SprintTenEndpoints.ApplyFallback(db, ticket, "KDS did not acknowledge in time", null, KitchenExecutionChannel.PrintFallback, null, Guid.Empty, ct);
+            var (ok, _) = await SprintTenEndpoints.ApplyFallback(db, ticket, "KDS did not acknowledge in time", null, KitchenExecutionChannel.PrintFallback, null, ticket.CreatedByUserId, ct);
             if (!ok) continue;
             await db.SaveChangesAsync(ct);
             await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "auto-fallback");

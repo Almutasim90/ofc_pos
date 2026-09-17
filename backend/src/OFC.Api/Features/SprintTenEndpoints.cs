@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using OFC.Infrastructure.Persistence;
 using OFC.Infrastructure.Security;
 using OFC.Modules.Catalog;
@@ -52,7 +53,21 @@ public static class SprintTenEndpoints
         var orderNumber = string.IsNullOrWhiteSpace(request.OrderNumber) ? null : request.OrderNumber.Trim();
         var created = BuildTickets(db, identity, request.BranchId, order, products, request.ClientDispatchId, orderNumber, request.Note, request.TargetMinutes, UserId(user), DeviceId(user), context.TraceIdentifier);
         if (created.Count == 0) return Results.Ok(Array.Empty<object>());
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // Two clients can retry the same deterministic dispatch concurrently. The database index is
+            // the final arbiter; return the winner instead of surfacing a transient 500 to the cashier.
+            db.ChangeTracker.Clear();
+            var winner = await db.KitchenTickets.AsNoTracking().Include(x => x.Items)
+                .Where(x => x.BranchId == request.BranchId && x.DispatchId == request.ClientDispatchId)
+                .ToListAsync(ct);
+            if (winner.Count == 0) throw;
+            return Results.Ok(winner.Select(x => TicketResponse(x, null)));
+        }
         foreach (var ticket in created) await broadcaster.TicketChanged(request.BranchId, ticket.Id, "dispatched");
         return Results.Created($"/api/v1/kitchen/tickets/{created[0].Id}", created.Select(x => TicketResponse(x, null)).ToList());
     }
@@ -257,7 +272,7 @@ public static class SprintTenEndpoints
 
     // Shared by the manual "Print fallback" action and KitchenFallbackWatcher's automatic trigger, so an
     // unacknowledged ticket falls back the same way whether a human notices or the system notices first.
-    internal static async Task<(bool Ok, bool DuplicatePrint)> ApplyFallback(OFCDbContext db, KitchenTicket ticket, string? error, string? templateCode, KitchenExecutionChannel channel, Guid? deviceId, Guid createdByUserId, CancellationToken ct)
+    internal static async Task<(bool Ok, bool DuplicatePrint)> ApplyFallback(OFCDbContext db, KitchenTicket ticket, string? error, string? templateCode, KitchenExecutionChannel channel, Guid? deviceId, Guid? createdByUserId, CancellationToken ct)
     {
         if (!KitchenRules.CanDispatchTransition(ticket.DispatchStatus, KitchenDispatchStatus.PrintFallbackPending)) return (false, false);
         var route = await ResolveRoute(db, ticket, ct);

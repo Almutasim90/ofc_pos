@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using OFC.Infrastructure.Persistence;
 using System.Net.Http.Json;
 
@@ -23,6 +25,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+            logging.AddConsole();
+        });
         // AddInfrastructure only calls AddDbContext<OFCDbContext> when a connection string is present,
         // so a dummy one is supplied here purely to make that registration happen — it is never
         // connected to, because the InMemory provider below replaces it before the host starts.
@@ -34,6 +41,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<OFCDbContext>>();
+            services.RemoveAll<IDbContextOptionsConfiguration<OFCDbContext>>();
             services.AddDbContext<OFCDbContext>(options => options.UseInMemoryDatabase(DatabaseName));
             // A 500 in these tests is a real failure to diagnose, not something to just retry — surface
             // the actual exception in the ProblemDetails body instead of the production-safe generic one.

@@ -66,7 +66,8 @@ public sealed class PrintJob
     public DateTimeOffset? NextAttemptAt { get; set; }
     public string? LastError { get; set; }
     public DateTimeOffset? PrintedAt { get; set; }
-    public Guid CreatedByUserId { get; set; }
+    // Null denotes a system-created job (for example the automatic KDS fallback watcher).
+    public Guid? CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
