@@ -60,16 +60,26 @@ export function App() {
     categories: ["catalog.categories.manage"], products: ["catalog.products.manage"], selectionGroups: ["catalog.selection-groups.manage"],
     pricing: ["pricing.manage", "pricing.override"], reports: ["reports.view", "reports.export"], qr: ["qr.manage", "qr.approve"], integrations: ["integrations.view", "integrations.manage", "integrations.ai"],
   };
-  // While permissions haven't loaded yet (e.g. offline, before the /auth/me call resolves), fail open so
-  // the app stays usable offline rather than hiding everything.
-  function canView(key: View) { return !permissions || permissionsFor[key].some((code) => permissions.includes(code)); }
+  // Authorization must fail closed. Missing permissions must never expose a protected page.
+  function canView(key: View) { return permissions !== null && permissionsFor[key].some((code) => permissions.includes(code)); }
+  function firstAllowedView() { return navigation.find(([key]) => canView(key))?.[0] ?? null; }
 
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = ar ? "rtl" : "ltr"; store.set("language", language); }, [language]);
   useEffect(() => { document.documentElement.dataset.theme = theme; store.set("theme", theme); }, [theme]);
   useEffect(() => { document.documentElement.dataset.accent = accent; store.set("accent", accent); }, [accent]);
   useEffect(() => { store.set("sidebar-collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
   useEffect(() => { const update = () => setHash(window.location.hash); window.addEventListener("hashchange", update); return () => window.removeEventListener("hashchange", update); }, []);
-  useEffect(() => { const target = hash.slice(2); if (navigation.some(([key]) => key === target) && canView(target as View)) setView(target as View); else if (!hash || hash === "#/") setView("pos"); }, [hash, permissions]);
+  useEffect(() => {
+    if (permissions === null) return;
+    const target = hash.slice(2);
+    // Select known forbidden routes so the guard renders Access Denied without mounting their page.
+    if (navigation.some(([key]) => key === target)) { setView(target as View); return; }
+    const fallback = firstAllowedView();
+    if (fallback) {
+      setView(fallback);
+      if (!hash || hash === "#/") window.history.replaceState(null, "", `#/${fallback}`);
+    }
+  }, [hash, permissions]);
   // While the mobile drawer is open, keep the page from scrolling behind it and close on Escape.
   useEffect(() => {
     if (!menuOpen) return;
@@ -79,18 +89,25 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", onKey); };
   }, [menuOpen]);
-  function navigate(next: View) { window.location.hash = "/" + next; setView(next); setMenuOpen(false); }
+  function navigate(next: View) {
+    if (!canView(next)) return;
+    window.location.hash = "/" + next;
+    setView(next);
+    setMenuOpen(false);
+  }
   useEffect(() => { if (view !== "pos" && kiosk) { exitKiosk(); setKiosk(false); } }, [view, kiosk]);
   useEffect(() => {
     if (!token) { setCheckingSession(false); setPermissions(null); return; }
     const controller = new AbortController();
     setCheckingSession(true);
+    setPermissions(null);
     void fetch("/api/v1/auth/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
       .then(async (response) => {
         if (response.status === 401) { store.remove("session-token"); setToken(""); return; }
-        if (response.ok) setPermissions((await response.json() as { permissions: string[] }).permissions);
+        if (!response.ok) { setPermissions([]); return; }
+        setPermissions((await response.json() as { permissions: string[] }).permissions);
       })
-      .catch(() => undefined)
+      .catch(() => { if (!controller.signal.aborted) setPermissions([]); })
       .finally(() => { if (!controller.signal.aborted) setCheckingSession(false); });
     return () => controller.abort();
   }, [token]);
@@ -128,10 +145,10 @@ export function App() {
     <header className="flex min-h-16 items-center justify-between gap-2 border-b bg-white px-4">
       <div className="flex items-center gap-2">
         <button aria-controls="mobile-nav" className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`} aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{!kiosk && menuOpen ? <X /> : <Menu />}</button>
-        {!kiosk && <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button>}
+        {!kiosk && (canView("pos") ? <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button> : <span className="font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</span>)}
       </div>
       <div className="flex items-center gap-1">
-        {view === "pos" && (kiosk ? <button aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} className="min-h-11 px-3" onClick={() => { exitKiosk(); setKiosk(false); }}><Minimize2 size={18} /></button> : <button aria-label={tr("وضع الأكشاك", "Kiosk mode")} title={tr("وضع الأكشاك", "Kiosk mode")} className="min-h-11 px-3" onClick={async () => { const success = await enterKiosk(); if (success) setKiosk(true); }}><Maximize2 size={18} /></button>)}
+        {view === "pos" && allowed && (kiosk ? <button aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} className="min-h-11 px-3" onClick={() => { exitKiosk(); setKiosk(false); }}><Minimize2 size={18} /></button> : <button aria-label={tr("وضع الأكشاك", "Kiosk mode")} title={tr("وضع الأكشاك", "Kiosk mode")} className="min-h-11 px-3" onClick={async () => { const success = await enterKiosk(); if (success) setKiosk(true); }}><Maximize2 size={18} /></button>)}
         <ThemeControls language={language} theme={theme} accent={accent} onThemeChange={setTheme} onAccentChange={setAccent} />
         <button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></button>
         <button className="min-h-11 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}>{tr("خروج", "Sign out")}</button>
@@ -142,7 +159,7 @@ export function App() {
         <div className="fixed inset-0 bg-black/40" onClick={() => setMenuOpen(false)} aria-hidden="true" />
         <aside id="mobile-nav" role="dialog" aria-modal="true" aria-label={tr("القائمة الرئيسية", "Main menu")} className="drawer-in absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-white p-3 shadow-2xl">
           <div className="mb-3 flex items-center justify-between gap-2 border-b border-[#e8ece8] pb-3">
-            <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button>
+            {canView("pos") ? <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button> : <span className="font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</span>}
             <button onClick={() => setMenuOpen(false)} aria-label={tr("إغلاق القائمة", "Close menu")} className="grid size-10 place-items-center rounded-lg border border-[#cdd7d0]"><X size={18} /></button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-4">{menuContent}</div>
