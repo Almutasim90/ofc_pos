@@ -6,3 +6,7 @@
 .vscode/
 **/*.user
 **/*.suo
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/.env
+**/.env.*

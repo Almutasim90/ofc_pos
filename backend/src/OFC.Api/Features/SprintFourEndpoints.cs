@@ -40,27 +40,47 @@ public static class SprintFourEndpoints
         var category = new TaxCategory { Code = request.Code.Trim().ToUpperInvariant(), NameAr = request.NameAr.Trim(), NameEn = request.NameEn.Trim(), Rate = request.Rate, IsActive = request.IsActive };
         db.TaxCategories.Add(category); Audit(identity, user, "create", "tax_category", category.Id, context, newValue: JsonSerializer.Serialize(category)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/tax-categories/{category.Id}", category);
     }
-    private static async Task<IResult> ListPriceRules(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct) => CanManage(user) ? Results.Ok(await db.PriceRules.AsNoTracking().OrderByDescending(x => x.EffectiveFrom).ToListAsync(ct)) : Forbidden();
-    private static async Task<IResult> CreatePriceRule(PriceRuleRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    // A null BranchId is an intentional org-wide/default rule (visible and applicable everywhere); a
+    // set BranchId scopes it to one branch, and both listing and creating it now require the caller to
+    // actually be assigned to that branch — previously any pricing.manage holder could read or tamper
+    // with another branch's prices/promotions just by passing a different branchId (security review
+    // finding M4).
+    private static async Task<IResult> ListPriceRules(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!CanManage(user)) return Forbidden();
+        var accessible = await AccessibleBranchIds(db, user, ct);
+        return Results.Ok(await db.PriceRules.AsNoTracking().Where(x => x.BranchId == null || accessible.Contains(x.BranchId.Value)).OrderByDescending(x => x.EffectiveFrom).ToListAsync(ct));
+    }
+    private static async Task<IResult> CreatePriceRule(PriceRuleRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!CanManage(user) || (request.BranchId.HasValue && !await HasBranch(db, user, request.BranchId.Value, ct))) return Forbidden();
         if (!ValidPeriod(request.EffectiveFrom, request.EffectiveTo) || request.Price < 0) return Validation("priceRule", "Price must be non-negative and effectiveTo must be after effectiveFrom.");
         if (!await db.Products.AnyAsync(x => x.Id == request.ProductId, ct) || !await ValidScope(db, request.BranchId, request.SalesChannelId, ct)) return Validation("scope", "Product, branch, or sales channel is invalid.");
         var rule = new PriceRule { ProductId = request.ProductId, BranchId = request.BranchId, SalesChannelId = request.SalesChannelId, Price = request.Price, EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo, IsActive = request.IsActive };
         db.PriceRules.Add(rule); Audit(identity, user, "create", "price_rule", rule.Id, context, newValue: JsonSerializer.Serialize(rule)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/price-rules/{rule.Id}", rule);
     }
-    private static async Task<IResult> ListTaxRules(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct) => CanManage(user) ? Results.Ok(await db.TaxRules.AsNoTracking().OrderByDescending(x => x.EffectiveFrom).ToListAsync(ct)) : Forbidden();
-    private static async Task<IResult> CreateTaxRule(TaxRuleRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> ListTaxRules(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!CanManage(user)) return Forbidden();
+        var accessible = await AccessibleBranchIds(db, user, ct);
+        return Results.Ok(await db.TaxRules.AsNoTracking().Where(x => x.BranchId == null || accessible.Contains(x.BranchId.Value)).OrderByDescending(x => x.EffectiveFrom).ToListAsync(ct));
+    }
+    private static async Task<IResult> CreateTaxRule(TaxRuleRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!CanManage(user) || (request.BranchId.HasValue && !await HasBranch(db, user, request.BranchId.Value, ct))) return Forbidden();
         if (!ValidPeriod(request.EffectiveFrom, request.EffectiveTo) || request.Rate is < 0 or > 100 || !await db.TaxCategories.AnyAsync(x => x.Id == request.TaxCategoryId, ct) || !await ValidScope(db, request.BranchId, null, ct)) return Validation("taxRule", "Tax category, branch, rate, or effective dates are invalid.");
         var rule = new TaxRule { TaxCategoryId = request.TaxCategoryId, BranchId = request.BranchId, Rate = request.Rate, CalculationMode = request.CalculationMode, EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo, IsActive = request.IsActive };
         db.TaxRules.Add(rule); Audit(identity, user, "create", "tax_rule", rule.Id, context, newValue: JsonSerializer.Serialize(rule)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/tax-rules/{rule.Id}", rule);
     }
-    private static async Task<IResult> ListPromotions(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct) => CanManage(user) ? Results.Ok(await db.Promotions.AsNoTracking().OrderByDescending(x => x.Priority).ThenByDescending(x => x.EffectiveFrom).ToListAsync(ct)) : Forbidden();
-    private static async Task<IResult> CreatePromotion(PromotionRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> ListPromotions(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!CanManage(user)) return Forbidden();
+        var accessible = await AccessibleBranchIds(db, user, ct);
+        return Results.Ok(await db.Promotions.AsNoTracking().Where(x => x.BranchId == null || accessible.Contains(x.BranchId.Value)).OrderByDescending(x => x.Priority).ThenByDescending(x => x.EffectiveFrom).ToListAsync(ct));
+    }
+    private static async Task<IResult> CreatePromotion(PromotionRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!CanManage(user) || (request.BranchId.HasValue && !await HasBranch(db, user, request.BranchId.Value, ct))) return Forbidden();
         if (!ValidName(request.Code, PricingRules.CodeMax) || !ValidName(request.NameAr, CatalogRules.NameMax) || !ValidName(request.NameEn, CatalogRules.NameMax) || !ValidPeriod(request.EffectiveFrom, request.EffectiveTo) || request.DiscountValue < 0 || (request.DiscountType == PromotionDiscountType.Percentage && request.DiscountValue > 100)) return Validation("promotion", "Promotion details are invalid.");
         if (await db.Promotions.AnyAsync(x => x.Code == request.Code.Trim().ToUpperInvariant(), ct) || (request.ProductId is not null && !await db.Products.AnyAsync(x => x.Id == request.ProductId, ct)) || !await ValidScope(db, request.BranchId, request.SalesChannelId, ct)) return Validation("scope", "Promotion code or scope is invalid.");
         var promotion = new Promotion { Code = request.Code.Trim().ToUpperInvariant(), NameAr = request.NameAr.Trim(), NameEn = request.NameEn.Trim(), ProductId = request.ProductId, BranchId = request.BranchId, SalesChannelId = request.SalesChannelId, DiscountType = request.DiscountType, DiscountValue = request.DiscountValue, Priority = request.Priority, EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo, IsActive = request.IsActive };
@@ -76,6 +96,7 @@ public static class SprintFourEndpoints
     private static async Task<IResult> Resolve(ResolveRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!user.HasClaim("permission", "pricing.manage") && !(request.ManualOverridePrice is not null && user.HasClaim("permission", "pricing.override"))) return Forbidden();
+        if (!await HasBranch(db, user, request.BranchId, ct)) return Forbidden();
         if (request.ManualOverridePrice is < 0 || (request.ManualOverridePrice is not null && !ValidName(request.ManualOverrideReason, PricingRules.ReasonMax))) return Validation("manualOverride", "An override requires a non-negative price and a reason.");
         var product = await db.Products.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.ProductId && x.IsActive, ct); if (product is null || !await ValidScope(db, request.BranchId, request.SalesChannelId, ct)) return Validation("scope", "Product, branch, or sales channel is invalid.");
         var at = request.At ?? DateTimeOffset.UtcNow;
@@ -87,6 +108,14 @@ public static class SprintFourEndpoints
     private static bool ValidName(string? value, int max) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= max;
     private static bool ValidPeriod(DateTimeOffset from, DateTimeOffset? to) => to is null || to > from;
     private static async Task<bool> ValidScope(OFCDbContext db, Guid? branchId, Guid? channelId, CancellationToken ct) => (branchId is null || await db.Branches.AnyAsync(x => x.Id == branchId && x.IsActive, ct)) && (channelId is null || await db.SalesChannels.AnyAsync(x => x.Id == channelId && x.IsActive, ct));
+    private static async Task<bool> HasBranch(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationToken ct) => user.FindFirstValue("branch_id") == branchId.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId, ct);
+    private static async Task<HashSet<Guid>> AccessibleBranchIds(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        var ids = new HashSet<Guid>();
+        if (Guid.TryParse(user.FindFirstValue("branch_id"), out var claim)) ids.Add(claim);
+        foreach (var id in await db.UserBranches.AsNoTracking().Where(x => x.UserId == UserId(user)).Select(x => x.BranchId).ToListAsync(ct)) ids.Add(id);
+        return ids;
+    }
     private static void Audit(IdentityService identity, ClaimsPrincipal user, string action, string type, Guid id, HttpContext context, string? newValue = null) => identity.Audit(UserId(user), null, null, action, type, id.ToString(), context.TraceIdentifier, newValue: newValue);
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Forbidden", detail: "You do not have permission to perform this operation.");

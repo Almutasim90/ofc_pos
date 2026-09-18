@@ -141,6 +141,12 @@ public static class SprintSixteenEndpoints
             throw;
         }
 
+        if (kitchenTickets.Count > 0 && order.Number > 0)
+        {
+            foreach (var ticket in kitchenTickets) ticket.OrderNumber = order.Number.ToString();
+            await db.SaveChangesAsync(ct);
+        }
+
         // Realtime staff notification: a fresh QR order landed for this branch (pending staff approval,
         // or already auto-approved). Each connected screen re-fetches authoritative data — no state is
         // carried over the socket (docs/01-ARCHITECTURE-GUARDRAILS.md).
@@ -152,7 +158,8 @@ public static class SprintSixteenEndpoints
 
     private static async Task<IResult> TrackOrder(string code, Guid clientRequestId, OFCDbContext db, CancellationToken ct)
     {
-        var ctx = await db.QrContexts.AsNoTracking().SingleOrDefaultAsync(x => x.Code == code, ct);
+        var normalizedCode = code.Trim().ToUpperInvariant();
+        var ctx = await db.QrContexts.AsNoTracking().SingleOrDefaultAsync(x => x.Code == normalizedCode, ct);
         if (ctx is null) return Results.NotFound();
         var order = await db.Orders.AsNoTracking().Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == ctx.BranchId && x.ClientRequestId == clientRequestId, ct);
         if (order is null) return Results.NotFound();
@@ -268,11 +275,11 @@ public static class SprintSixteenEndpoints
         var phone = request.Phone?.Trim();
         var externalId = request.ExternalId?.Trim();
         var loyalty = request.LoyaltyReference?.Trim();
-        if (!string.IsNullOrWhiteSpace(phone))
-        {
-            var match = await db.Customers.AsNoTracking().SingleOrDefaultAsync(x => x.Phone == phone, ct);
-            if (match is not null) return match.Id;
-        }
+        // Phone is not treated as a match key here: it's the one field a stranger could plausibly know
+        // or guess, and an anonymous, unauthenticated QR order matching on it alone would silently
+        // attach that order (and any loyalty accrual) to someone else's account with no verification
+        // (security review finding M7). ExternalId/LoyaltyReference are business-issued identifiers the
+        // customer's own app/loyalty card presents, so matching on those remains safe.
         if (!string.IsNullOrWhiteSpace(externalId))
         {
             var match = await db.Customers.AsNoTracking().SingleOrDefaultAsync(x => x.ExternalId == externalId, ct);
@@ -333,6 +340,7 @@ public static class SprintSixteenEndpoints
         return new
         {
             order.Id,
+            order.Number,
             order.BranchId,
             order.SalesChannelId,
             order.ClientRequestId,

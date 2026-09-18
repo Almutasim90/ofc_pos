@@ -83,7 +83,12 @@ public static class SprintSixEndpoints
             var tendered = PaymentRules.RoundMoney(tender.TenderedAmount);
             var applied = PaymentRules.RoundMoney(tender.Amount);
             var targetStatus = isCash ? PaymentStatus.Captured : tender.Status ?? PaymentStatus.Captured;
-            if ((isCash && tendered < applied) || (!isCash && tendered != applied) || (!isCash && targetStatus is not (PaymentStatus.Authorized or PaymentStatus.Captured))) return Validation("payments", "Cash tendered amount must cover its payment; electronic payments must be authorized or captured.");
+            // A terminal/gateway reference is the only evidence an electronic tender was actually
+            // settled — without it, a cashier's own claim of "Captured" is the sole basis for marking
+            // the order paid (security review finding M2). Cash needs no such proof: it settles in
+            // hand, and an Authorized (not yet settled) tender may not have a reference yet — only the
+            // terminal state (Captured) is required to carry one.
+            if ((isCash && tendered < applied) || (!isCash && tendered != applied) || (!isCash && targetStatus is not (PaymentStatus.Authorized or PaymentStatus.Captured)) || (targetStatus == PaymentStatus.Captured && !isCash && string.IsNullOrWhiteSpace(tender.ProviderReference))) return Validation("payments", "Cash tendered amount must cover its payment; electronic payments must be authorized, and a captured electronic payment must include a terminal/provider reference.");
             var payment = new Payment { OrderId = order.Id, BranchId = order.BranchId, PaymentMethodId = method.Id, ClientRequestId = tender.ClientRequestId, Amount = applied, TenderedAmount = tendered, ChangeAmount = isCash ? tendered - applied : 0m, Status = targetStatus, ProviderReference = tender.ProviderReference?.Trim(), CreatedByUserId = UserId(user), DeviceId = DeviceId(user) };
             if (targetStatus == PaymentStatus.Authorized)
                 payment.StatusHistory.Add(new PaymentStatusHistory { FromStatus = PaymentStatus.Pending, ToStatus = PaymentStatus.Authorized, ChangedByUserId = UserId(user), Note = "Authorized by terminal" });
@@ -120,7 +125,12 @@ public static class SprintSixEndpoints
         db.FinancialTransactions.Add(new FinancialTransaction { OrderId = order.Id, PaymentId = payment.Id, BranchId = order.BranchId, PaymentMethodId = payment.PaymentMethodId, DeviceId = DeviceId(user), ShiftId = shiftId, Amount = payment.Amount, Reference = payment.ProviderReference ?? payment.Id.ToString(), CreatedByUserId = UserId(user) });
         await ApplyPaidIfFullyCaptured(db, order, UserId(user), DeviceId(user), "Payment captured", ct);
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "payment.capture", "payment", payment.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { payment.Status, payment.Amount }));
-        await db.SaveChangesAsync(ct);
+        // Payment.Status is mapped as an EF concurrency token, so SaveChanges fails this way if another
+        // request already transitioned the same payment between our read and our write — closing the
+        // race between two concurrent capture/reverse calls (e.g. a duplicated terminal callback) both
+        // reading Status == Authorized before either commits (security review finding M3).
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { return Validation("payment", "This payment was already updated by another request."); }
         return Results.Ok(PaymentResponse([payment]));
     }
 
@@ -149,7 +159,9 @@ public static class SprintSixEndpoints
         }
         db.FinancialTransactions.Add(new FinancialTransaction { OrderId = order.Id, PaymentId = payment.Id, BranchId = order.BranchId, PaymentMethodId = payment.PaymentMethodId, DeviceId = DeviceId(user), ShiftId = original?.ShiftId, Type = FinancialTransactionType.Reversal, Amount = payment.Amount, Reference = request.Reason?.Trim() ?? payment.Id.ToString(), CreatedByUserId = UserId(user), ReversalReferenceId = original?.Id });
         identity.Audit(UserId(user), order.BranchId, DeviceId(user), "payment.reverse", "payment", payment.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { payment.Amount, reason = request.Reason }));
-        await db.SaveChangesAsync(ct);
+        // Same optimistic-concurrency guard as CapturePayment — see security review finding M3.
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateConcurrencyException) { return Validation("payment", "This payment was already updated by another request."); }
         return Results.Ok(PaymentResponse([payment]));
     }
 

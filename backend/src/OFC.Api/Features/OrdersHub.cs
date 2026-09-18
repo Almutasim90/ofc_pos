@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using OFC.Infrastructure.Persistence;
 
 namespace OFC.Api.Features;
 
@@ -7,11 +9,24 @@ namespace OFC.Api.Features;
 // the hub just tells connected staff screens (QR admin, cashier/POS) that a QR order event happened for
 // their branch, and each screen re-fetches the authoritative order data over the existing REST endpoints.
 [Authorize]
-public sealed class OrdersHub : Hub
+public sealed class OrdersHub(OFCDbContext db) : Hub
 {
-    public Task JoinBranch(Guid branchId) => Groups.AddToGroupAsync(Context.ConnectionId, GroupName(branchId));
+    // Any authenticated user could otherwise join another branch's group and observe its realtime QR
+    // order metadata (status, gross amount) despite having no assignment there (security review
+    // finding M5).
+    public async Task JoinBranch(Guid branchId)
+    {
+        if (!await HasBranch(branchId)) return;
+        await Groups.AddToGroupAsync(Context.ConnectionId, GroupName(branchId));
+    }
     public Task LeaveBranch(Guid branchId) => Groups.RemoveFromGroupAsync(Context.ConnectionId, GroupName(branchId));
     public static string GroupName(Guid branchId) => $"orders:{branchId}";
+    private async Task<bool> HasBranch(Guid branchId)
+    {
+        var user = Context.User!;
+        return user.FindFirst("branch_id")?.Value == branchId.ToString()
+            || await db.UserBranches.AnyAsync(x => x.UserId == Guid.Parse(user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value) && x.BranchId == branchId, Context.ConnectionAborted);
+    }
 }
 
 public interface IOrdersBroadcaster

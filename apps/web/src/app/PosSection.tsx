@@ -304,6 +304,11 @@ function buildOfflineOrder(channelId: string, cartLines: CartLine[], status: "Dr
       const selectionsSnapshot = JSON.stringify(
         Object.entries(line.selections).map(([groupId, ids]) => ({ groupId, options: ids }))
       );
+      // Sent alongside the (informational-only) snapshot so the server can independently recompute
+      // this line's price from the live catalog instead of trusting client-calculated amounts.
+      const selections = Object.entries(line.selections)
+        .filter(([, ids]) => ids.length > 0)
+        .map(([groupId, ids]) => ({ selectionGroupId: groupId, choices: ids.map((optionId) => ({ optionId, quantity: 1 })) }));
       const adjustment = Object.entries(line.selections).flatMap(([groupId, ids]) =>
         ids.map((optionId) => line.product.selectionGroups.find((group) => group.id === groupId)?.options.find((option) => option.id === optionId)?.priceAdjustment ?? 0)
       ).reduce((a, b) => a + b, 0);
@@ -316,6 +321,7 @@ function buildOfflineOrder(channelId: string, cartLines: CartLine[], status: "Dr
         quantity: line.quantity,
         note: line.note || null,
         selectionsSnapshot,
+        selections,
         unitListAmount: resolved.listPrice,
         unitDiscountAmount: resolved.discount,
         unitNetAmount: resolved.net,

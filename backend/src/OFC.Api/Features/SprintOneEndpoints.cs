@@ -15,7 +15,7 @@ public static class SprintOneEndpoints
     {
         var api = app.MapGroup("/api/v1");
         api.MapPost("/auth/bootstrap", Bootstrap).AllowAnonymous();
-        api.MapPost("/auth/login", Login).AllowAnonymous();
+        api.MapPost("/auth/login", Login).AllowAnonymous().RequireRateLimiting("login");
         api.MapGet("/auth/me", Me).RequireAuthorization();
         api.MapPost("/devices/{id:guid}/heartbeat", Heartbeat).RequireAuthorization();
         api.MapGet("/admin/overview", Overview).RequireAuthorization();
@@ -193,7 +193,11 @@ public static class SprintOneEndpoints
     private static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Forbidden", detail: "You do not have permission to perform this operation.");
     private static IResult? Validate(string value, string field, int max) => string.IsNullOrWhiteSpace(value) || value.Trim().Length > max ? Validation(field, $"{field} is required and must be at most {max} characters.") : null;
     private static IResult? ValidateUsername(string username) => string.IsNullOrWhiteSpace(username) ? Validation("username", "A username is required.") : username.Trim().Length is < 3 or > 40 ? Validation("username", "Username must be between 3 and 40 characters.") : !System.Text.RegularExpressions.Regex.IsMatch(username.Trim(), "^[a-zA-Z0-9._-]+$") ? Validation("username", "Username may only contain letters, numbers, dots, dashes and underscores.") : null;
-    private static IResult? ValidatePassword(string password) => password.Length < 6 ? Validation("password", "Password must contain at least 6 characters.") : null;
+    // Length, not composition rules, is what actually resists brute-force/credential-stuffing — a long
+    // passphrase with no digit ("correct horse battery staple") is stronger than a short password
+    // stuffed with a single required digit, so this only raises the length floor (security review
+    // finding M10; was 6).
+    private static IResult? ValidatePassword(string password) => password.Length < 10 ? Validation("password", "Password must contain at least 10 characters.") : null;
     private static IResult Validation(string field, string detail) => Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [detail] });
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private static string Correlation(HttpContext context) => context.TraceIdentifier;

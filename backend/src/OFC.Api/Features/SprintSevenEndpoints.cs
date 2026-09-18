@@ -58,11 +58,11 @@ public static class SprintSevenEndpoints
         var order = await db.Orders.Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (order is null) return Results.NotFound();
         if (!CanOperate(user, CancellationOperation.Void) || !await HasBranch(db, user, order.BranchId, ct)) return Forbidden();
-        if (order.Status is not (OrderStatus.Draft or OrderStatus.Pending or OrderStatus.Confirmed) || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Captured, ct)) return Validation("order", "Only unpaid orders can have items voided.");
+        if (order.Status is not (OrderStatus.Draft or OrderStatus.Pending or OrderStatus.Confirmed) || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Captured, ct) || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Authorized, ct)) return Validation("order", "Only unpaid orders can have items voided.");
         var line = order.Lines.SingleOrDefault(x => x.Id == request.OrderLineId);
         if (line is null || request.Quantity is < 1 || request.Quantity > line.Quantity - line.VoidedQuantity) return Validation("quantity", "The void quantity exceeds the remaining item quantity.");
         var reason = await Reason(db, order.BranchId, request.ReasonId, request.Note, ct); if (reason.Error is not null) return Validation("reason", reason.Error);
-        var amount = PaymentRules.RoundMoney(line.UnitGrossAmount * request.Quantity); var approval = await Approval(db, user, order.BranchId, CancellationOperation.Void, amount, ct); if (approval.Error is not null) return Forbidden(approval.Error);
+        var amount = PaymentRules.RoundMoney(line.UnitGrossAmount * request.Quantity); var approval = await Approval(db, user, order.BranchId, CancellationOperation.Void, amount, request.ApproverUsername, request.ApproverPassword, ct); if (approval.Error is not null) return Forbidden(approval.Error);
         line.VoidedQuantity += request.Quantity; order.NetAmount = PaymentRules.RoundMoney(order.Lines.Sum(x => x.UnitNetAmount * (x.Quantity - x.VoidedQuantity))); order.TaxAmount = PaymentRules.RoundMoney(order.Lines.Sum(x => x.UnitTaxAmount * (x.Quantity - x.VoidedQuantity))); order.GrossAmount = PaymentRules.RoundMoney(order.Lines.Sum(x => x.UnitGrossAmount * (x.Quantity - x.VoidedQuantity))); order.UpdatedAt = DateTimeOffset.UtcNow;
         var entry = new OrderLineVoid { OrderId = id, OrderLineId = line.Id, CancellationReasonId = reason.Value!.Id, BranchId = order.BranchId, VoidedByUserId = UserId(user), DeviceId = DeviceId(user), Quantity = request.Quantity, Amount = amount, Note = request.Note?.Trim(), ApprovedByUserId = approval.ApprovedBy };
         db.OrderLineVoids.Add(entry); identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order-line.void", "order_line_void", entry.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { id, line.Id, entry.Quantity, entry.Amount, reason.Value.Code }));
@@ -76,7 +76,7 @@ public static class SprintSevenEndpoints
         if (!CanOperate(user, CancellationOperation.Cancel) || !await HasBranch(db, user, order.BranchId, ct)) return Forbidden();
         if (order.Status is OrderStatus.Paid or OrderStatus.PartiallyRefunded or OrderStatus.Refunded or OrderStatus.Cancelled || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Captured, ct)) return Validation("order", "Paid or already cancelled orders must be refunded instead.");
         var reason = await Reason(db, order.BranchId, request.ReasonId, request.Note, ct); if (reason.Error is not null) return Validation("reason", reason.Error);
-        var approval = await Approval(db, user, order.BranchId, CancellationOperation.Cancel, order.GrossAmount, ct); if (approval.Error is not null) return Forbidden(approval.Error);
+        var approval = await Approval(db, user, order.BranchId, CancellationOperation.Cancel, order.GrossAmount, request.ApproverUsername, request.ApproverPassword, ct); if (approval.Error is not null) return Forbidden(approval.Error);
         var from = order.Status; order.Status = OrderStatus.Cancelled; order.UpdatedAt = DateTimeOffset.UtcNow; order.StatusHistory.Add(new OrderStatusHistory { FromStatus = from, ToStatus = OrderStatus.Cancelled, ChangedByUserId = UserId(user), Note = request.Note?.Trim() });
         var entry = new OrderCancellation { OrderId = id, CancellationReasonId = reason.Value!.Id, BranchId = order.BranchId, CancelledByUserId = UserId(user), DeviceId = DeviceId(user), ShiftId = await CurrentShiftId(db, order.BranchId, ct), Note = request.Note?.Trim(), OrderTotal = order.GrossAmount, OrderStatusAtCancellation = from, WasSentToKitchen = CancellationRules.WasSentToKitchen(from), ReturnInventory = request.ReturnInventory, ApprovedByUserId = approval.ApprovedBy };
         db.OrderCancellations.Add(entry); identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.cancel", "order_cancellation", entry.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { id, entry.OrderTotal, reason.Value.Code, entry.ReturnInventory, entry.WasSentToKitchen }));
@@ -99,7 +99,7 @@ public static class SprintSevenEndpoints
         var replay = await db.Refunds.Where(x => x.OrderId == id && x.ClientRequestId == request.ClientRequestId).ToListAsync(ct); if (replay.Count > 0) return Results.Ok(new { refunds = replay.Select(x => new { x.Id, x.PaymentId, x.Amount }), refundedAmount = replay.Sum(x => x.Amount) });
         var reason = await Reason(db, order.BranchId, request.ReasonId, request.Note, ct); if (reason.Error is not null) return Validation("reason", reason.Error);
         var paymentIds = request.Items.Select(x => x.PaymentId).ToList(); var payments = await db.Payments.Where(x => x.OrderId == id && x.Status == PaymentStatus.Captured && paymentIds.Contains(x.Id)).ToListAsync(ct); if (payments.Count != paymentIds.Count) return Validation("refunds", "Refunds must reference captured payments on this order.");
-        var total = PaymentRules.RoundMoney(request.Items.Sum(x => x.Amount)); var approval = await Approval(db, user, order.BranchId, CancellationOperation.Refund, total, ct); if (approval.Error is not null) return Forbidden(approval.Error);
+        var total = PaymentRules.RoundMoney(request.Items.Sum(x => x.Amount)); var approval = await Approval(db, user, order.BranchId, CancellationOperation.Refund, total, request.ApproverUsername, request.ApproverPassword, ct); if (approval.Error is not null) return Forbidden(approval.Error);
         var alreadyRefunded = await db.Refunds.Where(x => paymentIds.Contains(x.PaymentId)).GroupBy(x => x.PaymentId).Select(x => new { PaymentId = x.Key, Amount = x.Sum(y => y.Amount) }).ToDictionaryAsync(x => x.PaymentId, x => x.Amount, ct);
         if (request.Items.Any(x => PaymentRules.RoundMoney(x.Amount) + alreadyRefunded.GetValueOrDefault(x.PaymentId) - payments.Single(p => p.Id == x.PaymentId).Amount > CancellationRules.MoneyTolerance)) return Validation("refunds", "A refund cannot exceed its captured payment.");
         var entries = request.Items.Select(item => new Refund { OrderId = id, PaymentId = item.PaymentId, ClientRequestId = request.ClientRequestId, CancellationReasonId = reason.Value!.Id, BranchId = order.BranchId, RefundedByUserId = UserId(user), DeviceId = DeviceId(user), Amount = PaymentRules.RoundMoney(item.Amount), Note = request.Note?.Trim(), ReturnInventory = request.ReturnInventory, ApprovedByUserId = approval.ApprovedBy }).ToList();
@@ -125,7 +125,28 @@ public static class SprintSevenEndpoints
     private static async Task<(CancellationReason? Value, string? Error)> Reason(OFCDbContext db, Guid branchId, Guid reasonId, string? note, CancellationToken ct) { var reason = await db.CancellationReasons.SingleOrDefaultAsync(x => x.Id == reasonId && x.BranchId == branchId && x.IsActive, ct); return reason is null ? (null, "Select an active cancellation reason.") : note?.Trim().Length > CancellationRules.NoteMax ? (null, "The note is too long.") : CancellationRules.RequiresNote(reason) && string.IsNullOrWhiteSpace(note) ? (null, "A note is required for this reason.") : (reason, null); }
     // Fail closed: a branch with no configured threshold requires supervisor approval for every
     // void/cancel/refund, rather than silently granting cashiers unlimited unsupervised authority.
-    private static async Task<(Guid? ApprovedBy, string? Error)> Approval(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationOperation operation, decimal amount, CancellationToken ct) { var threshold = await db.CancellationApprovalThresholds.AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == branchId && x.Operation == operation, ct); var requiresApproval = threshold is null || amount >= threshold.Amount; return requiresApproval && !user.HasClaim("permission", "cancellations.approve") ? (null, threshold is null ? "No approval threshold is configured for this branch; supervisor approval is required." : "This amount requires supervisor approval.") : (requiresApproval ? UserId(user) : null, null); }
+    // Approval always requires a *different* user's credentials (manager-override pattern) — the acting
+    // user can never approve their own void/cancel/refund even if they personally hold
+    // "cancellations.approve" (security review finding M9: self-approval defeats segregation of duties).
+    private static async Task<(Guid? ApprovedBy, string? Error)> Approval(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationOperation operation, decimal amount, string? approverUsername, string? approverPassword, CancellationToken ct)
+    {
+        var threshold = await db.CancellationApprovalThresholds.AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == branchId && x.Operation == operation, ct);
+        var requiresApproval = threshold is null || amount >= threshold.Amount;
+        if (!requiresApproval) return (null, null);
+        if (string.IsNullOrWhiteSpace(approverUsername) || string.IsNullOrWhiteSpace(approverPassword)) return (null, "This amount requires a supervisor to enter their username and password to approve.");
+        var normalized = approverUsername.Trim().ToLowerInvariant();
+        var approver = await db.Users.Include(x => x.Roles).ThenInclude(x => x.Role).ThenInclude(x => x.Permissions).ThenInclude(x => x.Permission).Include(x => x.Permissions).ThenInclude(x => x.Permission).SingleOrDefaultAsync(x => x.Username.ToLower() == normalized, ct);
+        if (approver is null || approver.Id == UserId(user) || !approver.IsActive || !IdentityService.Verify(approverPassword, approver.PasswordSalt, approver.PasswordHash))
+            return (null, "Invalid approver credentials, or the approver must be someone other than the person performing this action.");
+        var roleCodes = approver.Roles.SelectMany(x => x.Role.Permissions).Select(x => x.Permission.Code).ToHashSet();
+        var revoked = approver.Permissions.Where(x => !x.IsGrant).Select(x => x.Permission.Code).ToHashSet();
+        var granted = approver.Permissions.Where(x => x.IsGrant).Select(x => x.Permission.Code);
+        var approverPermissions = roleCodes.Except(revoked).Concat(granted).ToHashSet();
+        if (!approverPermissions.Contains("cancellations.approve")) return (null, "The approver does not have permission to approve this operation.");
+        if (!await HasBranch(db, approver.Id, branchId, ct)) return (null, "The approver is not assigned to this branch.");
+        return (approver.Id, null);
+    }
+    private static async Task<bool> HasBranch(OFCDbContext db, Guid userId, Guid branchId, CancellationToken ct) => await db.UserBranches.AnyAsync(x => x.UserId == userId && x.BranchId == branchId, ct);
     private static bool CanManage(ClaimsPrincipal user) => user.HasClaim("permission", "cancellations.manage");
     private static async Task<Guid?> CurrentShiftId(OFCDbContext db, Guid branchId, CancellationToken ct) => await db.Shifts.AsNoTracking().Where(x => x.BranchId == branchId && x.Status == ShiftStatus.Open).OrderByDescending(x => x.OpenedAt).Select(x => (Guid?)x.Id).FirstOrDefaultAsync(ct);
     private static bool CanOperate(ClaimsPrincipal user, CancellationOperation operation) => user.HasClaim("permission", operation switch { CancellationOperation.Void => "cancellations.void", CancellationOperation.Cancel => "cancellations.cancel", _ => "cancellations.refund" });
@@ -136,8 +157,8 @@ public static class SprintSevenEndpoints
     private static IResult Validation(string field, string detail) => Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [detail] });
     private sealed record ReasonRequest(Guid BranchId, string Code, string NameAr, string NameEn, bool RequiresNote, int SortOrder);
     private sealed record ThresholdRequest(Guid BranchId, CancellationOperation Operation, decimal Amount);
-    private sealed record VoidRequest(Guid OrderLineId, int Quantity, Guid ReasonId, string? Note);
-    private sealed record CancelRequest(Guid ReasonId, string? Note, bool ReturnInventory);
-    private sealed record RefundRequest(Guid ClientRequestId, Guid ReasonId, string? Note, bool ReturnInventory, List<RefundItem> Items);
+    private sealed record VoidRequest(Guid OrderLineId, int Quantity, Guid ReasonId, string? Note, string? ApproverUsername = null, string? ApproverPassword = null);
+    private sealed record CancelRequest(Guid ReasonId, string? Note, bool ReturnInventory, string? ApproverUsername = null, string? ApproverPassword = null);
+    private sealed record RefundRequest(Guid ClientRequestId, Guid ReasonId, string? Note, bool ReturnInventory, List<RefundItem> Items, string? ApproverUsername = null, string? ApproverPassword = null);
     private sealed record RefundItem(Guid PaymentId, decimal Amount);
 }

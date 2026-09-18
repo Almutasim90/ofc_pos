@@ -29,10 +29,14 @@ public static class SyncEndpoints
     {
         if (!SyncRules.ValidBatchSize(request.Operations.Count)) return Validation("operations", $"A batch must contain between 1 and {SyncRules.BatchMax} operations.");
 
+        // Sync must always be attributed to the device the caller actually authenticated as — a
+        // device-less (e.g. back-office) session could otherwise assert any active device ID for a
+        // branch it can already reach (security review finding L8), muddying which physical device a
+        // synced order/movement really came from.
         var sessionDeviceId = DeviceId(user);
+        if (sessionDeviceId is null) return Validation("deviceId", "A device-bound session is required to sync.");
         var effectiveDeviceId = request.DeviceId != Guid.Empty ? request.DeviceId : sessionDeviceId;
-        if (effectiveDeviceId is null || effectiveDeviceId == Guid.Empty) return Validation("deviceId", "A registered device is required.");
-        if (sessionDeviceId.HasValue && sessionDeviceId != effectiveDeviceId) return Forbidden("The session device does not match the request device.");
+        if (sessionDeviceId != effectiveDeviceId) return Forbidden("The session device does not match the request device.");
         if (!await CanOperate(db, user, request.BranchId, ct)) return Forbidden();
         if (!await db.PosDevices.AsNoTracking().AnyAsync(x => x.Id == effectiveDeviceId && x.BranchId == request.BranchId && x.IsActive, ct)) return Forbidden("The device is not registered and active for this branch.");
 
@@ -141,56 +145,35 @@ public static class SyncEndpoints
             return OperationResult(key, OrderType, "duplicate", result: OrderResponseJson(existingOrder), serverVersion: prior.ServerVersion);
         }
 
-        var productIds = orderRequest.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
-        if (products.Count != productIds.Count) return OperationResult(key, OrderType, "failed", error: "One or more products on this offline order no longer exist.");
+        if (orderRequest.Lines.Any(x => x.Quantity is < 1 or > 99)) return OperationResult(key, OrderType, "failed", error: "A line quantity must be between 1 and 99.");
 
-        var order = new Order
-        {
-            BranchId = branchId,
-            SalesChannelId = orderRequest.SalesChannelId,
-            DeviceId = deviceId,
-            CreatedByUserId = userId,
-            ClientRequestId = key,
-            Source = orderRequest.Source,
-            Status = orderRequest.Status,
-            Note = orderRequest.Note?.Trim()
-        };
-        var stalePricing = false;
-        foreach (var requestLine in orderRequest.Lines)
-        {
-            if (requestLine.Quantity is < 1 or > 99) return OperationResult(key, OrderType, "failed", error: "A line quantity must be between 1 and 99.");
-            var line = new OrderLine
-            {
-                ProductId = requestLine.ProductId,
-                ProductNameAr = requestLine.ProductNameAr ?? products[requestLine.ProductId].NameAr,
-                ProductNameEn = requestLine.ProductNameEn ?? products[requestLine.ProductId].NameEn,
-                Quantity = requestLine.Quantity,
-                Note = requestLine.Note?.Trim(),
-                SelectionsSnapshot = requestLine.SelectionsSnapshot ?? "[]",
-                UnitListAmount = requestLine.UnitListAmount,
-                UnitDiscountAmount = requestLine.UnitDiscountAmount,
-                UnitNetAmount = requestLine.UnitNetAmount,
-                UnitTaxAmount = requestLine.UnitTaxAmount,
-                UnitGrossAmount = requestLine.UnitGrossAmount,
-                TaxRate = requestLine.TaxRate,
-                TaxCalculationMode = requestLine.TaxCalculationMode,
-                PriceSource = requestLine.PriceSource ?? "OfflineSnapshot",
-                PriceRuleId = requestLine.PriceRuleId,
-                PromotionId = requestLine.PromotionId,
-                TaxRuleId = requestLine.TaxRuleId,
-                CatalogVersionId = requestLine.CatalogVersionId,
-                CatalogVersionNumber = requestLine.CatalogVersionNumber
-            };
-            order.Lines.Add(line);
-            order.NetAmount += line.UnitNetAmount * line.Quantity;
-            order.TaxAmount += line.UnitTaxAmount * line.Quantity;
-            order.GrossAmount += line.UnitGrossAmount * line.Quantity;
-            if (SyncRules.IsStaleCatalog(line.CatalogVersionNumber, currentCatalogVersion)) stalePricing = true;
-        }
-        order.NetAmount = PricingRules.RoundMoney(order.NetAmount);
-        order.TaxAmount = PricingRules.RoundMoney(order.TaxAmount);
-        order.GrossAmount = PricingRules.RoundMoney(order.GrossAmount);
+        // Pricing is never trusted from an offline client: recompute it server-side from the live
+        // catalog exactly like the online order path (OrderingEngine.Build), instead of taking the
+        // client's Unit*/Tax* fields as-is — see security review finding H3 (offline sync order path
+        // trusted client-supplied prices/totals with no server-side re-pricing).
+        var productIds = orderRequest.Lines.Select(x => x.ProductId).Distinct().ToList();
+        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product)
+            .Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))
+            .ToDictionaryAsync(x => x.Id, x => x, ct);
+        if (products.Count != productIds.Count) return OperationResult(key, OrderType, "failed", error: "One or more products on this offline order no longer exist or are unavailable at this branch.");
+
+        var at = DateTimeOffset.UtcNow;
+        var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
+        var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || productIds.Contains(x.ProductId.Value)).ToListAsync(ct);
+        var taxIds = products.Values.Where(x => x.TaxCategoryId.HasValue).Select(x => x.TaxCategoryId!.Value).Distinct().ToList();
+        var taxes = await db.TaxRules.AsNoTracking().Where(x => taxIds.Contains(x.TaxCategoryId)).ToListAsync(ct);
+        var version = await db.CatalogVersions.AsNoTracking().OrderByDescending(x => x.Number).FirstOrDefaultAsync(ct);
+        var lineInputs = orderRequest.Lines.Select(x => new OrderLineInput(x.ProductId, x.Quantity, x.Note,
+            x.Selections?.Select(s => new GroupSelectionInput(s.SelectionGroupId, s.Choices.Select(c => new ChoiceInput(c.OptionId, c.Quantity)).ToList())).ToList())).ToList();
+        var built = OrderingEngine.Build(branchId, orderRequest.SalesChannelId, orderRequest.Source, userId, null, deviceId, orderRequest.Note, key, at, lineInputs, products, prices, promotions, taxes, version);
+        if (!built.Succeeded) return OperationResult(key, OrderType, "failed", error: built.Error!);
+        var order = built.Order!;
+        order.Status = orderRequest.Status;
+
+        // The client's offline-estimated total is kept only to flag catalog drift for the operator's
+        // attention, never to influence the recomputed (authoritative) order total above.
+        var clientEstimatedGross = orderRequest.Lines.Sum(x => x.UnitGrossAmount * x.Quantity);
+        var stalePricing = Math.Abs(order.GrossAmount - PricingRules.RoundMoney(clientEstimatedGross)) > PaymentRules.MoneyTolerance;
 
         Payment? payment = null;
         if (order.Status == OrderStatus.Paid)
@@ -386,6 +369,11 @@ public static class SyncEndpoints
     private sealed record SyncOperationRequest(Guid IdempotencyKey, string OperationType, long? BaseVersion, int? BaseCatalogVersion, DateTimeOffset? OccurredAt, JsonElement Payload);
     private sealed record OfflineOrderRequest(Guid SalesChannelId, OrderSource Source, OrderStatus Status, string? Note, List<OfflineOrderLineRequest> Lines, OfflineOrderPaymentRequest? Payment);
     private sealed record OfflineOrderPaymentRequest(Guid ClientRequestId, Guid PaymentMethodId, decimal Amount, decimal TenderedAmount);
-    private sealed record OfflineOrderLineRequest(Guid ProductId, string? ProductNameAr, string? ProductNameEn, int Quantity, string? Note, string? SelectionsSnapshot, decimal UnitListAmount, decimal UnitDiscountAmount, decimal UnitNetAmount, decimal UnitTaxAmount, decimal UnitGrossAmount, decimal TaxRate, TaxCalculationMode TaxCalculationMode, string? PriceSource, Guid? PriceRuleId, Guid? PromotionId, Guid? TaxRuleId, Guid? CatalogVersionId, int? CatalogVersionNumber);
+    // Unit*/Tax*/PriceSource/PriceRuleId/PromotionId/TaxRuleId/CatalogVersion* are accepted for backward
+    // compatibility with already-queued client payloads but are never used to build the order — pricing
+    // is always recomputed server-side from Selections (see ApplyOrder / OrderingEngine.Build).
+    private sealed record OfflineOrderLineRequest(Guid ProductId, string? ProductNameAr, string? ProductNameEn, int Quantity, string? Note, string? SelectionsSnapshot, List<OfflineGroupSelection>? Selections, decimal UnitListAmount, decimal UnitDiscountAmount, decimal UnitNetAmount, decimal UnitTaxAmount, decimal UnitGrossAmount, decimal TaxRate, TaxCalculationMode TaxCalculationMode, string? PriceSource, Guid? PriceRuleId, Guid? PromotionId, Guid? TaxRuleId, Guid? CatalogVersionId, int? CatalogVersionNumber);
+    private sealed record OfflineGroupSelection(Guid SelectionGroupId, List<OfflineChoice> Choices);
+    private sealed record OfflineChoice(Guid OptionId, int Quantity);
     private sealed record OfflineMovementRequest(Guid BranchId, Guid ItemId, Guid UnitId, InventoryMovementType Type, decimal Quantity, string? Reference, string? Reason, Guid? OrderId);
 }

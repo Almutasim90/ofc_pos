@@ -21,4 +21,6 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:8080
 
 EXPOSE 8080
+# $APP_UID is the non-root user the base image ships specifically for this (security review finding L6).
+USER $APP_UID
 ENTRYPOINT ["dotnet", "OFC.Api.dll"]

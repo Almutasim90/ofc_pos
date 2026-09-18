@@ -433,44 +433,45 @@ public static class SprintSeventeenEndpoints
     }
 
     // Export helpers consumed by SprintThirteenEndpoints.ExportReport.
-    public static async Task<(string[] Header, List<string[]> Rows, string Summary)?> BuildExport(OFCDbContext db, string report, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    // branchIds must already be resolved/authorized by the caller (SprintThirteenEndpoints.ExportReport
+    // via AccessibleBranches) — never pass through a raw, unvalidated branchId here.
+    public static async Task<(string[] Header, List<string[]> Rows, string Summary)?> BuildExport(OFCDbContext db, string report, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
         return report switch
         {
-            "branch-comparison" => await BranchComparisonCsv(db, branchId, start, end, ct),
-            "cancellation-analytics" => await CancellationAnalyticsCsv(db, branchId, start, end, ct),
-            "kitchen-performance" => await KitchenPerformanceCsv(db, branchId, start, end, ct),
-            "food-cost" => await FoodCostCsv(db, branchId, start, end, ct),
-            "inventory-trends" => await InventoryTrendsCsv(db, branchId, start, end, ct),
-            "profit-loss" => await ProfitLossCsv(db, branchId, start, end, ct),
-            "alerts" => await AlertsCsv(db, branchId, start, end, ct),
+            "branch-comparison" => await BranchComparisonCsv(db, branchIds, start, end, ct),
+            "cancellation-analytics" => await CancellationAnalyticsCsv(db, branchIds, start, end, ct),
+            "kitchen-performance" => await KitchenPerformanceCsv(db, branchIds, start, end, ct),
+            "food-cost" => await FoodCostCsv(db, branchIds, start, end, ct),
+            "inventory-trends" => await InventoryTrendsCsv(db, branchIds, start, end, ct),
+            "profit-loss" => await ProfitLossCsv(db, branchIds, start, end, ct),
+            "alerts" => await AlertsCsv(db, branchIds, start, end, ct),
             _ => null
         };
     }
 
-    private static async Task<(string[], List<string[]>, string)> BranchComparisonCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[], List<string[]>, string)> BranchComparisonCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var branchIds = branchId.HasValue ? new List<Guid> { branchId.Value } : await db.Branches.AsNoTracking().Select(x => x.Id).ToListAsync(ct);
         var orders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).GroupBy(x => x.BranchId).Select(g => new { BranchId = g.Key, Count = g.Count(), Net = g.Sum(x => x.NetAmount), Gross = g.Sum(x => x.GrossAmount) }).ToListAsync(ct);
         var rows = orders.OrderBy(x => x.BranchId).Select(x => new string[] { x.BranchId.ToString(), x.Count.ToString(), Money(x.Net), Money(x.Gross) }).ToList();
         return (["BranchId", "Orders", "Net", "Gross"], rows, $"{rows.Count} branches");
     }
 
-    private static async Task<(string[], List<string[]>, string)> CancellationAnalyticsCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[], List<string[]>, string)> CancellationAnalyticsCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.OrderCancellations.AsNoTracking().Where(x => x.BranchId == branchId && x.CancelledAt >= start && x.CancelledAt < end).OrderBy(x => x.CancelledAt).Select(x => new string[] { DateStr(x.CancelledAt), x.CancellationReasonId.ToString(), x.WasSentToKitchen ? "AfterKitchen" : "BeforeKitchen", Money(x.OrderTotal) }).ToListAsync(ct);
+        var rows = await db.OrderCancellations.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CancelledAt >= start && x.CancelledAt < end).OrderBy(x => x.CancelledAt).Select(x => new string[] { DateStr(x.CancelledAt), x.CancellationReasonId.ToString(), x.WasSentToKitchen ? "AfterKitchen" : "BeforeKitchen", Money(x.OrderTotal) }).ToListAsync(ct);
         return (["CancelledAt", "ReasonId", "Stage", "OrderTotal"], rows, $"{rows.Count} cancellations");
     }
 
-    private static async Task<(string[], List<string[]>, string)> KitchenPerformanceCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[], List<string[]>, string)> KitchenPerformanceCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.KitchenTickets.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end).OrderBy(x => x.CreatedAt).Select(x => new string[] { DateStr(x.CreatedAt), x.Channel.ToString(), x.Status.ToString(), (x.CompletedAt == null ? "" : DateStr(x.CompletedAt!.Value)) }).ToListAsync(ct);
+        var rows = await db.KitchenTickets.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end).OrderBy(x => x.CreatedAt).Select(x => new string[] { DateStr(x.CreatedAt), x.Channel.ToString(), x.Status.ToString(), (x.CompletedAt == null ? "" : DateStr(x.CompletedAt!.Value)) }).ToListAsync(ct);
         return (["CreatedAt", "Channel", "Status", "CompletedAt"], rows, $"{rows.Count} tickets");
     }
 
-    private static async Task<(string[], List<string[]>, string)> FoodCostCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[], List<string[]>, string)> FoodCostCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
         var lines = orders.SelectMany(x => x.Lines).Where(x => EffectiveQty(x) > 0).GroupBy(x => x.ProductId).ToList();
         var recipes = await db.RecipeVersions.AsNoTracking().Include(x => x.Lines).Where(x => x.Status == RecipeStatus.Active && lines.Select(g => g.Key).Contains(x.ProductId)).ToListAsync(ct);
         var latest = recipes.GroupBy(x => x.ProductId).Select(g => g.OrderByDescending(x => x.VersionNumber).First()).ToList();
@@ -491,21 +492,21 @@ public static class SprintSeventeenEndpoints
         return (["ProductId", "Qty", "Gross", "Cogs", "RecipeCost"], rows, $"{rows.Count} costed products");
     }
 
-    private static async Task<(string[], List<string[]>, string)> InventoryTrendsCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[], List<string[]>, string)> InventoryTrendsCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.InventoryMovements.AsNoTracking().Where(x => x.BranchId == branchId && x.OccurredAt >= start && x.OccurredAt < end).OrderBy(x => x.OccurredAt).Select(x => new string[] { DateStr(x.OccurredAt), x.InventoryItemId.ToString(), x.Type.ToString(), Money(x.Quantity) }).ToListAsync(ct);
+        var rows = await db.InventoryMovements.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.OccurredAt >= start && x.OccurredAt < end).OrderBy(x => x.OccurredAt).Select(x => new string[] { DateStr(x.OccurredAt), x.InventoryItemId.ToString(), x.Type.ToString(), Money(x.Quantity) }).ToListAsync(ct);
         return (["OccurredAt", "ItemId", "Type", "Quantity"], rows, $"{rows.Count} movements");
     }
 
-    private static async Task<(string[], List<string[]>, string)> ProfitLossCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[], List<string[]>, string)> ProfitLossCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new string[] { DateStr(x.CreatedAt), x.Status.ToString(), Money(x.NetAmount), Money(x.GrossAmount) }).ToListAsync(ct);
+        var rows = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new string[] { DateStr(x.CreatedAt), x.Status.ToString(), Money(x.NetAmount), Money(x.GrossAmount) }).ToListAsync(ct);
         return (["CreatedAt", "Status", "Net", "Gross"], rows, $"{rows.Count} orders");
     }
 
-    private static Task<(string[], List<string[]>, string)> AlertsCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static Task<(string[], List<string[]>, string)> AlertsCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        _ = (db, branchId, start, end, ct);
+        _ = (db, branchIds, start, end, ct);
         return Task.FromResult((new string[] { "Code", "Message" }, new List<string[]>(), "Operational alerts summary"));
     }
 

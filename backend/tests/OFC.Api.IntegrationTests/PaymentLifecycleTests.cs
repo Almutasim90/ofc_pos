@@ -150,7 +150,7 @@ public class PaymentLifecycleTests
         order = await (await client.GetAsync($"/api/v1/orders/{orderId}")).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Paid", order.GetProperty("status").GetString());
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments/{firstId}/reverse", new { reason = "Wrong card" })).StatusCode);
-        var replacement = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = methodId, amount = 2m, tenderedAmount = 2m, status = "Captured" } } });
+        var replacement = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = methodId, amount = 2m, tenderedAmount = 2m, status = "Captured", providerReference = "CAP-REPLACEMENT" } } });
         Assert.True(replacement.IsSuccessStatusCode, await replacement.Content.ReadAsStringAsync());
         order = await (await client.GetAsync($"/api/v1/orders/{orderId}")).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Paid", order.GetProperty("status").GetString());
@@ -182,7 +182,7 @@ public class PaymentLifecycleTests
         using var factory = new ApiFactory();
         var (client, branchId, productId, channelId, methodId) = await Seed(factory);
         var orderId = await CreatePendingOrder(client, branchId, channelId, productId);
-        var response = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = methodId, amount = 5m, tenderedAmount = 5m, status = "Captured" } } });
+        var response = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = methodId, amount = 5m, tenderedAmount = 5m, status = "Captured", providerReference = "CAP-REASON-TEST" } } });
         var paymentId = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("payments")[0].GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments/{paymentId}/reverse", new { reason })).StatusCode);
         using var scope = factory.Services.CreateScope();

@@ -26,15 +26,36 @@ builder.Services.AddHostedService<KitchenFallbackWatcher>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    // QR context codes are intentionally allowed to be short, staff-chosen table/pickup codes (e.g.
+    // "T-01") rather than forced to be long random tokens, so this limit is the only real brake on
+    // someone enumerating codes for this branch (security review finding M6) — it slows a single-IP
+    // guesser but a determined attacker spreading requests across many IPs can still get around it.
+    // Closing that fully would mean either dropping short custom codes or adding per-code lockout state.
     options.AddPolicy("qr-anonymous", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 15, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Login is the other anonymous route; without this it has no protection against
+    // brute-force/credential-stuffing (security review finding M1).
+    options.AddPolicy("login", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseMiddleware<CorrelationIdMiddleware>();
+// Defense-in-depth headers (security review finding L4). nginx.conf sets the same headers for the
+// split web+api compose deployment; this covers the combined image where OFC.Api serves the SPA
+// itself (see the fallback file mapping below) and every JSON API response either way.
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    context.Response.Headers.Append("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' wss: https:; frame-ancestors 'none'");
+    await next();
+});
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();

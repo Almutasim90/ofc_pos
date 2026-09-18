@@ -39,9 +39,19 @@ public static class SprintThirteenEndpoints
     private static async Task<IResult> AuditLogs(Guid? branchId, Guid? userId, string? entityType, string? entityId, string? action, DateTimeOffset? from, DateTimeOffset? to, int page, int pageSize, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!user.HasClaim("permission", "audit.view")) return Forbidden();
+        // "audit.manage" is the org-wide audit permission; everyone else (plain "audit.view") is
+        // restricted to their own accessible branches, and never sees org-level (BranchId == null) entries.
+        var unrestricted = user.HasClaim("permission", "audit.manage");
+        List<Guid> accessibleBranchIds = [];
+        if (!unrestricted)
+        {
+            accessibleBranchIds = await AccessibleBranches(db, user, branchId, ct);
+            if (accessibleBranchIds.Count == 0) return Forbidden();
+        }
         var (start, end) = ResolveRange(from, to);
         IQueryable<AuditEntry> query = db.AuditEntries.AsNoTracking();
-        if (branchId.HasValue) query = query.Where(x => x.BranchId == branchId);
+        if (!unrestricted) query = query.Where(x => x.BranchId.HasValue && accessibleBranchIds.Contains(x.BranchId.Value));
+        else if (branchId.HasValue) query = query.Where(x => x.BranchId == branchId);
         if (userId.HasValue) query = query.Where(x => x.UserId == userId);
         if (!string.IsNullOrWhiteSpace(entityType)) query = query.Where(x => x.EntityType == entityType!.Trim());
         if (!string.IsNullOrWhiteSpace(entityId)) query = query.Where(x => x.EntityId == entityId!.Trim());
@@ -277,9 +287,14 @@ public static class SprintThirteenEndpoints
 
     private static async Task<IResult> ExportReport(string report, string? format, Guid? branchId, DateTimeOffset? from, DateTimeOffset? to, Guid? userId, string? entityType, string? entityId, string? action, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
-        // Mirrors every other report endpoint's CanView check — a user scoped to one branch could
-        // otherwise export another branch's report just by passing a different branchId.
-        if (!await CanView(db, user, branchId, "reports.export", ct)) return Forbidden();
+        if (!user.HasClaim("permission", "reports.export")) return Forbidden();
+        // A missing branchId used to mean "no restriction" (every branch/org). It now always resolves
+        // to the caller's own accessible branches — mirrors AuditLogs' scoping, and the interactive
+        // report endpoints' CanView check, so the CSV export can never see more than the JSON view does.
+        var isAuditReport = report is "audit" or "audit-logs";
+        var unrestricted = isAuditReport && user.HasClaim("permission", "audit.manage");
+        var branchIds = unrestricted ? [] : await AccessibleBranches(db, user, branchId, ct);
+        if (!unrestricted && branchIds.Count == 0) return Forbidden();
         if (!ReportingRules.IsKnownReport(report)) return Validation("report", "The requested report is not available for export.");
         var fmt = format ?? "csv";
         if (!ReportingRules.ValidFormat(fmt)) return Validation("format", "Only CSV export is supported.");
@@ -290,10 +305,10 @@ public static class SprintThirteenEndpoints
         {
             var (header, rows, summary) = report switch
             {
-                "sales" => await SalesCsv(db, branchId, start, end, ct),
-                "payments" => await PaymentsCsv(db, branchId, start, end, ct),
-                "audit" or "audit-logs" => await AuditCsv(db, branchId, start, end, ct),
-                _ => await SprintSeventeenEndpoints.BuildExport(db, report, branchId, start, end, ct) ?? throw new InvalidOperationException("unsupported")
+                "sales" => await SalesCsv(db, branchIds, start, end, ct),
+                "payments" => await PaymentsCsv(db, branchIds, start, end, ct),
+                "audit" or "audit-logs" => await AuditCsv(db, unrestricted ? null : branchIds, start, end, ct),
+                _ => await SprintSeventeenEndpoints.BuildExport(db, report, branchIds, start, end, ct) ?? throw new InvalidOperationException("unsupported")
             };
             export.Status = ReportExportStatus.Generated;
             export.RowCount = rows.Count;
@@ -312,25 +327,42 @@ public static class SprintThirteenEndpoints
         }
     }
 
-    private static async Task<(string[] Header, List<string[]> Rows, string Summary)> SalesCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[] Header, List<string[]> Rows, string Summary)> SalesCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new { x.BranchId, x.SalesChannelId, x.CreatedByUserId, x.CreatedAt, x.NetAmount, x.TaxAmount, x.GrossAmount }).ToListAsync(ct);
+        var rows = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new { x.BranchId, x.SalesChannelId, x.CreatedByUserId, x.CreatedAt, x.NetAmount, x.TaxAmount, x.GrossAmount }).ToListAsync(ct);
         var lines = rows.Select(x => new string[] { x.BranchId.ToString(), x.SalesChannelId.ToString(), x.CreatedByUserId?.ToString() ?? "", DateStr(x.CreatedAt), Money(x.NetAmount), Money(x.TaxAmount), Money(x.GrossAmount) }).ToList();
         return (["BranchId", "ChannelId", "CashierId", "CreatedAt", "Net", "Tax", "Gross"], lines, $"{rows.Count} orders");
     }
 
-    private static async Task<(string[] Header, List<string[]> Rows, string Summary)> PaymentsCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    private static async Task<(string[] Header, List<string[]> Rows, string Summary)> PaymentsCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var payments = await db.Payments.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end).OrderBy(x => x.CreatedAt).Select(x => new { x.OrderId, x.PaymentMethodId, x.Amount, x.TenderedAmount, x.ChangeAmount, status = x.Status.ToString(), x.CreatedAt }).ToListAsync(ct);
+        var payments = await db.Payments.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end).OrderBy(x => x.CreatedAt).Select(x => new { x.OrderId, x.PaymentMethodId, x.Amount, x.TenderedAmount, x.ChangeAmount, status = x.Status.ToString(), x.CreatedAt }).ToListAsync(ct);
         var rows = payments.Select(x => new string[] { x.OrderId.ToString(), x.PaymentMethodId.ToString(), Money(x.Amount), Money(x.TenderedAmount), Money(x.ChangeAmount), x.status, DateStr(x.CreatedAt) }).ToList();
         return (["OrderId", "PaymentMethodId", "Amount", "Tendered", "Change", "Status", "CreatedAt"], rows, $"{rows.Count} payments");
     }
 
-    private static async Task<(string[] Header, List<string[]> Rows, string Summary)> AuditCsv(OFCDbContext db, Guid? branchId, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
+    // A null branchIds means the caller holds "audit.manage" (org-wide); otherwise the list is the
+    // caller's own verified accessible branches and org-level (BranchId == null) entries are excluded.
+    private static async Task<(string[] Header, List<string[]> Rows, string Summary)> AuditCsv(OFCDbContext db, List<Guid>? branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var entries = await db.AuditEntries.AsNoTracking().Where(x => x.OccurredAt >= start && x.OccurredAt < end && (branchId == null || x.BranchId == branchId)).OrderBy(x => x.OccurredAt).Take(ReportingRules.ExportMaxRows).ToListAsync(ct);
+        var entries = await db.AuditEntries.AsNoTracking().Where(x => x.OccurredAt >= start && x.OccurredAt < end && (branchIds == null || (x.BranchId.HasValue && branchIds.Contains(x.BranchId.Value)))).OrderBy(x => x.OccurredAt).Take(ReportingRules.ExportMaxRows).ToListAsync(ct);
         var rows = entries.Select(x => new string[] { DateStr(x.OccurredAt), x.UserId?.ToString() ?? "", x.BranchId?.ToString() ?? "", x.Action, x.EntityType, x.EntityId, x.CorrelationId }).ToList();
         return (["OccurredAt", "UserId", "BranchId", "Action", "EntityType", "EntityId", "CorrelationId"], rows, $"{rows.Count} audit entries");
+    }
+
+    // Resolves which branches the caller may see: an explicit branchId is only honored when the caller
+    // is actually assigned to it; omitting it returns every branch the caller has access to (never "all").
+    private static async Task<List<Guid>> AccessibleBranches(OFCDbContext db, ClaimsPrincipal user, Guid? branchId, CancellationToken ct)
+    {
+        if (branchId.HasValue)
+        {
+            if (user.FindFirstValue("branch_id") == branchId.Value.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId.Value, ct)) return [branchId.Value];
+            return [];
+        }
+        var ids = new HashSet<Guid>();
+        if (Guid.TryParse(user.FindFirstValue("branch_id"), out var claim)) ids.Add(claim);
+        foreach (var id in await db.UserBranches.AsNoTracking().Where(x => x.UserId == UserId(user)).Select(x => x.BranchId).ToListAsync(ct)) ids.Add(id);
+        return ids.ToList();
     }
 
     private static async Task<bool> CanView(OFCDbContext db, ClaimsPrincipal user, Guid? branchId, string permission, CancellationToken ct)
