@@ -4,6 +4,8 @@ import { FormDialog } from "@/app/FormDialog";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
@@ -172,7 +174,7 @@ export function ProcurementSection({ language }: { language: Language }) {
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
       <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Truck size={18} /><span>{t.intro2}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Truck size={18} /><span>{t.intro2}</span><Button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</Button></div>
 
       <div className="mt-5 max-w-md">
         <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
@@ -183,16 +185,16 @@ export function ProcurementSection({ language }: { language: Language }) {
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.suppliers}</h2><button type="button" onClick={() => setDialog("supplier")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addSupplier}</button></div>
-          <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.suppliers}</h2><Button type="button" onClick={() => setDialog("supplier")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addSupplier}</Button></div>
+          <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><Input aria-label={t.search} placeholder={t.search} value={supplierSearch} onChange={(e) => setSupplierSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
           {filteredSuppliers.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageSuppliers.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{s.code}</span><span className="text-[#000000]"> · {name(s)}</span>{s.vatNumber && <span className="text-[#000000]"> · VAT {s.vatNumber}</span>}</div><button onClick={() => void viewHistory(s.id)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]"><Eye size={14} />{t.viewHistory}</button></li>)}</ul>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageSuppliers.map((s) => <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{s.code}</span><span className="text-[#000000]"> · {name(s)}</span>{s.vatNumber && <span className="text-[#000000]"> · VAT {s.vatNumber}</span>}</div><Button onClick={() => void viewHistory(s.id)} className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]"><Eye size={14} />{t.viewHistory}</Button></li>)}</ul>
             <Pagination page={supplierPage} pageSize={PAGE_SIZE} total={filteredSuppliers.length} onPageChange={setSupplierPage} language={language} />
           </>)}
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.purchaseOrders}</h2><button type="button" onClick={() => setDialog("purchaseOrder")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addPo}</button></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.purchaseOrders}</h2><Button type="button" onClick={() => setDialog("purchaseOrder")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addPo}</Button></div>
           {orders.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
             <ul className="mt-3 space-y-2">{pageOrders.map((o) => (
               <li key={o.id} className="rounded-lg border border-[#e8ece8] px-3 py-2 text-sm">
@@ -202,11 +204,11 @@ export function ProcurementSection({ language }: { language: Language }) {
                 </div>
                 <p className="mt-1 text-[#000000]">{language === "ar" ? o.supplierNameAr : o.supplierNameEn ?? ""} · {o.lineCount} {t.lines} · {fmt(o.totalAmount)}</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {o.status === "Draft" && <button onClick={() => void actionPurchaseOrder(o.id, "submit")} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.submit}</button>}
-                  {o.status === "Submitted" && <button onClick={() => void actionPurchaseOrder(o.id, "approve")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white"><BadgeCheck size={14} />{t.approve}</button>}
-                  {o.status === "Submitted" && <button onClick={() => void actionPurchaseOrder(o.id, "reject")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#b4322a] px-2.5 text-xs font-semibold text-white"><XCircle size={14} />{t.reject}</button>}
-                  {editableOrder(o) && <button onClick={() => void actionPurchaseOrder(o.id, "cancel")} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.cancelOrder}</button>}
-                  {o.status === "Approved" && <button onClick={() => void actionPurchaseOrder(o.id, "receive")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white"><Recycle size={14} />{t.receive}</button>}
+                  {o.status === "Draft" && <Button onClick={() => void actionPurchaseOrder(o.id, "submit")} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.submit}</Button>}
+                  {o.status === "Submitted" && <Button onClick={() => void actionPurchaseOrder(o.id, "approve")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white"><BadgeCheck size={14} />{t.approve}</Button>}
+                  {o.status === "Submitted" && <Button onClick={() => void actionPurchaseOrder(o.id, "reject")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#b4322a] px-2.5 text-xs font-semibold text-white"><XCircle size={14} />{t.reject}</Button>}
+                  {editableOrder(o) && <Button onClick={() => void actionPurchaseOrder(o.id, "cancel")} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.cancelOrder}</Button>}
+                  {o.status === "Approved" && <Button onClick={() => void actionPurchaseOrder(o.id, "receive")} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white"><Recycle size={14} />{t.receive}</Button>}
                 </div>
               </li>
             ))}</ul>
@@ -215,7 +217,7 @@ export function ProcurementSection({ language }: { language: Language }) {
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.goodsReceipts}</h2><button type="button" onClick={() => setDialog("goodsReceipt")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addGr}</button></div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.goodsReceipts}</h2><Button type="button" onClick={() => setDialog("goodsReceipt")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addGr}</Button></div>
           {receipts.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
             <ul className="mt-3 space-y-2">{pageReceipts.map((g) => (
               <li key={g.id} className="rounded-lg border border-[#e8ece8] px-3 py-2 text-sm">
@@ -224,7 +226,7 @@ export function ProcurementSection({ language }: { language: Language }) {
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${g.status === "Posted" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{grStatus(g.status)}</span>
                 </div>
                 <p className="mt-1 text-[#000000]">{language === "ar" ? g.supplierNameAr : g.supplierNameEn ?? ""} · {g.lineCount} {t.lines} · {fmt(g.totalAmount)}</p>
-                {g.status === "Draft" && <div className="mt-2"><button onClick={() => void postGoodsReceipt(g.id)} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white"><Recycle size={14} />{t.post}</button></div>}
+                {g.status === "Draft" && <div className="mt-2"><Button onClick={() => void postGoodsReceipt(g.id)} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white"><Recycle size={14} />{t.post}</Button></div>}
               </li>
             ))}</ul>
             <Pagination page={receiptPage} pageSize={PAGE_SIZE} total={receipts.length} onPageChange={setReceiptPage} language={language} />
@@ -274,7 +276,7 @@ export function ProcurementSection({ language }: { language: Language }) {
             <Field label={t.address} value={supplierForm.address} onChange={(v) => setSupplierForm({ ...supplierForm, address: v })} max={500} />
           </div>
           <Field label={t.notes} value={supplierForm.notes} onChange={(v) => setSupplierForm({ ...supplierForm, notes: v })} max={2000} />
-          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</button>
+          <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</Button>
         </form>
       </FormDialog>}
 
@@ -290,10 +292,10 @@ export function ProcurementSection({ language }: { language: Language }) {
             <Select label={t.unit} value={l.unitId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
             <Field label={t.quantity} value={l.quantity} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
             <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
-            <button type="button" onClick={() => setPoLines(poLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:col-span-2 lg:col-span-1 lg:self-end">{t.remove}</button>
+            <Button type="button" onClick={() => setPoLines(poLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:col-span-2 lg:col-span-1 lg:self-end">{t.remove}</Button>
           </div>)}</div>
-          <button type="button" onClick={() => setPoLines([...poLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
-          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
+          <Button type="button" onClick={() => setPoLines([...poLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</Button>
+          <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</Button>
         </form>
       </FormDialog>}
 
@@ -309,10 +311,10 @@ export function ProcurementSection({ language }: { language: Language }) {
             <Select label={t.unit} value={l.unitId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
             <Field label={t.quantity} value={l.quantity} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
             <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
-            <button type="button" onClick={() => setGrLines(grLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:col-span-2 lg:col-span-1 lg:self-end">{t.remove}</button>
+            <Button type="button" onClick={() => setGrLines(grLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:col-span-2 lg:col-span-1 lg:self-end">{t.remove}</Button>
           </div>)}</div>
-          <button type="button" onClick={() => setGrLines([...grLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
-          <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
+          <Button type="button" onClick={() => setGrLines([...grLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</Button>
+          <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</Button>
         </form>
       </FormDialog>}
     </div>
@@ -322,7 +324,7 @@ export function ProcurementSection({ language }: { language: Language }) {
 function HistMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-3 text-center"><p className="text-lg font-semibold">{value}</p><p className="text-xs text-[#000000]">{label}</p></div>; }
 
 function Field({ label, value, onChange, max, type = "text" }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string }) {
-  return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+  return <label className="block text-sm font-medium">{label}<Input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {

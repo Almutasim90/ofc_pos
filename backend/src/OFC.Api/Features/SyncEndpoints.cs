@@ -152,7 +152,8 @@ public static class SyncEndpoints
         // client's Unit*/Tax* fields as-is — see security review finding H3 (offline sync order path
         // trusted client-supplied prices/totals with no server-side re-pricing).
         var productIds = orderRequest.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product)
+        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability)
+            .Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability)
             .Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))
             .ToDictionaryAsync(x => x.Id, x => x, ct);
         if (products.Count != productIds.Count) return OperationResult(key, OrderType, "failed", error: "One or more products on this offline order no longer exist or are unavailable at this branch.");

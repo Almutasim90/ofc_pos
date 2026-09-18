@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, ShoppingBag, Trash2, Wifi, WifiOff } from "lucide-react";
 import { store } from "@/lib/local-store";
 import { backoffDelay, cancelPending, conflicts, enqueue, flush, getBranchId, lastSyncVersion, lastSyncedAt, pending, pendingCount, retryConflict, setBranchId } from "@/lib/sync-outbox";
+import { Button } from "@/components/ui/button";
 
 type Language = "ar" | "en";
 type Context = { branches: Array<{ id: string; nameAr: string; nameEn: string }>; channels: Array<{ id: string; code: string; nameAr: string; nameEn: string }> };
@@ -173,25 +174,25 @@ export function SyncSection({ language }: { language: Language }) {
         <span className={`inline-flex items-center gap-2 font-semibold ${online ? "text-[#137347]" : "text-[#b4322a]"}`}>{online ? <Wifi size={18} /> : <WifiOff size={18} />}{online ? t.online : t.offline}</span>
         <span className="text-[#000000]">{t.serverVersion}: <strong>{version}</strong></span>
         <span className="text-[#000000]">{t.catalogVersion}: <strong>{catalogVersion}</strong></span>
-        <button onClick={() => void syncNow()} disabled={syncing || !online} className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-xs font-semibold text-white disabled:opacity-50"><RefreshCw size={15} className={syncing ? "animate-spin" : ""} />{syncing ? t.syncing : t.syncNow}</button>
+        <Button onClick={() => void syncNow()} disabled={syncing || !online} className="ml-auto inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-xs font-semibold text-white disabled:opacity-50"><RefreshCw size={15} className={syncing ? "animate-spin" : ""} />{syncing ? t.syncing : t.syncNow}</Button>
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
 
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="flex items-center justify-between font-semibold"><span>{t.pending} ({pendingItems.length})</span>{pendingItems.length > 0 && online && <button onClick={() => void syncNow()} disabled={syncing} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f] disabled:opacity-50">{t.syncNow}</button>}</h2>
+          <h2 className="flex items-center justify-between font-semibold"><span>{t.pending} ({pendingItems.length})</span>{pendingItems.length > 0 && online && <Button onClick={() => void syncNow()} disabled={syncing} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f] disabled:opacity-50">{t.syncNow}</Button>}</h2>
           {pendingItems.length === 0 ? <p className="mt-4 text-sm text-[#000000]">{t.noPending}</p> : (
             <ul className="mt-4 divide-y divide-[#e8ece8]">{pendingItems.map((item) => <li key={item.idempotencyKey} className="flex items-center justify-between gap-3 py-3 text-sm"><span className="min-w-0 truncate">{item.operationType} <span className="text-[#000000]">· {item.idempotencyKey.slice(0, 8)}</span></span><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}>{online ? t.applied : t.offline}</span></li>)}</ul>
           )}
           <div className="mt-5 flex flex-wrap gap-3">
-            <button onClick={() => void enqueueTrial()} disabled={syncing || !online} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white disabled:opacity-50"><ShoppingBag size={18} />{t.enqueue}</button>
+            <Button onClick={() => void enqueueTrial()} disabled={syncing || !online} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white disabled:opacity-50"><ShoppingBag size={18} />{t.enqueue}</Button>
             <p className="text-xs text-[#66736d]">{t.lastSynced}: {fmtDate(syncedAt)}</p>
           </div>
         </section>
 
         <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-          <h2 className="flex items-center justify-between font-semibold"><span>{t.conflicts} ({conflictItems.length})</span>{conflictItems.length > 0 && <button onClick={() => { cancelPending(conflictItems.map((c) => c.idempotencyKey)); refresh(); }} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.clear}</button>}</h2>
+          <h2 className="flex items-center justify-between font-semibold"><span>{t.conflicts} ({conflictItems.length})</span>{conflictItems.length > 0 && <Button onClick={() => { cancelPending(conflictItems.map((c) => c.idempotencyKey)); refresh(); }} className="min-h-8 rounded-lg border border-[#b4322a] px-2.5 text-xs font-semibold text-[#b4322a]">{t.clear}</Button>}</h2>
           {conflictItems.length === 0 ? <p className="mt-4 text-sm text-[#000000]">{t.noConflicts}</p> : (
             <ul className="mt-4 space-y-3">{conflictItems.map((item) => {
               const stale = item.conflictReason === "stale-pricing";
@@ -205,8 +206,8 @@ export function SyncSection({ language }: { language: Language }) {
                   {stale && <p className="mt-2 text-xs text-[#8a6d1f]">{t.stalePricing}</p>}
                   {item.conflictReason === "negative-stock" && <p className="mt-2 text-xs text-[#b4322a]">{t.negativeStock}</p>}
                   <div className="mt-3 flex gap-2">
-                    <button onClick={() => { retryConflict(item.idempotencyKey); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><RefreshCw size={14} />{t.retry}</button>
-                    <button onClick={() => { cancelPending([item.idempotencyKey]); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><Trash2 size={14} />{t.dismiss}</button>
+                    <Button onClick={() => { retryConflict(item.idempotencyKey); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><RefreshCw size={14} />{t.retry}</Button>
+                    <Button onClick={() => { cancelPending([item.idempotencyKey]); refresh(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><Trash2 size={14} />{t.dismiss}</Button>
                   </div>
                 </li>
               );

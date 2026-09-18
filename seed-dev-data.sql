@@ -149,11 +149,14 @@ INSERT INTO ofc.pos_devices ("Id","BranchId","Name","RegistrationCode","IsActive
 (gen_random_uuid(),'22222222-2222-2222-2222-222222222222','Khaboora POS-01','REG-KHABOORA-001',true,now());
 
 -- Sales channels ------------------------------------------
-INSERT INTO ofc.sales_channels ("Id","Code","NameAr","NameEn","IsActive","CreatedAt") VALUES
-('aaaaaaaa-0000-0000-0000-000000000001','POS','نقطة بيع','POS',true,now()),
-('aaaaaaaa-0000-0000-0000-000000000002','WEBQR','ويب / QR','Web / QR',true,now()),
-('aaaaaaaa-0000-0000-0000-000000000003','DINEIN','محلي','Dine In',true,now()),
-('aaaaaaaa-0000-0000-0000-000000000004','TAKEAWAY','سفري','Takeaway',true,now());
+INSERT INTO ofc.sales_channels ("Id","Code","NameAr","NameEn","Kind","IsActive","CreatedAt") VALUES
+('aaaaaaaa-0000-0000-0000-000000000001','POS','نقطة بيع','POS','InStore',true,now()),
+('aaaaaaaa-0000-0000-0000-000000000002','WEBQR','ويب / QR','Web / QR','Qr',true,now()),
+('aaaaaaaa-0000-0000-0000-000000000003','DINEIN','محلي','Dine In','DineIn',true,now()),
+('aaaaaaaa-0000-0000-0000-000000000004','TAKEAWAY','سفري','Takeaway','Takeaway',true,now()),
+('aaaaaaaa-0000-0000-0000-000000000005','TALABAT','طلبات','Talabat','Electronic',true,now()),
+('aaaaaaaa-0000-0000-0000-000000000006','TMDONE','تم دن','TM Done','Electronic',true,now()),
+('aaaaaaaa-0000-0000-0000-000000000007','KHIDMA','خدمة','Khedmah','Electronic',true,now());
 
 -- Tax ------------------------------------------------------
 INSERT INTO ofc.tax_categories ("Id","Code","NameAr","NameEn","Rate","IsActive") VALUES
@@ -392,13 +395,11 @@ INSERT INTO ofc.catalog_versions ("Id","Number","Note","PublishedAt","PublishedB
 -- Payment methods (per branch) ----------------------------
 INSERT INTO ofc.payment_methods ("Id","BranchId","Code","NameAr","NameEn","Kind","IsActive","SortOrder","CreatedAt") VALUES
 (gen_random_uuid(),'22222222-2222-2222-2222-222222222221','CASH','نقدي','Cash','Cash',true,1,now()),
-(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','OMANNET','عمان نت','OmanNet','OmanNet',true,2,now()),
-(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','CARD','بطاقة','Card','Visa',true,3,now()),
-(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','APPLEPAY','أبل باي','Apple Pay','ApplePay',true,4,now()),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','CARD','بطاقة','Card','Card',true,2,now()),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222221','EXTERNAL','دفع خارجي','External payment','External',true,3,now()),
 (gen_random_uuid(),'22222222-2222-2222-2222-222222222222','CASH','نقدي','Cash','Cash',true,1,now()),
-(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','OMANNET','عمان نت','OmanNet','OmanNet',true,2,now()),
-(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','CARD','بطاقة','Card','Visa',true,3,now()),
-(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','APPLEPAY','أبل باي','Apple Pay','ApplePay',true,4,now());
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','CARD','بطاقة','Card','Card',true,2,now()),
+(gen_random_uuid(),'22222222-2222-2222-2222-222222222222','EXTERNAL','دفع خارجي','External payment','External',true,3,now());
 
 -- Cancellation reasons (per branch) -----------------------
 INSERT INTO ofc.cancellation_reasons ("Id","BranchId","Code","NameAr","NameEn","RequiresNote","IsActive","SortOrder","CreatedAt") VALUES

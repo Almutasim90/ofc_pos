@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { store } from "@/lib/local-store";
 import { PermissionGrid, type PermissionOverride } from "@/app/PermissionGrid";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type Language = "ar" | "en";
 type Role = { id: string; name: string; permissions: string[] };
@@ -66,9 +70,9 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid min-w-0 place-items-end bg-black/35 sm:place-items-center sm:p-5">
+    <div className="fixed inset-0 z-[100] grid min-w-0 place-items-end bg-black/35 sm:place-items-center sm:p-5">
       <form onSubmit={save} className="flex max-h-[100dvh] min-w-0 w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-[#f5f6f2] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e8ece8] bg-white px-4 py-3 sm:px-5 sm:py-4"><div className="min-w-0"><p className="text-sm font-semibold text-[#0e5a4f]">{user ? t.edit : t.create}</p><h2 className="break-words text-lg font-bold sm:text-xl">{user ? user.displayName : t.create}</h2></div><button type="button" aria-label={t.cancel} onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-lg border border-[#cdd7d0]"><X size={18} /></button></div>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e8ece8] bg-white px-4 py-3 sm:px-5 sm:py-4"><div className="min-w-0"><p className="text-sm font-semibold text-[#0e5a4f]">{user ? t.edit : t.create}</p><h2 className="break-words text-lg font-bold sm:text-xl">{user ? user.displayName : t.create}</h2></div><Button type="button" variant="outline" size="icon" aria-label={t.cancel} onClick={onClose} className="size-11 shrink-0"><X size={18} /></Button></div>
         <div className="min-h-0 min-w-0 flex-1 space-y-4 overscroll-contain overflow-x-hidden overflow-y-auto p-3 sm:space-y-5 sm:p-5">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-3 sm:p-5">
             <h3 className="text-sm font-semibold">{t.account}</h3>
@@ -78,15 +82,15 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
               <Field required label={t.displayName} value={form.displayName} onChange={(v) => setForm({ ...form, displayName: v })} max={160} />
               <Field required={!user} label={user ? t.newPassword : t.password} type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} min={6} />
             </div>
-            {user && <label className="mt-4 flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="size-4 accent-[#0e5a4f]" />{t.active}</label>}
+            {user && <Label className="mt-4 flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm({ ...form, isActive: checked === true })} />{t.active}</Label>}
           </section>
 
           <section className="rounded-xl border border-[#dfe5df] bg-white p-3 sm:p-5">
             <h3 className="text-sm font-semibold">{t.roles}</h3>
             <p className="mt-1 text-xs text-[#000000]">{t.roleHint}</p>
-            {roles.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noRoles}</p> : <div className="mt-3 flex flex-wrap gap-2">{roles.map((r) => <label key={r.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${roleIds.includes(r.id) ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#08483f]" : "border-[#dfe5df] text-[#000000]"}`}><input type="checkbox" checked={roleIds.includes(r.id)} onChange={(e) => toggleRole(r.id, e.target.checked)} className="size-4 accent-[#0e5a4f]" />{r.name}</label>)}</div>}
+            {roles.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noRoles}</p> : <div className="mt-3 flex flex-wrap gap-2">{roles.map((r) => <Label key={r.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${roleIds.includes(r.id) ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}><Checkbox checked={roleIds.includes(r.id)} onCheckedChange={(checked) => toggleRole(r.id, checked === true)} />{r.name}</Label>)}</div>}
             <h3 className="mt-5 text-sm font-semibold">{t.branches}</h3>
-            {branches.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noBranches}</p> : <div className="mt-3 flex flex-wrap gap-2">{branches.map((b) => <label key={b.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${branchIds.includes(b.id) ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#08483f]" : "border-[#dfe5df] text-[#000000]"}`}><input type="checkbox" checked={branchIds.includes(b.id)} onChange={(e) => toggleBranch(b.id, e.target.checked)} className="size-4 accent-[#0e5a4f]" />{name(b)}</label>)}</div>}
+            {branches.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noBranches}</p> : <div className="mt-3 flex flex-wrap gap-2">{branches.map((b) => <Label key={b.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${branchIds.includes(b.id) ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}><Checkbox checked={branchIds.includes(b.id)} onCheckedChange={(checked) => toggleBranch(b.id, checked === true)} />{name(b)}</Label>)}</div>}
           </section>
 
           <section>
@@ -98,8 +102,8 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
           <p className="text-xs text-[#000000]">{t.selfNote}</p>
           {error && <p role="alert" className="mt-2 break-words text-sm text-[#b4322a]">{error}</p>}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-            <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-[#cdd7d0] px-4 text-sm font-semibold">{t.cancel}</button>
-            <button disabled={saving} className="min-h-11 rounded-lg bg-[#0e5a4f] px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? t.saving : t.save}</button>
+            <Button type="button" variant="outline" onClick={onClose} className="min-h-11">{t.cancel}</Button>
+            <Button variant="default" disabled={saving} className="min-h-11">{saving ? t.saving : t.save}</Button>
           </div>
         </div>
       </form>
@@ -108,5 +112,5 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
 }
 
 function Field({ label, value, onChange, type = "text", max, min, required = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; max?: number; min?: number; required?: boolean }) {
-  return <label className="block text-sm font-medium">{label}<input required={required} type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} minLength={min} autoComplete={type === "password" ? "new-password" : "off"} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+  return <Label className="block text-sm font-medium">{label}<Input required={required} type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} minLength={min} autoComplete={type === "password" ? "new-password" : "off"} className="mt-2 min-h-12" /></Label>;
 }

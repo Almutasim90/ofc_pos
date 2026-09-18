@@ -36,7 +36,7 @@ public static class SprintTenEndpoints
         return Results.Ok(await db.PreparationStations.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn }).ToListAsync(ct));
     }
 
-    private static async Task<IResult> Dispatch(DispatchRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Dispatch(DispatchRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, IOrdersBroadcaster ordersBroadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!await CanOperate(db, user, request.BranchId, ct, "kitchen.manage") && !await CanOperate(db, user, request.BranchId, ct, "orders.manage")) return Forbidden();
         if (request.OrderId == Guid.Empty || request.ClientDispatchId == Guid.Empty) return Validation("request", "Provide an order id and a deterministic client dispatch id.");
@@ -53,6 +53,7 @@ public static class SprintTenEndpoints
         var orderNumber = string.IsNullOrWhiteSpace(request.OrderNumber) ? null : request.OrderNumber.Trim();
         var created = BuildTickets(db, identity, request.BranchId, order, products, request.ClientDispatchId, orderNumber, request.Note, request.TargetMinutes, UserId(user), DeviceId(user), context.TraceIdentifier);
         if (created.Count == 0) return Results.Ok(Array.Empty<object>());
+        await EnqueueFullOrderPrint(db, order, created[0].Id, UserId(user), DeviceId(user), ct);
         try
         {
             await db.SaveChangesAsync(ct);
@@ -69,6 +70,7 @@ public static class SprintTenEndpoints
             return Results.Ok(winner.Select(x => TicketResponse(x, null)));
         }
         foreach (var ticket in created) await broadcaster.TicketChanged(request.BranchId, ticket.Id, "dispatched");
+        if (order.Source == OrderSource.Qr) await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
         return Results.Created($"/api/v1/kitchen/tickets/{created[0].Id}", created.Select(x => TicketResponse(x, null)).ToList());
     }
 
@@ -96,6 +98,47 @@ public static class SprintTenEndpoints
         }
         if (created.Count > 0) ApplyOrderStatus(order, OrderStatus.SentToKitchen, createdByUserId, "Sent to kitchen");
         return created;
+    }
+
+    internal static async Task EnqueueFullOrderPrint(OFCDbContext db, Order order, Guid clientRequestId, Guid? createdByUserId, Guid? deviceId, CancellationToken ct)
+    {
+        if (await db.PrintJobs.AnyAsync(x => x.BranchId == order.BranchId && x.ClientRequestId == clientRequestId && x.Kind == PrintJobKind.Kitchen, ct)) return;
+        var routes = await db.PrinterRoutes.AsNoTracking().Where(x => x.BranchId == order.BranchId).ToListAsync(ct);
+        var route = PrintingRules.PickRoute(routes, null);
+        var templateCode = route is null ? null : await db.PrintTemplates.AsNoTracking().Where(x => x.Id == route.PrintTemplateId).Select(x => x.Code).FirstOrDefaultAsync(ct);
+        var lines = order.Lines.Where(x => x.VoidedQuantity < x.Quantity).Select(x => new
+        {
+            x.ProductNameAr,
+            x.ProductNameEn,
+            quantity = x.Quantity - x.VoidedQuantity,
+            x.Note,
+            selections = JsonSerializer.Deserialize<JsonElement>(x.SelectionsSnapshot)
+        }).ToList();
+        var readableLines = string.Join("\n", lines.Select(x => $"{x.quantity} x {x.ProductNameEn}{(string.IsNullOrWhiteSpace(x.Note) ? "" : $" — {x.Note}")}\n  {x.selections}"));
+        var payload = new
+        {
+            documentType = "full-kitchen-order",
+            orderNumber = order.Number,
+            orderId = order.Id,
+            source = order.Source.ToString(),
+            order.Note,
+            order.GrossAmount,
+            itemCount = lines.Count,
+            lines,
+            fullText = $"ORDER #{order.Number}\n{order.Source}\n{readableLines}\nTOTAL {order.GrossAmount:0.000} OMR"
+        };
+        db.PrintJobs.Add(new PrintJob
+        {
+            BranchId = order.BranchId,
+            DeviceId = deviceId,
+            OrderId = order.Id,
+            ClientRequestId = clientRequestId,
+            Kind = PrintJobKind.Kitchen,
+            PrinterConfigurationId = route?.PrinterConfigurationId,
+            TemplateCode = templateCode,
+            Payload = JsonSerializer.Serialize(payload),
+            CreatedByUserId = createdByUserId
+        });
     }
 
     private static async Task<IResult> ListTickets(Guid branchId, Guid? stationId, string? status, bool? activeOnly, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
@@ -200,7 +243,7 @@ public static class SprintTenEndpoints
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), DateTimeOffset.UtcNow));
     }
 
-    private static async Task<IResult> SetItemStatus(Guid id, Guid itemId, ItemStatusRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> SetItemStatus(Guid id, Guid itemId, ItemStatusRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, IOrdersBroadcaster ordersBroadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -216,13 +259,14 @@ public static class SprintTenEndpoints
         if (request.Status == KitchenItemStatus.Completed) item.CompletedAt ??= now;
         ApplyTicketProgress(ticket, now);
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.item.update", "kitchen_ticket_item", item.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticketId = ticket.Id, itemStatus = item.Status }));
-        await SynchronizeOrderStatus(db, ticket.OrderId, UserId(user), ct);
+        var order = await SynchronizeOrderStatus(db, ticket.OrderId, UserId(user), ct);
         await db.SaveChangesAsync(ct);
         await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "item-updated");
+        if (order?.Source == OrderSource.Qr) await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
-    private static async Task<IResult> Cancel(Guid id, CancelRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> Cancel(Guid id, CancelRequest request, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, IOrdersBroadcaster ordersBroadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (ticket is null) return Results.NotFound();
@@ -243,9 +287,10 @@ public static class SprintTenEndpoints
             db.PrintJobs.Add(alert);
         }
         identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.cancel", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.Status, ticket.WasPrepStartedBeforeCancellation, ticket.CancellationNotified }));
-        await SynchronizeOrderStatus(db, ticket.OrderId, UserId(user), ct);
+        var order = await SynchronizeOrderStatus(db, ticket.OrderId, UserId(user), ct);
         await db.SaveChangesAsync(ct);
         await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "cancelled");
+        if (order?.Source == OrderSource.Qr) await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
         return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
@@ -275,11 +320,11 @@ public static class SprintTenEndpoints
         ticket.UpdatedAt = now;
     }
 
-    private static async Task SynchronizeOrderStatus(OFCDbContext db, Guid? orderId, Guid? changedByUserId, CancellationToken ct)
+    private static async Task<Order?> SynchronizeOrderStatus(OFCDbContext db, Guid? orderId, Guid? changedByUserId, CancellationToken ct)
     {
-        if (orderId is null) return;
+        if (orderId is null) return null;
         var order = await db.Orders.Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.Id == orderId.Value, ct);
-        if (order is null || order.Status is OrderStatus.Cancelled or OrderStatus.Rejected or OrderStatus.Refunded) return;
+        if (order is null || order.Status is OrderStatus.Cancelled or OrderStatus.Rejected or OrderStatus.Refunded) return order;
         var tickets = await db.KitchenTickets.Where(x => x.OrderId == orderId.Value).ToListAsync(ct);
         var active = tickets.Where(x => x.Status != KitchenTicketStatus.Cancelled).ToList();
         var target = active.Count == 0
@@ -292,6 +337,7 @@ public static class SprintTenEndpoints
                         ? OrderStatus.Preparing
                         : OrderStatus.SentToKitchen;
         ApplyOrderStatus(order, target, changedByUserId, "Kitchen progress");
+        return order;
     }
 
     private static void ApplyOrderStatus(Order order, OrderStatus target, Guid? changedByUserId, string note)

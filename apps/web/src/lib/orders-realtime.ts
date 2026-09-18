@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as signalR from "@microsoft/signalr";
 import { useReliableBranchHub } from "@/lib/reliable-hub";
 
 export type QrOrderReceivedEvent = {
@@ -35,16 +36,74 @@ export function useQrOrdersLive(
   const synchronizedRef = useRef(onSynchronized);
   synchronizedRef.current = onSynchronized;
 
-  const live = useReliableBranchHub("/hubs/orders", branchId, (connection) => {
-    connection.on("qrOrderReceived", (payload: QrOrderReceivedEvent) => { if (payload.branchId === branchId) receivedRef.current?.(payload); });
-    connection.on("qrOrderReviewed", (payload: QrOrderReviewedEvent) => { if (payload.branchId === branchId) reviewedRef.current?.(payload); });
-  }, () => synchronizedRef.current?.());
+  const live = useReliableBranchHub(
+    "/hubs/orders",
+    branchId,
+    (connection) => {
+      connection.on("qrOrderReceived", (payload: QrOrderReceivedEvent) => {
+        if (payload.branchId === branchId) receivedRef.current?.(payload);
+      });
+      connection.on("qrOrderReviewed", (payload: QrOrderReviewedEvent) => {
+        if (payload.branchId === branchId) reviewedRef.current?.(payload);
+      });
+    },
+    () => synchronizedRef.current?.(),
+  );
 
   useEffect(() => {
     if (!branchId) return;
-    const interval = window.setInterval(() => synchronizedRef.current?.(), live ? 60_000 : 10_000);
+    const interval = window.setInterval(
+      () => synchronizedRef.current?.(),
+      live ? 60_000 : 10_000,
+    );
     return () => window.clearInterval(interval);
   }, [branchId, live]);
+
+  return live;
+}
+
+export function useCustomerOrderLive(
+  contextCode: string,
+  clientRequestId: string | null,
+  onChanged: () => void,
+): boolean {
+  const [live, setLive] = useState(false);
+  const changedRef = useRef(onChanged);
+  changedRef.current = onChanged;
+
+  useEffect(() => {
+    if (!contextCode || !clientRequestId) {
+      setLive(false);
+      return;
+    }
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl("/hubs/customer-orders")
+      .withAutomaticReconnect()
+      .build();
+    let disposed = false;
+    connection.on("orderChanged", () => changedRef.current());
+    const join = async () => {
+      await connection.invoke("JoinOrder", contextCode, clientRequestId);
+      if (!disposed) {
+        setLive(true);
+        changedRef.current();
+      }
+    };
+    connection.onreconnecting(() => setLive(false));
+    connection.onreconnected(() => {
+      void join();
+    });
+    connection.onclose(() => setLive(false));
+    void connection
+      .start()
+      .then(join)
+      .catch(() => setLive(false));
+    return () => {
+      disposed = true;
+      setLive(false);
+      void connection.stop();
+    };
+  }, [contextCode, clientRequestId]);
 
   return live;
 }

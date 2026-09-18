@@ -3,6 +3,8 @@ import { Bot, Inbox, Plug, RefreshCw, Rocket, Send, ShieldCheck, ToggleLeft, Tog
 import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type Branch = { id: string; code: string; nameAr: string; nameEn: string; isActive: boolean };
@@ -155,7 +157,7 @@ export function IntegrationsSection({ language }: { language: Language }) {
       <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
 
       {state === "loading" && <div className="mt-8 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
-      {state === "error" && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>}
+      {state === "error" && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><Button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</Button></div>}
       {notice && <p role={notice.error ? "alert" : "status"} className={`mt-4 text-sm ${notice.error ? "text-[#b4322a]" : "text-[#137347]"}`}>{notice.text}</p>}
 
       {state === "idle" && (
@@ -166,7 +168,7 @@ export function IntegrationsSection({ language }: { language: Language }) {
             <section className="rounded-xl border border-[#dfe5df] bg-white p-4">
               <h2 className="flex items-center gap-2 font-semibold"><Bot size={16} />{t.ai}</h2>
               <p className="mt-2 text-sm text-[#000000]">{t.aiIntro}</p>
-              <button onClick={() => void suggest()} disabled={aiLoading} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Rocket size={16} />{aiLoading ? t.loading : t.getSuggestions}</button>
+              <Button onClick={() => void suggest()} disabled={aiLoading} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Rocket size={16} />{aiLoading ? t.loading : t.getSuggestions}</Button>
               {ai && (
                 <div className="mt-4 space-y-2">
                   <p className={`text-xs font-semibold ${ai.mode === "disabled" ? "text-[#8a6d1f]" : ai.mode === "degraded" ? "text-[#b4322a]" : "text-[#137347]"}`}>{ai.mode === "disabled" ? t.aiDisabled : ai.mode === "degraded" ? (ai.error ?? t.aiDegraded) : t.aiSafe}</p>
@@ -191,8 +193,8 @@ export function IntegrationsSection({ language }: { language: Language }) {
                     <div className="min-w-0"><p className="font-medium">{language === "ar" ? p.nameAr : p.nameEn}</p><p className="mt-1 text-xs text-[#000000]">{p.preferenceKey}{p.sensitive && <span className="ms-2 rounded-full bg-[#fbe4e2] px-2 py-0.5 font-semibold text-[#b4322a]">{t.sensitive}</span>}{p.requiresReview && <span className="ms-2 rounded-full bg-[#f4f1e3] px-2 py-0.5 font-semibold text-[#8a6d1f]">{t.requiresReview}</span>}</p></div>
                     <div className="flex items-center gap-2">
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${p.enabled ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{p.enabled ? t.enabled : t.disabled}</span>
-                      <button onClick={() => void setPreference(p.kind, !p.enabled)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold ${p.enabled ? "border-[#b4322a] text-[#b4322a]" : "border-[#0e5a4f] text-[#0e5a4f]"}`}>{p.enabled ? <ToggleLeft size={14} /> : <ToggleRight size={14} />}{p.enabled ? t.disable : t.enable}</button>
-                      <button onClick={() => void testAdapter(p.kind)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#cdd7d0] px-3 text-xs font-semibold text-[#000000]">{t.test}</button>
+                      <Button onClick={() => void setPreference(p.kind, !p.enabled)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold ${p.enabled ? "border-[#b4322a] text-[#b4322a]" : "border-[#0e5a4f] text-[#0e5a4f]"}`}>{p.enabled ? <ToggleLeft size={14} /> : <ToggleRight size={14} />}{p.enabled ? t.disable : t.enable}</Button>
+                      <Button onClick={() => void testAdapter(p.kind)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#cdd7d0] px-3 text-xs font-semibold text-[#000000]">{t.test}</Button>
                     </div>
                   </li>
                 ))}</ul>
@@ -200,12 +202,12 @@ export function IntegrationsSection({ language }: { language: Language }) {
             </div>
 
             <div className="rounded-xl border border-[#dfe5df] bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-5 py-4"><h2 className="flex items-center gap-2 font-semibold"><Inbox size={16} />{t.outbox} ({outbox.length})</h2><button onClick={() => setShowEnqueue(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f]"><Send size={16} />{t.enqueue}</button></div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-5 py-4"><h2 className="flex items-center gap-2 font-semibold"><Inbox size={16} />{t.outbox} ({outbox.length})</h2><Button onClick={() => setShowEnqueue(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f]"><Send size={16} />{t.enqueue}</Button></div>
               {outbox.length === 0 ? <p className="p-8 text-center text-sm text-[#000000]">{t.noOutbox}</p> : (
                 <ul className="divide-y divide-[#e8ece8]">{outbox.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div className="min-w-0"><p className="text-sm font-medium">{o.kind} · {o.type} · {o.channel}</p><p className="mt-1 truncate text-xs text-[#000000]">{o.payload}</p><p className="mt-1 text-xs text-[#000000]">{o.attempts}/{o.maxAttempts} · {(o.lastError ?? o.correlationId)}</p></div>
-                    <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(o.status)}`}>{t[statusKey(o.status)]}</span><button onClick={() => void dispatch(o.id)} disabled={o.status === "Dispatched"} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f] disabled:opacity-40">{t.test}</button></div>
+                    <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(o.status)}`}>{t[statusKey(o.status)]}</span><Button onClick={() => void dispatch(o.id)} disabled={o.status === "Dispatched"} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f] disabled:opacity-40">{t.test}</Button></div>
                   </li>
                 ))}</ul>
               )}
@@ -216,9 +218,9 @@ export function IntegrationsSection({ language }: { language: Language }) {
       {showEnqueue && <FormDialog title={t.enqueue} closeLabel={t.close} onClose={() => setShowEnqueue(false)} width="max-w-xl">
         <p className="text-sm text-[#000000]">{t.outboxIntro}</p>
         <form onSubmit={enqueueSample} className="mt-4 grid gap-3">
-          <input value={sample.type} onChange={(e) => setSample({ ...sample, type: e.target.value })} placeholder={t.typePlaceholder} maxLength={80} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
-          <input value={sample.payload} onChange={(e) => setSample({ ...sample, payload: e.target.value })} placeholder={t.payloadPlaceholder} maxLength={16000} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
-          <button disabled={enqueuing} className="inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={16} />{enqueuing ? t.loading : t.enqueue}</button>
+          <Input value={sample.type} onChange={(e) => setSample({ ...sample, type: e.target.value })} placeholder={t.typePlaceholder} maxLength={80} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
+          <Input value={sample.payload} onChange={(e) => setSample({ ...sample, payload: e.target.value })} placeholder={t.payloadPlaceholder} maxLength={16000} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" />
+          <Button disabled={enqueuing} className="inline-flex min-h-11 items-center justify-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={16} />{enqueuing ? t.loading : t.enqueue}</Button>
         </form>
       </FormDialog>}
     </div>

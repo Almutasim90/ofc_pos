@@ -6,6 +6,9 @@ import { Plus, RefreshCw, Search } from "lucide-react";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Language = "ar" | "en";
 type View = "branches" | "devices" | "users";
@@ -70,11 +73,13 @@ export function AdminSection({ language, view }: { language: Language; view: Vie
   const flash = (msg: string) => { setNotice(msg); setTimeout(() => setNotice(""), 3000); };
 
   return <>
-    <p className="text-sm font-semibold text-[#0e5a4f]">{t.access}</p>
-    <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{view === "branches" ? t.branches : view === "devices" ? t.devices : t.users}</h1>
+    <div className="admin-page-heading">
+      <p className="text-sm font-semibold text-[#0e5a4f]">{t.access}</p>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{view === "branches" ? t.branches : view === "devices" ? t.devices : t.users}</h1>
+    </div>
     {notice && <p role="status" className="mt-3 text-sm text-[#137347]">{notice}</p>}
     {loading && <div className="mt-8 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
-    {!loading && error && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>}
+    {!loading && error && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><Button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</Button></div>}
     {!loading && !error && view === "branches" && <BranchesPanel t={t} language={language} branches={branches} auth={auth} onSaved={(msg) => { flash(msg); void load(); }} />}
     {!loading && !error && view === "devices" && <DevicesPanel t={t} language={language} devices={devices} branches={branches} name={name} auth={auth} onSaved={(msg) => { flash(msg); void load(); }} />}
     {!loading && !error && view === "users" && <UsersPanel t={t} language={language} users={users} roles={roles} branches={branches} permissions={permissions} auth={auth} onSaved={(msg) => { flash(msg); void load(); }} />}
@@ -104,7 +109,7 @@ function BranchesPanel({ t, branches, auth, onSaved }: { t: Copy; language: Lang
   }
 
   return <>
-    <button onClick={() => setCreating(true)} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addBranch}</button>
+    <Button onClick={() => setCreating(true)} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addBranch}</Button>
     {creating && <FormDialog title={t.addBranch} closeLabel={t.cancel} onClose={() => setCreating(false)}>
       <form onSubmit={createBranch}>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -114,17 +119,17 @@ function BranchesPanel({ t, branches, auth, onSaved }: { t: Copy; language: Lang
           <Field required label={t.nameEn} value={form.nameEn} onChange={(v) => setForm({ ...form, nameEn: v })} max={160} />
         </div>
         {formError && <p role="alert" className="mt-4 text-sm text-[#b4322a]">{formError}</p>}
-        <button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</button>
+        <Button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</Button>
       </form>
     </FormDialog>}
     {branches.length === 0 ? <Empty text={t.noBranches} /> : <div className="mt-6 grid gap-4 lg:grid-cols-2">{branches.map((b) => <div key={b.id} className="rounded-xl border border-[#dfe5df] bg-white p-5">
       <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{b.nameEn} / {b.nameAr}</h3><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{b.isActive ? t.active : t.inactive}</span></div>
       <p className="mt-1 text-sm text-[#000000]">{b.code} · {b.timeZone}</p>
       {b.settings.length > 0 && <ul className="mt-3 space-y-1 text-sm text-[#000000]">{b.settings.map((s) => <li key={s.key}><b className="font-medium">{s.key}</b>: {s.value}</li>)}</ul>}
-      <div className="mt-4 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-        <label className="text-xs font-medium">{t.settingKey}<input value={settingForm[b.id]?.key ?? ""} onChange={(e) => setSettingForm({ ...settingForm, [b.id]: { key: e.target.value, value: settingForm[b.id]?.value ?? "" } })} className="mt-1 min-h-10 w-full rounded-lg border border-[#cdd7d0] px-2 text-sm" /></label>
-        <label className="text-xs font-medium">{t.settingValue}<input value={settingForm[b.id]?.value ?? ""} onChange={(e) => setSettingForm({ ...settingForm, [b.id]: { key: settingForm[b.id]?.key ?? "", value: e.target.value } })} className="mt-1 min-h-10 w-full rounded-lg border border-[#cdd7d0] px-2 text-sm" /></label>
-        <button onClick={() => void saveSetting(b.id)} className="min-h-10 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.addSetting}</button>
+      <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <label className="text-xs font-medium">{t.settingKey}<Input value={settingForm[b.id]?.key ?? ""} onChange={(e) => setSettingForm({ ...settingForm, [b.id]: { key: e.target.value, value: settingForm[b.id]?.value ?? "" } })} className="mt-1 min-h-10 w-full rounded-lg border border-[#cdd7d0] px-2 text-sm" /></label>
+        <label className="text-xs font-medium">{t.settingValue}<Input value={settingForm[b.id]?.value ?? ""} onChange={(e) => setSettingForm({ ...settingForm, [b.id]: { key: settingForm[b.id]?.key ?? "", value: e.target.value } })} className="mt-1 min-h-10 w-full rounded-lg border border-[#cdd7d0] px-2 text-sm" /></label>
+        <Button onClick={() => void saveSetting(b.id)} className="min-h-10 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.addSetting}</Button>
       </div>
     </div>)}</div>}
   </>;
@@ -146,7 +151,7 @@ function DevicesPanel({ t, devices, branches, name, auth, onSaved }: { t: Copy; 
   }
 
   return <>
-    <button onClick={() => setCreating(true)} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addDevice}</button>
+    <Button onClick={() => setCreating(true)} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addDevice}</Button>
     {creating && <FormDialog title={t.addDevice} closeLabel={t.cancel} onClose={() => setCreating(false)}>
       <form onSubmit={createDevice}>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -155,7 +160,7 @@ function DevicesPanel({ t, devices, branches, name, auth, onSaved }: { t: Copy; 
           <Field label={t.registrationCode} value={form.registrationCode} onChange={(v) => setForm({ ...form, registrationCode: v })} max={100} />
         </div>
         {formError && <p role="alert" className="mt-4 text-sm text-[#b4322a]">{formError}</p>}
-        <button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</button>
+        <Button disabled={saving} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={18} />{t.add}</Button>
       </form>
     </FormDialog>}
     {devices.length === 0 ? <Empty text={t.noDevices} /> : <div className="mt-6 divide-y divide-[#e8ece8] rounded-xl border border-[#dfe5df] bg-white">{devices.map((d) => <div key={d.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
@@ -177,21 +182,21 @@ function UsersPanel({ t, language, users, roles, branches, permissions, auth, on
   const pageUsers = filteredUsers.slice((userPage - 1) * PAGE_SIZE, userPage * PAGE_SIZE);
 
   return <>
-    <div className="mt-6 flex border-b border-[#dfe5df]" role="tablist" aria-label={`${t.users} / ${t.roles}`}>
-      {(["users", "roles"] as const).map((key) => <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={`min-h-12 border-b-2 px-5 text-sm font-semibold ${tab === key ? "border-[#0e5a4f] text-[#0e5a4f]" : "border-transparent text-[#000000] hover:text-[#17211f]"}`}>{key === "users" ? `${t.users} (${users.length})` : `${t.roles} (${roles.length})`}</button>)}
+    <div className="mt-6 grid grid-cols-2 border-b border-[#dfe5df] sm:flex" role="tablist" aria-label={`${t.users} / ${t.roles}`}>
+      {(["users", "roles"] as const).map((key) => <Button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={`min-h-12 border-b-2 px-3 text-sm font-semibold sm:px-5 ${tab === key ? "border-[#0e5a4f] text-[#0e5a4f]" : "border-transparent text-[#000000] hover:text-[#17211f]"}`}>{key === "users" ? `${t.users} (${users.length})` : `${t.roles} (${roles.length})`}</Button>)}
     </div>
 
     {tab === "users" ? <>
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button onClick={() => setCreating(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addUser}</button>
-        <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#cdd7d0] bg-white px-3 focus-within:ring-2 focus-within:ring-[#0e5a4f] focus-within:ring-offset-1 sm:max-w-xs"><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="min-h-9 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
+      <div className="mt-5 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
+        <Button onClick={() => setCreating(true)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] sm:w-auto"><Plus size={18} />{t.addUser}</Button>
+        <label className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#cdd7d0] bg-white px-3 focus-within:ring-2 focus-within:ring-[#0e5a4f] focus-within:ring-offset-1 sm:max-w-xs"><Search size={16} aria-hidden="true" /><Input aria-label={t.search} placeholder={t.search} value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="min-h-9 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
       </div>
       {filteredUsers.length === 0 ? <Empty text={t.noUsers} /> : <>
         <UsersTable t={t} users={pageUsers} branches={branches} onEdit={setEditing} />
         <Pagination page={userPage} pageSize={PAGE_SIZE} total={filteredUsers.length} onPageChange={setUserPage} language={language} />
       </>}
     </> : <>
-      <button onClick={() => setRoleDraft({ id: null, name: "", states: {} })} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addRole}</button>
+      <Button onClick={() => setRoleDraft({ id: null, name: "", states: {} })} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addRole}</Button>
       {roles.length === 0 ? <Empty text={t.noRoles} /> : <RolesTable t={t} roles={roles} onEdit={(r) => setRoleDraft({ id: r.id, name: r.name, states: Object.fromEntries(r.permissions.map((c) => [c, "grant"])) })} />}
     </>}
 
@@ -202,35 +207,52 @@ function UsersPanel({ t, language, users, roles, branches, permissions, auth, on
 }
 
 function UsersTable({ t, users, branches, onEdit }: { t: Copy; users: AdminUser[]; branches: Branch[]; onEdit: (u: AdminUser) => void }) {
-  return <div className="mt-6 overflow-x-auto rounded-xl border border-[#dfe5df] bg-white">
-    <table className="w-full text-sm">
-      <thead><tr className="border-b border-[#e8ece8] text-start text-xs text-[#000000]">
-        <th className="px-4 py-3 text-start font-semibold">{t.users}</th>
-        <th className="px-4 py-3 text-start font-semibold">{t.email}</th>
-        <th className="px-4 py-3 text-start font-semibold">{t.roles}</th>
-        <th className="px-4 py-3 text-start font-semibold">{t.branches2}</th>
-        <th className="px-4 py-3 text-start font-semibold">{t.active}</th>
-        <th className="px-4 py-3 text-end font-semibold"></th>
-      </tr></thead>
-      <tbody>{users.map((u) => <tr key={u.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]">
-        <td className="px-4 py-3"><p className="font-medium">{u.displayName}</p><p className="text-xs text-[#000000]">@{u.username}</p></td>
-        <td className="px-4 py-3 text-[#000000]">{u.email ?? "—"}</td>
-        <td className="px-4 py-3">{u.roles.length ? <div className="flex flex-wrap gap-1">{u.roles.map((r) => <span key={r} className="rounded-full bg-[#e6f1ec] px-2 py-0.5 text-xs font-semibold text-[#08483f]">{r}</span>)}</div> : "—"}</td>
-        <td className="px-4 py-3 text-[#000000]">{u.branchIds.map((id) => branches.find((b) => b.id === id)?.code ?? "").filter(Boolean).join(", ") || "—"}</td>
-        <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${u.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{u.isActive ? t.active : t.inactive}</span></td>
-        <td className="px-4 py-3 text-end"><button onClick={() => onEdit(u)} className="min-h-9 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.edit}</button></td>
-      </tr>)}</tbody>
-    </table>
-  </div>;
+  const branchNames = (user: AdminUser) => user.branchIds.map((id) => branches.find((b) => b.id === id)?.code ?? "").filter(Boolean).join(", ") || "—";
+  return <>
+    <div className="mt-5 grid gap-3 md:hidden">
+      {users.map((u) => <article key={u.id} className="rounded-xl border border-[#dfe5df] bg-white p-4">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0"><p className="break-words font-semibold">{u.displayName}</p><p className="mt-0.5 break-all text-xs text-[#000000]">@{u.username}</p></div>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${u.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{u.isActive ? t.active : t.inactive}</span>
+        </div>
+        <dl className="mt-4 grid gap-3 text-sm">
+          <div><dt className="text-xs font-medium text-[#000000]">{t.email}</dt><dd className="mt-1 break-all">{u.email ?? "—"}</dd></div>
+          <div><dt className="text-xs font-medium text-[#000000]">{t.roles}</dt><dd className="mt-1">{u.roles.length ? <div className="flex flex-wrap gap-1.5">{u.roles.map((r) => <span key={r} className="rounded-full bg-[#e6f1ec] px-2 py-1 text-xs font-semibold text-[#08483f]">{r}</span>)}</div> : "—"}</dd></div>
+          <div><dt className="text-xs font-medium text-[#000000]">{t.branches2}</dt><dd className="mt-1 break-words">{branchNames(u)}</dd></div>
+        </dl>
+        <Button onClick={() => onEdit(u)} className="mt-4 min-h-11 w-full rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]">{t.edit}</Button>
+      </article>)}
+    </div>
+    <div className="users-table-scroll mt-6 hidden overflow-auto rounded-xl border border-[#dfe5df] bg-white md:block">
+      <Table className="w-full text-sm">
+      <TableHeader className="sticky top-0 z-10 bg-white shadow-[0_1px_0_var(--app-border)]"><TableRow className="border-b border-[#e8ece8] text-start text-xs text-[#000000]">
+        <TableHead className="px-4 py-3 text-start font-semibold">{t.users}</TableHead>
+        <TableHead className="px-4 py-3 text-start font-semibold">{t.email}</TableHead>
+        <TableHead className="px-4 py-3 text-start font-semibold">{t.roles}</TableHead>
+        <TableHead className="px-4 py-3 text-start font-semibold">{t.branches2}</TableHead>
+        <TableHead className="px-4 py-3 text-start font-semibold">{t.active}</TableHead>
+        <TableHead className="px-4 py-3 text-end font-semibold"></TableHead>
+      </TableRow></TableHeader>
+      <TableBody>{users.map((u) => <TableRow key={u.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]">
+        <TableCell className="px-4 py-3"><p className="font-medium">{u.displayName}</p><p className="text-xs text-[#000000]">@{u.username}</p></TableCell>
+        <TableCell className="px-4 py-3 text-[#000000]">{u.email ?? "—"}</TableCell>
+        <TableCell className="px-4 py-3">{u.roles.length ? <div className="flex flex-wrap gap-1">{u.roles.map((r) => <span key={r} className="rounded-full bg-[#e6f1ec] px-2 py-0.5 text-xs font-semibold text-[#08483f]">{r}</span>)}</div> : "—"}</TableCell>
+        <TableCell className="px-4 py-3 text-[#000000]">{branchNames(u)}</TableCell>
+        <TableCell className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${u.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{u.isActive ? t.active : t.inactive}</span></TableCell>
+        <TableCell className="px-4 py-3 text-end"><Button onClick={() => onEdit(u)} className="min-h-9 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.edit}</Button></TableCell>
+      </TableRow>)}</TableBody>
+      </Table>
+    </div>
+  </>;
 }
 
 function RolesTable({ t, roles, onEdit }: { t: Copy; roles: Role[]; onEdit: (r: Role) => void }) {
   return <div className="mt-6 overflow-x-auto rounded-xl border border-[#dfe5df] bg-white">
     <div className="border-b border-[#e8ece8] px-4 py-3"><h2 className="text-sm font-semibold">{t.addRole} ({roles.length})</h2></div>
-    <table className="w-full text-sm">
-      <thead><tr className="border-b border-[#e8ece8] text-start text-xs text-[#000000]"><th className="px-4 py-3 text-start font-semibold">{t.roleName}</th><th className="px-4 py-3 text-start font-semibold">{t.permissions}</th><th className="px-4 py-3 text-end font-semibold"></th></tr></thead>
-      <tbody>{roles.map((r) => <tr key={r.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]"><td className="px-4 py-3 font-medium">{r.name}</td><td className="px-4 py-3 text-[#000000]">{r.permissions.length}</td><td className="px-4 py-3 text-end"><button onClick={() => onEdit(r)} className="min-h-9 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.editRoles}</button></td></tr>)}</tbody>
-    </table>
+    <Table className="w-full text-sm">
+      <TableHeader><TableRow className="border-b border-[#e8ece8] text-start text-xs text-[#000000]"><TableHead className="px-4 py-3 text-start font-semibold">{t.roleName}</TableHead><TableHead className="px-4 py-3 text-start font-semibold">{t.permissions}</TableHead><TableHead className="px-4 py-3 text-end font-semibold"></TableHead></TableRow></TableHeader>
+      <TableBody>{roles.map((r) => <TableRow key={r.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]"><TableCell className="px-4 py-3 font-medium">{r.name}</TableCell><TableCell className="px-4 py-3 text-[#000000]">{r.permissions.length}</TableCell><TableCell className="px-4 py-3 text-end"><Button onClick={() => onEdit(r)} className="min-h-9 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]">{t.editRoles}</Button></TableCell></TableRow>)}</TableBody>
+    </Table>
   </div>;
 }
 
@@ -257,14 +279,14 @@ function RoleForm({ t, language, draft, permissions, auth, onClose, onSaved }: {
 
   return <FormDialog title={draft.id ? draft.name : t.addRole} closeLabel={t.cancel ?? "close"} onClose={onClose}>
     <form onSubmit={save} className="space-y-4">
-      {!draft.id && <label className="block text-sm font-medium">{t.roleName}<input required value={name} onChange={(e) => setName(e.target.value)} maxLength={100} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f]" /></label>}
+      {!draft.id && <label className="block text-sm font-medium">{t.roleName}<Input required value={name} onChange={(e) => setName(e.target.value)} maxLength={100} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f]" /></label>}
       <PermissionGrid language={language} permissions={permissions} mode="role" states={states} roleDefault={new Set()} onChange={(code, s) => setStates((prev) => { const next = { ...prev }; if (s === "inherit") delete next[code]; else next[code] = s; return next; })} />
       <div className="flex items-center justify-between gap-3 border-t border-[#e8ece8] pt-4">
         <p className="text-xs text-[#000000]">{t.permissions} · {Object.values(states).filter((s) => s === "grant").length}</p>
         <div className="flex items-center gap-2">
           {error && <p role="alert" className="text-sm text-[#b4322a]">{error}</p>}
-          <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-[#cdd7d0] px-4 text-sm font-semibold">{t.cancel ?? "close"}</button>
-          <button disabled={saving} className="min-h-11 rounded-lg bg-[#0e5a4f] px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "..." : t.save}</button>
+          <Button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-[#cdd7d0] px-4 text-sm font-semibold">{t.cancel ?? "close"}</Button>
+          <Button disabled={saving} className="min-h-11 rounded-lg bg-[#0e5a4f] px-5 text-sm font-semibold text-white disabled:opacity-60">{saving ? "..." : t.save}</Button>
         </div>
       </div>
     </form>
@@ -272,6 +294,6 @@ function RoleForm({ t, language, draft, permissions, auth, onClose, onSaved }: {
 }
 
 function Field({ label, value, onChange, max, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string; required?: boolean }) {
-  return <label className="block text-sm font-medium">{label}{required && " *"}<input required={required} type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+  return <label className="block text-sm font-medium">{label}{required && " *"}<Input required={required} type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 function Empty({ text }: { text: string }) { return <div className="mt-6 rounded-xl border border-[#dfe5df] bg-white p-8 text-center text-sm text-[#000000]">{text}</div>; }

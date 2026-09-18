@@ -2,6 +2,7 @@ namespace OFC.Modules.Catalog;
 
 public enum TaxCalculationMode { Exclusive = 0, Inclusive = 1 }
 public enum PromotionDiscountType { Percentage = 0, FixedAmount = 1 }
+public enum SalesChannelKind { InStore = 0, DineIn = 1, Takeaway = 2, Qr = 3, Electronic = 4 }
 
 public sealed class SalesChannel
 {
@@ -9,6 +10,7 @@ public sealed class SalesChannel
     public required string Code { get; set; }
     public required string NameAr { get; set; }
     public required string NameEn { get; set; }
+    public SalesChannelKind Kind { get; set; } = SalesChannelKind.InStore;
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

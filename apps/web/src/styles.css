@@ -1,7 +1,34 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is([data-theme="dark"] *));
+
 @theme {
   --font-sans: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 @layer base {
@@ -36,17 +63,17 @@
 
 :root {
   color-scheme: light;
-  --login-accent: #0284c7;
-  --login-accent-bright: #38bdf8;
-  --login-accent-soft: #e0f2fe;
-  --login-bg: #f4f9fc;
-  --login-surface: rgba(255, 255, 255, 0.88);
-  --login-text: #102a3a;
-  --login-muted: #607886;
-  --login-border: rgba(14, 116, 144, 0.14);
-  --app-primary: #0284c7;
-  --app-primary-hover: #0369a1;
-  --app-primary-soft: #e0f2fe;
+  --login-accent: #17483f;
+  --login-accent-bright: #23695d;
+  --login-accent-soft: #e7f0ed;
+  --login-bg: #f3f4f1;
+  --login-surface: #ffffff;
+  --login-text: #18211f;
+  --login-muted: #63706c;
+  --login-border: #d9dfdc;
+  --app-primary: #17483f;
+  --app-primary-hover: #103a33;
+  --app-primary-soft: #e7f0ed;
   --app-success: #15803d;
   --app-success-hover: #166534;
   --app-success-soft: #dcfce7;
@@ -55,22 +82,41 @@
   --app-danger-soft: #fee2e2;
   --app-warning: #a16207;
   --app-warning-soft: #fef3c7;
-  --app-bg: #ffffff;
+  --app-bg: #f4f5f2;
   --app-surface: #ffffff;
   --app-surface-raised: #ffffff;
-  --app-text: #102a3a;
+  --app-text: #18211f;
   --app-black: #090d12;
-  --app-muted: #5f7480;
-  --app-border: #d9e6ec;
-  --app-hover: #edf6fa;
-  --app-shadow: rgba(22, 66, 86, .12);
+  --app-muted: #66736f;
+  --app-border: #dce1de;
+  --app-hover: #eef1ef;
+  --app-shadow: rgba(25, 42, 37, .12);
   --app-radius-sm: 10px;
   --app-radius-md: 14px;
   --app-radius-lg: 18px;
   --app-radius-xl: 24px;
+  --background: var(--app-bg);
+  --foreground: var(--app-text);
+  --card: var(--app-surface);
+  --card-foreground: var(--app-text);
+  --popover: var(--app-surface);
+  --popover-foreground: var(--app-text);
+  --primary: var(--app-primary);
+  --primary-foreground: #ffffff;
+  --secondary: var(--app-hover);
+  --secondary-foreground: var(--app-text);
+  --muted: var(--app-hover);
+  --muted-foreground: var(--app-muted);
+  --accent: var(--app-primary-soft);
+  --accent-foreground: var(--app-primary);
+  --destructive: var(--app-danger);
+  --border: var(--app-border);
+  --input: var(--app-border);
+  --ring: var(--app-primary);
+  --radius: 10px;
 }
 
-:root[data-accent="teal"] { --login-accent: #0f766e; --login-accent-bright: #2dd4bf; --login-accent-soft: #ccfbf1; --app-primary: #0f766e; --app-primary-hover: #115e59; --app-primary-soft: #ccfbf1; }
+:root[data-accent="teal"] { --login-accent: #17483f; --login-accent-bright: #23695d; --login-accent-soft: #e7f0ed; --app-primary: #17483f; --app-primary-hover: #103a33; --app-primary-soft: #e7f0ed; }
 :root[data-accent="violet"] { --login-accent: #7c3aed; --login-accent-bright: #a78bfa; --login-accent-soft: #ede9fe; --app-primary: #7c3aed; --app-primary-hover: #6d28d9; --app-primary-soft: #ede9fe; }
 :root[data-accent="orange"] { --login-accent: #c2410c; --login-accent-bright: #fb923c; --login-accent-soft: #ffedd5; --app-primary: #c2410c; --app-primary-hover: #9a3412; --app-primary-soft: #ffedd5; }
 :root[data-accent="tomato"] { --login-accent: #b91c1c; --login-accent-bright: #f87171; --login-accent-soft: #fee2e2; --app-primary: #b91c1c; --app-primary-hover: #991b1b; --app-primary-soft: #fee2e2; }
@@ -257,6 +303,16 @@
   backdrop-filter: blur(18px) saturate(140%);
 }
 
+.kiosk-header .app-header-brand {
+  display: none;
+}
+.kiosk-header .app-header-actions {
+  margin-inline-start: auto;
+}
+.kiosk-header .app-header-actions > :not(:first-child) {
+  display: none;
+}
+
 .app-shell button,
 .app-shell a,
 .app-shell input,
@@ -386,6 +442,178 @@
 .theme-color-options button { width: 27px; height: 27px; border: 3px solid var(--app-surface); border-radius: 999px; outline: 2px solid transparent; outline-offset: 1px; }
 .theme-color-options button[aria-pressed="true"] { outline-color: var(--app-primary); }
 @keyframes theme-pop { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+
+/* Calm, operational visual direction: one brand color, restrained surfaces and
+   compact elevation. Semantic colors remain reserved for status and errors. */
+.login-shell {
+  background: var(--app-bg);
+}
+.login-shell::before,
+.login-orb {
+  display: none;
+}
+.login-card {
+  min-height: 620px;
+  border-radius: 20px;
+  background: var(--app-surface);
+  box-shadow: 0 18px 55px color-mix(in srgb, var(--app-shadow) 65%, transparent);
+  backdrop-filter: none;
+}
+.login-showcase {
+  background: #123f37;
+}
+.login-showcase::after {
+  width: 220px;
+  height: 220px;
+  border-width: 1px;
+  opacity: .5;
+}
+.login-brand-mark,
+.login-kicker {
+  border-radius: 8px;
+  background: transparent;
+}
+.login-submit {
+  border-radius: 10px;
+  background: var(--app-primary);
+  box-shadow: none;
+}
+.login-submit:hover:not(:disabled) {
+  background: var(--app-primary-hover);
+  box-shadow: none;
+}
+.login-field input {
+  border-radius: 10px;
+  background: var(--app-surface-raised);
+}
+
+.app-shell > header {
+  backdrop-filter: none;
+  box-shadow: 0 1px 0 var(--app-border);
+}
+.app-shell button[class~="bg-[#0e5a4f]"],
+.app-shell button[class~="bg-[#08483f]"] {
+  box-shadow: none;
+}
+.app-shell button[class~="bg-[#0e5a4f]"]:hover:not(:disabled),
+.app-shell button[class~="bg-[#08483f]"]:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+.app-shell [class~="rounded-xl"][class~="border"][class~="bg-white"],
+.app-shell [class~="rounded-2xl"][class~="border"][class~="bg-white"] {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--app-shadow) 45%, transparent);
+}
+
+/* Shared responsive safeguards for the many operational screens. */
+.app-shell main,
+.app-shell section,
+.app-shell article,
+.app-shell form,
+.app-shell fieldset {
+  min-width: 0;
+}
+.app-shell table {
+  font-variant-numeric: tabular-nums;
+}
+.app-shell :is(input, textarea, select) {
+  max-width: 100%;
+}
+.app-shell h1 {
+  text-wrap: balance;
+}
+
+@media (min-width: 1024px) {
+  .admin-page-heading {
+    position: sticky;
+    z-index: 35;
+    inset-block-start: 64px;
+    margin: -24px -24px 0;
+    padding: 20px 24px 14px;
+    border-block-end: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
+    background: var(--app-bg);
+  }
+  .users-table-scroll {
+    max-height: calc(100dvh - 330px);
+    min-height: 220px;
+    overscroll-behavior: contain;
+  }
+  .users-table-scroll thead th {
+    background: var(--app-surface);
+  }
+}
+
+@media (max-width: 639px) {
+  .app-header {
+    position: sticky;
+    z-index: 80;
+    inset-block-start: 0;
+    display: flex;
+    min-height: 58px;
+    padding-inline: 10px;
+    background: var(--app-surface) !important;
+  }
+  .app-brand-label,
+  .app-signout span {
+    display: none;
+  }
+  .app-header-brand {
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .app-brand {
+    display: inline-flex;
+    min-width: 42px;
+    align-items: center;
+    justify-content: center;
+  }
+  .app-header-actions {
+    gap: 0;
+  }
+  .app-header-actions > button,
+  .theme-fab {
+    width: 42px;
+    min-width: 42px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+  .theme-popover {
+    position: fixed;
+    width: auto;
+    inset-inline: 12px;
+    inset-block-start: 68px;
+    border-radius: 14px;
+  }
+  .app-shell > div.grid > main {
+    padding: 14px 12px 88px;
+  }
+  .app-shell h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.25;
+  }
+  .app-shell :is(.rounded-xl, .rounded-2xl) {
+    scroll-margin-top: 72px;
+  }
+  .app-shell [role="dialog"] {
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+  .app-shell table th,
+  .app-shell table td {
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-header-actions > button,
+  .theme-fab {
+    width: 38px;
+    min-width: 38px;
+  }
+  .app-shell > div.grid > main {
+    padding-inline: 10px;
+  }
+}
 
 /* Responsive off-canvas menu drawer: slides in from the inline-start edge
    (left in LTR, right in RTL) and never moves layout content. */

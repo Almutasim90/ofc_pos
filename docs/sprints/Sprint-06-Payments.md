@@ -11,7 +11,7 @@
 ## Stories
 - STORY-06-01: Dynamic payment methods
 - STORY-06-02: Cash
-- STORY-06-03: OmanNet/Card
+- STORY-06-03: Card
 - STORY-06-04: Split payments
 - STORY-06-05: Payment lifecycle
 - STORY-06-06: Payment validation

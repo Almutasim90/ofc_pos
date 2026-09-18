@@ -285,11 +285,20 @@ public static class SprintElevenEndpoints
     private static async Task<IResult> PostDeductions(PostDeductionsRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         if (!await CanOperate(db, user, request.BranchId, ct, "inventory.movements.manage")) return Forbidden();
-        if (request.Items is not { Count: > 0 }) return Validation("items", "Provide at least one product to deduct.");
-        if (!InventoryRules.ValidReference(request.Reference)) return Validation("reference", "The batch reference is invalid.");
-        var existing = await db.InventoryMovements.AsNoTracking().Where(x => x.BranchId == request.BranchId && x.Reference == request.Reference && x.Type == InventoryMovementType.SaleDeduction).ToListAsync(ct);
-        if (existing.Count > 0) return Results.Ok(new { batchReference = request.Reference, duplicate = true, movementCount = existing.Count, movements = existing.Select(x => MovementResponse(x, null)) });
-        var productIds = request.Items.Select(x => x.ProductId).Distinct().ToList();
+        var deductionItems = request.Items ?? [];
+        var reference = request.Reference?.Trim();
+        if (request.OrderId.HasValue)
+        {
+            var order = await db.Orders.AsNoTracking().Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == request.OrderId.Value, ct);
+            if (order is null || order.BranchId != request.BranchId) return Validation("orderId", "The order does not belong to this branch.");
+            deductionItems = BuildOrderDeductionItems(order);
+            reference ??= $"ORDER-{order.Number}";
+        }
+        if (deductionItems.Count == 0) return Validation("items", "Provide an order or at least one product to deduct.");
+        if (!InventoryRules.ValidReference(reference)) return Validation("reference", "The batch reference is invalid.");
+        var existing = await db.InventoryMovements.AsNoTracking().Where(x => x.BranchId == request.BranchId && x.Reference == reference && x.Type == InventoryMovementType.SaleDeduction).ToListAsync(ct);
+        if (existing.Count > 0) return Results.Ok(new { batchReference = reference, duplicate = true, movementCount = existing.Count, movements = existing.Select(x => MovementResponse(x, null)) });
+        var productIds = deductionItems.Select(x => x.ProductId).Distinct().ToList();
         var activeRecipes = await db.RecipeVersions.AsNoTracking().Include(x => x.Lines).Where(x => productIds.Contains(x.ProductId) && x.Status == RecipeStatus.Active).ToListAsync(ct);
         var conversions = await db.UnitConversions.AsNoTracking().Where(x => x.IsActive).ToListAsync(ct);
         var itemIds = activeRecipes.SelectMany(x => x.Lines.Select(l => l.InventoryItemId)).Distinct().ToList();
@@ -297,7 +306,7 @@ public static class SprintElevenEndpoints
         var at = DateTimeOffset.UtcNow;
         var posted = new List<InventoryMovement>();
         var deltas = new Dictionary<Guid, decimal>();
-        foreach (var requestItem in request.Items)
+        foreach (var requestItem in deductionItems)
         {
             if (requestItem.Quantity is <= 0 or > 999) return Validation("items", "A product quantity must be between 1 and 999.");
             var current = activeRecipes.Where(x => x.ProductId == requestItem.ProductId).OrderByDescending(x => x.VersionNumber).FirstOrDefault();
@@ -311,15 +320,41 @@ public static class SprintElevenEndpoints
                 {
                     if (sourceUnitId != ingredient.BaseUnitId) return Validation("items", $"There is no conversion path for ingredient {ingredient.NameAr}.");
                 } else { baseQuantity = converted; }
-                var movement = new InventoryMovement { BranchId = request.BranchId, InventoryItemId = ingredient.Id, Type = InventoryMovementType.SaleDeduction, Quantity = InventoryRules.RoundQuantity(-baseQuantity), UnitId = ingredient.BaseUnitId, RecipeVersionId = current.Id, OrderId = request.OrderId, Reference = request.Reference?.Trim(), CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = at };
+                var movement = new InventoryMovement { BranchId = request.BranchId, InventoryItemId = ingredient.Id, Type = InventoryMovementType.SaleDeduction, Quantity = InventoryRules.RoundQuantity(-baseQuantity), UnitId = ingredient.BaseUnitId, RecipeVersionId = current.Id, OrderId = request.OrderId, Reference = reference, CreatedByUserId = UserId(user), DeviceId = DeviceId(user), OccurredAt = at };
                 db.InventoryMovements.Add(movement); posted.Add(movement);
                 deltas[ingredient.Id] = deltas.GetValueOrDefault(ingredient.Id) + movement.Quantity;
             }
         }
-        identity.Audit(UserId(user), request.BranchId, DeviceId(user), "inventory.sale-deduction.post", "inventory_movement", request.Reference!, context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { movementCount = posted.Count, products = request.Items.Select(x => new { x.ProductId, x.Quantity }) }));
+        identity.Audit(UserId(user), request.BranchId, DeviceId(user), "inventory.sale-deduction.post", "inventory_movement", reference!, context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { movementCount = posted.Count, products = deductionItems.Select(x => new { x.ProductId, x.Quantity }) }));
         await db.SaveChangesAsync(ct);
         foreach (var (itemId, delta) in deltas) await InventoryStock.ApplyDelta(db, itemId, delta, ct);
-        return Results.Created($"/api/v1/inventory/movements", new { batchReference = request.Reference, duplicate = false, movementCount = posted.Count, movements = posted.Select(x => MovementResponse(x, null)) });
+        return Results.Created($"/api/v1/inventory/movements", new { batchReference = reference, duplicate = false, movementCount = posted.Count, movements = posted.Select(x => MovementResponse(x, null)) });
+    }
+
+    private static List<DeductionItemRequest> BuildOrderDeductionItems(OFC.Modules.Ordering.Order order)
+    {
+        var quantities = new Dictionary<Guid, int>();
+        foreach (var line in order.Lines)
+        {
+            quantities[line.ProductId] = quantities.GetValueOrDefault(line.ProductId) + line.Quantity;
+            try
+            {
+                using var snapshot = JsonDocument.Parse(line.SelectionsSnapshot);
+                foreach (var group in snapshot.RootElement.EnumerateArray())
+                foreach (var choice in group.GetProperty("choices").EnumerateArray())
+                {
+                    if (!choice.TryGetProperty("productId", out var productValue) || !productValue.TryGetGuid(out var productId)) continue;
+                    var choiceQuantity = choice.TryGetProperty("quantity", out var quantityValue) ? quantityValue.GetInt32() : 1;
+                    quantities[productId] = quantities.GetValueOrDefault(productId) + line.Quantity * choiceQuantity;
+                }
+            }
+            catch (JsonException)
+            {
+                // Historical orders may carry the original snapshot shape; their parent product recipe
+                // remains deductible, while newly-created orders include component product IDs.
+            }
+        }
+        return quantities.Select(x => new DeductionItemRequest(x.Key, x.Value)).ToList();
     }
 
     private static async Task<List<RecipeLine>?> BuildRecipeLines(List<LineRequest> lines, OFCDbContext db, CancellationToken ct)
@@ -360,5 +395,5 @@ public static class SprintElevenEndpoints
     private sealed record PostMovementRequest(Guid BranchId, Guid ItemId, Guid UnitId, InventoryMovementType Type, decimal Quantity, string? Reference, string? Reason, Guid ClientMovementId, DateTimeOffset? OccurredAt);
     private sealed record DeductionItemRequest(Guid ProductId, decimal Quantity);
     private sealed record PreviewDeductionsRequest(Guid BranchId, List<DeductionItemRequest> Items);
-    private sealed record PostDeductionsRequest(Guid BranchId, Guid? OrderId, string? Reference, List<DeductionItemRequest> Items);
+    private sealed record PostDeductionsRequest(Guid BranchId, Guid? OrderId, string? Reference, List<DeductionItemRequest>? Items);
 }

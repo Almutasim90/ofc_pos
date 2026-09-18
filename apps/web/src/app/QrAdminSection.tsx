@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Plus, Power, RefreshCw, X } from "lucide-react";
 import { store } from "@/lib/local-store";
 import { useQrOrdersLive, type QrOrderReceivedEvent, type QrOrderReviewedEvent } from "@/lib/orders-realtime";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type Channel = { id: string; code: string; nameAr: string; nameEn: string };
@@ -150,7 +152,7 @@ export function QrAdminSection({ language }: { language: Language }) {
       {toasts.map((toast) => (
         <div key={toast.id} role={toast.error ? "alert" : "status"} className={`pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${toast.error ? "border-[#e8b6b0] bg-[#fff5f4] text-[#9b2922]" : "border-[#bcd8c9] bg-[#e3f4ea] text-[#0e5a4f]"}`}>
           <span>{toast.text}</span>
-          <button onClick={() => setToasts((prev) => prev.filter((x) => x.id !== toast.id))} className="shrink-0 rounded-lg p-1 opacity-70 hover:opacity-100" aria-label={t.dismiss}><X size={16} /></button>
+          <Button onClick={() => setToasts((prev) => prev.filter((x) => x.id !== toast.id))} className="shrink-0 rounded-lg p-1 opacity-70 hover:opacity-100" aria-label={t.dismiss}><X size={16} /></Button>
         </div>
       ))}
     </div>
@@ -164,7 +166,7 @@ export function QrAdminSection({ language }: { language: Language }) {
       <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
 
       {state === "loading" && <div className="mt-8 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
-      {state === "error" && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>}
+      {state === "error" && <div role="alert" className="mt-8 rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-[#9b2922]"><p>{t.error}</p><Button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</Button></div>}
       {notice && <p role={notice.error ? "alert" : "status"} className={`mt-4 text-sm ${notice.error ? "text-[#b4322a]" : "text-[#137347]"}`}>{notice.text}</p>}
 
       {state === "idle" && (
@@ -175,12 +177,12 @@ export function QrAdminSection({ language }: { language: Language }) {
 
           <section className="space-y-5">
             <div className="rounded-xl border border-[#dfe5df] bg-white">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.contexts} ({contexts.length})</h2><button onClick={() => setShowCreate(true)} disabled={!branchId || channels.length === 0} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={16} />{t.addContext}</button></div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8ece8] px-5 py-4"><h2 className="font-semibold">{t.contexts} ({contexts.length})</h2><Button onClick={() => setShowCreate(true)} disabled={!branchId || channels.length === 0} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 text-sm font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={16} />{t.addContext}</Button></div>
               {contexts.length === 0 ? <p className="p-8 text-center text-sm text-[#000000]">{t.noContexts}</p> : (
                 <ul className="divide-y divide-[#e8ece8]">{contexts.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div><p className="font-medium">{c.code} · {language === "ar" ? c.nameAr : c.nameEn}</p><p className="mt-1 text-sm text-[#000000]">{kindLabel[c.kind]} · {modeLabel[c.approvalMode]} · {c.salesChannelNameAr ?? ""}</p></div>
-                    <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{c.isActive ? t.active : t.inactive}</span><button onClick={() => void toggleContext(c.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><Power size={14} />{t.toggle}</button></div>
+                    <div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{c.isActive ? t.active : t.inactive}</span><Button onClick={() => void toggleContext(c.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"><Power size={14} />{t.toggle}</Button></div>
                     <QrCodeCard code={c.code} name={nameArEn(c, language)} language={language} />
                   </li>
                 ))}</ul>
@@ -193,7 +195,7 @@ export function QrAdminSection({ language }: { language: Language }) {
                 <ul className="divide-y divide-[#e8ece8]">{pending.map((o) => (
                   <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div className="min-w-0"><p className="text-sm font-medium">{o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)} {language === "ar" ? "ر.ع" : "OMR"}</p><p className="mt-1 text-xs text-[#000000]">{o.lines.map((l) => l.quantity + "× " + (language === "ar" ? l.productNameAr : l.productNameEn)).join(", ")}</p></div>
-                    <div className="flex gap-2"><button onClick={() => void review(o.approval!.id, "approve")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><Check size={14} />{t.approve}</button><button onClick={() => void review(o.approval!.id, "reject")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><X size={14} />{t.reject}</button></div>
+                    <div className="flex gap-2"><Button onClick={() => void review(o.approval!.id, "approve")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><Check size={14} />{t.approve}</Button><Button onClick={() => void review(o.approval!.id, "reject")} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a]"><X size={14} />{t.reject}</Button></div>
 
                   </li>
                 ))}</ul>
@@ -216,13 +218,13 @@ export function QrAdminSection({ language }: { language: Language }) {
       )}
       {showCreate && <FormDialog title={t.addContext} closeLabel={t.close} onClose={() => setShowCreate(false)} width="max-w-xl">
         <form onSubmit={createContext} className="grid gap-3 sm:grid-cols-2">
-          <input aria-label={t.code} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder={language === "ar" ? "رمز داخلي — يُنشأ تلقائيًا" : "Internal code — generated automatically"} maxLength={50} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f] sm:col-span-2" />
-          <label className="block text-sm">{t.nameAr} *<input required aria-label={t.nameAr} value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} placeholder={t.nameAr} maxLength={160} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
-          <label className="block text-sm">{t.nameEn} *<input required aria-label={t.nameEn} value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder={t.nameEn} maxLength={160} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
-          <SearchableSelect label={t.type} value={form.kind} onChange={(v) => setForm({ ...form, kind: v as QrContextItem["kind"] })}><option value="Table">{t.table}</option><option value="Parking">{t.parking}</option><option value="Branch">{t.branch}</option></SearchableSelect>
+          <Input aria-label={t.code} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder={language === "ar" ? "رمز داخلي — يُنشأ تلقائيًا" : "Internal code — generated automatically"} maxLength={50} className="min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f] sm:col-span-2" />
+          <label className="block text-sm">{t.nameAr} *<Input required aria-label={t.nameAr} value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} placeholder={t.nameAr} maxLength={160} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
+          <label className="block text-sm">{t.nameEn} *<Input required aria-label={t.nameEn} value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder={t.nameEn} maxLength={160} className="mt-1 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]" /></label>
+          <SearchableSelect label={t.type} value={form.kind} onChange={(v) => { const kind = v as QrContextItem["kind"]; setForm({ ...form, kind, approvalMode: kind === "Table" ? "AutoApprove" : "RequiresStaffApproval" }); }}><option value="Table">{t.table}</option><option value="Parking">{t.parking}</option><option value="Branch">{t.branch}</option></SearchableSelect>
           <SearchableSelect label={t.channel} value={form.channelId} onChange={(v) => setForm({ ...form, channelId: v })}>{channels.map((c) => <option key={c.id} value={c.id}>{nameArEn(c, language)}</option>)}</SearchableSelect>
           <div className="sm:col-span-2"><SearchableSelect label={t.approvalMode} value={form.approvalMode} onChange={(v) => setForm({ ...form, approvalMode: v as QrContextItem["approvalMode"] })}><option value="AutoApprove">{t.auto}</option><option value="RequiresStaffApproval">{t.manual}</option><option value="None">{t.none}</option></SearchableSelect></div>
-          <button disabled={saving || !branchId || channels.length === 0} className="inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={16} />{t.create}</button>
+          <Button disabled={saving || !branchId || channels.length === 0} className="inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Plus size={16} />{t.create}</Button>
         </form>
       </FormDialog>}
     </div>

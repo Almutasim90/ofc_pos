@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
+import { paymentMethodName } from "@/lib/payment-method";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
@@ -38,7 +42,7 @@ const copy = {
 
 export function OrderHistorySection({ language }: { language: Language }) {
   const t = copy[language];
-  const name = (x: { nameAr: string; nameEn: string }) => language === "ar" ? x.nameAr : x.nameEn;
+  const name = (x: { nameAr: string; nameEn: string; code?: string; kind?: string }) => paymentMethodName(language, x);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [branchId, setBranchId] = useState("");
@@ -87,40 +91,40 @@ export function OrderHistorySection({ language }: { language: Language }) {
     <div><h1 className="text-2xl font-bold">{t.title}</h1><p className="mt-2 text-sm text-[#000000]">{t.intro}</p></div>
     <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#dfe5df] bg-white p-4">
       <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map(b => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
-      <label className="text-xs font-medium text-[#000000]">{t.from}<input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className={`mt-1 block ${input}`} /></label>
-      <label className="text-xs font-medium text-[#000000]">{t.to}<input type="date" value={to} min={from} max={todayStr()} onChange={e => setTo(e.target.value)} className={`mt-1 block ${input}`} /></label>
+      <label className="text-xs font-medium text-[#000000]">{t.from}<Input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} className={`mt-1 block ${input}`} /></label>
+      <label className="text-xs font-medium text-[#000000]">{t.to}<Input type="date" value={to} min={from} max={todayStr()} onChange={e => setTo(e.target.value)} className={`mt-1 block ${input}`} /></label>
       <SearchableSelect label={t.status} value={status} onChange={setStatus}><option value="">{t.allStatuses}</option>{Object.keys(t.statuses).map(s => <option key={s} value={s}>{t.statuses[s]}</option>)}</SearchableSelect>
       <SearchableSelect label={t.channel} value={channelId} onChange={setChannelId}><option value="">{t.allChannels}</option>{channels.map(c => <option key={c.id} value={c.id}>{name(c)}</option>)}</SearchableSelect>
     </div>
     {loading ? <p role="status" className="rounded-xl border bg-white p-8 text-center text-sm">{t.loading}</p>
-      : error ? <div role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]"><p>{t.error}</p><button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</button></div>
+      : error ? <div role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]"><p>{t.error}</p><Button onClick={() => void load()} className="mt-3 font-semibold underline">{t.retry}</Button></div>
       : rows.length === 0 ? <p className="rounded-xl border bg-white p-8 text-center text-sm text-[#000000]">{t.empty}</p>
       : <>
         <div className="overflow-x-auto rounded-xl border border-[#dfe5df] bg-white">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-[#e8ece8] text-xs text-[#000000]">
-              <th className="px-4 py-3 text-start font-semibold">{t.time}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t.channel}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t.status}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t.items}</th>
-              <th className="px-4 py-3 text-start font-semibold">{t.total}</th>
-              <th className="px-4 py-3 text-end font-semibold"></th>
-            </tr></thead>
-            <tbody>{rows.map(o => { const ch = channels.find(c => c.id === o.salesChannelId); return <tr key={o.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]">
-              <td className="px-4 py-3">{new Date(o.createdAt).toLocaleString(language)}</td>
-              <td className="px-4 py-3 text-[#000000]">{ch ? name(ch) : (t.sources[o.source] ?? o.source)}</td>
-              <td className="px-4 py-3"><span className="rounded-full bg-[#f4f7f4] px-2.5 py-0.5 text-xs font-semibold">{t.statuses[o.status] ?? o.status}</span></td>
-              <td className="px-4 py-3 text-[#000000]">{o.lineCount}</td>
-              <td className="px-4 py-3 font-semibold">OMR {o.grossAmount.toFixed(3)}</td>
-              <td className="px-4 py-3 text-end"><button onClick={() => void open(o.id)} className={button}>{t.view}</button></td>
-            </tr>; })}</tbody>
-          </table>
+          <Table className="w-full text-sm">
+            <TableHeader><TableRow className="border-b border-[#e8ece8] text-xs text-[#000000]">
+              <TableHead className="px-4 py-3 text-start font-semibold">{t.time}</TableHead>
+              <TableHead className="px-4 py-3 text-start font-semibold">{t.channel}</TableHead>
+              <TableHead className="px-4 py-3 text-start font-semibold">{t.status}</TableHead>
+              <TableHead className="px-4 py-3 text-start font-semibold">{t.items}</TableHead>
+              <TableHead className="px-4 py-3 text-start font-semibold">{t.total}</TableHead>
+              <TableHead className="px-4 py-3 text-end font-semibold"></TableHead>
+            </TableRow></TableHeader>
+            <TableBody>{rows.map(o => { const ch = channels.find(c => c.id === o.salesChannelId); return <TableRow key={o.id} className="border-b border-[#eef1ee] last:border-0 hover:bg-[#fafbf9]">
+              <TableCell className="px-4 py-3">{new Date(o.createdAt).toLocaleString(language)}</TableCell>
+              <TableCell className="px-4 py-3 text-[#000000]">{ch ? name(ch) : (t.sources[o.source] ?? o.source)}</TableCell>
+              <TableCell className="px-4 py-3"><span className="rounded-full bg-[#f4f7f4] px-2.5 py-0.5 text-xs font-semibold">{t.statuses[o.status] ?? o.status}</span></TableCell>
+              <TableCell className="px-4 py-3 text-[#000000]">{o.lineCount}</TableCell>
+              <TableCell className="px-4 py-3 font-semibold">OMR {o.grossAmount.toFixed(3)}</TableCell>
+              <TableCell className="px-4 py-3 text-end"><Button onClick={() => void open(o.id)} className={button}>{t.view}</Button></TableCell>
+            </TableRow>; })}</TableBody>
+          </Table>
         </div>
         <div className="flex items-center justify-between gap-3 text-sm text-[#000000]">
           <span>{rangeFrom}–{rangeTo} / {total}</span>
           <div className="flex gap-2">
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className={`${button} disabled:opacity-50`}>{t.prev}</button>
-            <button disabled={page >= pageCount} onClick={() => setPage(p => p + 1)} className={`${button} disabled:opacity-50`}>{t.next}</button>
+            <Button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className={`${button} disabled:opacity-50`}>{t.prev}</Button>
+            <Button disabled={page >= pageCount} onClick={() => setPage(p => p + 1)} className={`${button} disabled:opacity-50`}>{t.next}</Button>
           </div>
         </div>
       </>}

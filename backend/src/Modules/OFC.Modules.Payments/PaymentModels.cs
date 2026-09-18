@@ -1,6 +1,19 @@
 namespace OFC.Modules.Payments;
 
-public enum PaymentMethodKind { Cash = 0, OmanNet = 1, Visa = 2, Mastercard = 3, ApplePay = 4, Voucher = 5, Online = 6, Other = 7 }
+public enum PaymentMethodKind
+{
+    Cash = 0,
+    Card = 1,
+    [Obsolete("Legacy database value; use Card for all new payment methods.")]
+    OmanNet = Card,
+    Visa = 2,
+    Mastercard = 3,
+    ApplePay = 4,
+    Voucher = 5,
+    Online = 6,
+    Other = 7,
+    External = 8
+}
 public enum PaymentStatus { Pending = 0, Authorized = 1, Captured = 2, Failed = 3, Cancelled = 4, Reversed = 5 }
 public enum FinancialTransactionType { Sale = 0, Refund = 1, Reversal = 2 }
 

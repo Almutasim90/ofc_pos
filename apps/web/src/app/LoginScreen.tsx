@@ -1,5 +1,7 @@
-import { Eye, EyeOff, Moon, ShieldCheck, Sparkles, Sun } from "lucide-react";
+import { Eye, EyeOff, Moon, ShieldCheck, Sun } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export type ThemeMode = "light" | "dark";
 export type Accent = "sky" | "teal" | "violet" | "orange" | "tomato" | "gold" | "olive";
@@ -10,38 +12,24 @@ type LoginScreenProps = {
   error: string;
   loggingIn: boolean;
   theme: ThemeMode;
-  accent: Accent;
   onLanguageChange: () => void;
   onCredentialsChange: (credentials: { username: string; password: string }) => void;
   onThemeChange: (theme: ThemeMode) => void;
-  onAccentChange: (accent: Accent) => void;
   onSubmit: (event: React.FormEvent) => void;
 };
 
-const accents: Array<{ value: Accent; light: string; dark: string; nameAr: string; nameEn: string }> = [
-  { value: "sky", light: "#38bdf8", dark: "#0284c7", nameAr: "سماوي", nameEn: "Sky" },
-  { value: "teal", light: "#2dd4bf", dark: "#0f766e", nameAr: "فيروزي", nameEn: "Teal" },
-  { value: "violet", light: "#a78bfa", dark: "#7c3aed", nameAr: "بنفسجي", nameEn: "Violet" },
-  { value: "orange", light: "#fb923c", dark: "#c2410c", nameAr: "برتقالي", nameEn: "Orange" },
-  { value: "tomato", light: "#f87171", dark: "#b91c1c", nameAr: "طماطمي", nameEn: "Tomato" },
-  { value: "gold", light: "#fbbf24", dark: "#a16207", nameAr: "ذهبي", nameEn: "Gold" },
-  { value: "olive", light: "#a3e635", dark: "#4d7c0f", nameAr: "زيتوني", nameEn: "Olive" },
-];
-
-export function LoginScreen({ language, credentials, error, loggingIn, theme, accent, onLanguageChange, onCredentialsChange, onThemeChange, onAccentChange, onSubmit }: LoginScreenProps) {
+export function LoginScreen({ language, credentials, error, loggingIn, theme, onLanguageChange, onCredentialsChange, onThemeChange, onSubmit }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const ar = language === "ar";
   const tr = (arabic: string, english: string) => ar ? arabic : english;
 
   return (
     <main className="login-shell">
-      <div className="login-orb login-orb-one" />
-      <div className="login-orb login-orb-two" />
       <section className="login-card" aria-labelledby="login-title">
         <aside className="login-showcase">
           <div className="login-brand"><span className="login-brand-mark">O</span><span>OFC</span></div>
           <div className="login-showcase-copy">
-            <span className="login-kicker"><Sparkles size={16} />{tr("إدارة أذكى. عمل أسرع.", "Smarter management. Faster service.")}</span>
+            <span className="login-kicker">{tr("إدارة المطعم", "Restaurant operations")}</span>
             <h2>{tr("كل عمليات مطعمك في مكان واحد.", "Your restaurant, all in one place.")}</h2>
             <p>{tr("تابع الطلبات والمبيعات والمخزون بسلاسة من منصة واحدة مصممة لفريقك.", "Run orders, sales, and inventory smoothly from one workspace built for your team.")}</p>
           </div>
@@ -50,13 +38,10 @@ export function LoginScreen({ language, credentials, error, loggingIn, theme, ac
 
         <div className="login-form-panel">
           <div className="login-toolbar">
-            <div className="login-accents" aria-label={tr("اختيار اللون", "Choose color")}>
-              {accents.map((item) => <button key={item.value} type="button" title={tr(item.nameAr, item.nameEn)} aria-label={tr(item.nameAr, item.nameEn)} aria-pressed={accent === item.value} onClick={() => onAccentChange(item.value)} style={{ background: `linear-gradient(135deg, ${item.light}, ${item.dark})` }} />)}
-            </div>
-            <button type="button" className="login-icon-button" onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? tr("الوضع النهاري", "Light mode") : tr("الوضع الليلي", "Dark mode")}>
+            <Button type="button" className="login-icon-button" onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? tr("الوضع النهاري", "Light mode") : tr("الوضع الليلي", "Dark mode")}>
               {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}
-            </button>
-            <button type="button" className="login-language" onClick={onLanguageChange}>{ar ? "EN" : "عربي"}</button>
+            </Button>
+            <Button type="button" className="login-language" onClick={onLanguageChange}>{ar ? "EN" : "عربي"}</Button>
           </div>
 
           <form onSubmit={onSubmit} className="login-form">
@@ -68,23 +53,23 @@ export function LoginScreen({ language, credentials, error, loggingIn, theme, ac
 
             <label className="login-field">
               <span>{tr("اسم المستخدم", "Username")}</span>
-              <input required autoFocus autoComplete="username" value={credentials.username} onChange={(event) => onCredentialsChange({ ...credentials, username: event.target.value })} placeholder={tr("أدخل اسم المستخدم", "Enter your username")} />
+              <Input required autoFocus autoComplete="username" value={credentials.username} onChange={(event) => onCredentialsChange({ ...credentials, username: event.target.value })} placeholder={tr("أدخل اسم المستخدم", "Enter your username")} />
             </label>
 
             <label className="login-field">
               <span>{tr("كلمة المرور", "Password")}</span>
               <span className="login-password">
-                <input required type={showPassword ? "text" : "password"} autoComplete="current-password" value={credentials.password} onChange={(event) => onCredentialsChange({ ...credentials, password: event.target.value })} placeholder={tr("أدخل كلمة المرور", "Enter your password")} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? tr("إخفاء كلمة المرور", "Hide password") : tr("إظهار كلمة المرور", "Show password")} aria-pressed={showPassword}>
+                <Input required type={showPassword ? "text" : "password"} autoComplete="current-password" value={credentials.password} onChange={(event) => onCredentialsChange({ ...credentials, password: event.target.value })} placeholder={tr("أدخل كلمة المرور", "Enter your password")} />
+                <Button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? tr("إخفاء كلمة المرور", "Hide password") : tr("إظهار كلمة المرور", "Show password")} aria-pressed={showPassword}>
                   {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-                </button>
+                </Button>
               </span>
             </label>
 
             {error && <p className="login-error" role="alert">{error}</p>}
-            <button disabled={loggingIn} className="login-submit">
+            <Button disabled={loggingIn} className="login-submit">
               {loggingIn ? <span className="login-spinner" /> : tr("تسجيل الدخول", "Sign in")}
-            </button>
+            </Button>
           </form>
           <p className="login-footer">{tr("منصة OFC لإدارة المطاعم", "OFC restaurant management platform")}</p>
         </div>

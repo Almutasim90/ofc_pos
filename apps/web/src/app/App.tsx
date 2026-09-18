@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Building2, FolderTree, Languages, Monitor, Package, Users, Menu, X, Home, ListChecks, BadgeDollarSign, ShoppingBag, Printer, ChefHat, Boxes, CloudOff, BarChart3, Truck, Scale, QrCode, Sparkles, Maximize2, Minimize2, History, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Building2, FolderTree, Languages, Monitor, Package, Users, Menu, X, Home, ListChecks, BadgeDollarSign, ShoppingBag, Printer, ChefHat, Boxes, CloudOff, BarChart3, Truck, Scale, QrCode, Sparkles, Maximize2, Minimize2, History, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
 
 import { store } from "@/lib/local-store";
 import { enterKiosk, exitKiosk } from "@/lib/fullscreen-kiosk";
@@ -18,10 +18,11 @@ import { QrAdminSection } from "@/app/QrAdminSection";
 import { QrCustomerPage } from "@/app/QrCustomerPage";
 import { IntegrationsSection } from "@/app/IntegrationsSection";
 import { AdminSection } from "@/app/AdminSection";
-import { LoginScreen, type Accent, type ThemeMode } from "@/app/LoginScreen";
+import { LoginScreen, type ThemeMode } from "@/app/LoginScreen";
 import { ThemeControls } from "@/app/ThemeControls";
 
 import { CatalogScreen } from "@/app/CatalogScreen";
+import { Button } from "@/components/ui/button";
 type Language = "ar" | "en";
 type View = "branches" | "devices" | "users" | "categories" | "products" | "selectionGroups" | "pricing" | "pos" | "cancellations" | "shifts" | "printing" | "kitchen" | "inventory" | "inventoryAdvanced" | "procurement" | "sync" | "reports" | "qr" | "integrations" | "orderHistory";
 const CancellationSection = lazy(() => import("@/app/CancellationSection").then((module) => ({ default: module.CancellationSection })));
@@ -36,10 +37,6 @@ export function App() {
   const [kiosk, setKiosk] = useState(false);
   const [credentials, setCredentials] = useState({ username: "", password: "" });
   const [theme, setTheme] = useState<ThemeMode>(() => store.get<ThemeMode>("theme") === "dark" ? "dark" : "light");
-  const [accent, setAccent] = useState<Accent>(() => {
-    const saved = store.get<Accent>("accent");
-    return saved && ["sky", "teal", "violet", "orange", "tomato", "gold", "olive"].includes(saved) ? saved : "sky";
-  });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [hash, setHash] = useState(window.location.hash);
@@ -66,7 +63,7 @@ export function App() {
 
   useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = ar ? "rtl" : "ltr"; store.set("language", language); }, [language]);
   useEffect(() => { document.documentElement.dataset.theme = theme; store.set("theme", theme); }, [theme]);
-  useEffect(() => { document.documentElement.dataset.accent = accent; store.set("accent", accent); }, [accent]);
+  useEffect(() => { document.documentElement.dataset.accent = "teal"; store.set("accent", "teal"); }, []);
   useEffect(() => { store.set("sidebar-collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
   useEffect(() => { const update = () => setHash(window.location.hash); window.addEventListener("hashchange", update); return () => window.removeEventListener("hashchange", update); }, []);
   useEffect(() => {
@@ -121,7 +118,7 @@ export function App() {
     return <div className="app-shell min-h-screen"><QrCustomerPage code={decodeURIComponent(encodedCode)} trackingId={route === "order" ? trackingId : undefined} /></div>;
   }
   if (checkingSession) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2]"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" aria-label={tr("جارٍ التحقق من الجلسة", "Checking session")} /></main>;
-  if (!token) return <LoginScreen language={language} credentials={credentials} error={loginError} loggingIn={loggingIn} theme={theme} accent={accent} onLanguageChange={() => setLanguage(ar ? "en" : "ar")} onCredentialsChange={setCredentials} onThemeChange={setTheme} onAccentChange={setAccent} onSubmit={login} />;
+  if (!token) return <LoginScreen language={language} credentials={credentials} error={loginError} loggingIn={loggingIn} theme={theme} onLanguageChange={() => setLanguage(ar ? "en" : "ar")} onCredentialsChange={setCredentials} onThemeChange={setTheme} onSubmit={login} />;
   const allGroups: Array<{ label: string; keys: View[] }> = [
     { label: tr("العمل اليومي", "Daily work"), keys: ["pos", "kitchen", "shifts", "cancellations", "qr", "orderHistory"] },
     { label: tr("المخزون والمتابعة", "Stock & insights"), keys: ["inventory", "inventoryAdvanced", "procurement", "reports"] },
@@ -135,32 +132,32 @@ export function App() {
     return groups.map(group => (
       <div key={group.label} className="mb-4">
         {!collapsed && <p className="px-3 py-2 text-xs font-semibold text-[#000000]">{group.label}</p>}
-        {group.keys.map(key => { const entry = navigation.find(([k]) => k === key)!; const Icon = entry[2]; return <button key={key} aria-current={view === key ? "page" : undefined} title={collapsed ? entry[1] : undefined} onClick={() => navigate(key)} className={`flex min-h-11 w-full items-center gap-3 rounded-lg text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"} ${view === key ? "bg-[#e6f1ec] font-semibold text-[#08483f]" : "text-[#000000] hover:bg-[#f2f5f2]"}`}><Icon size={18} />{!collapsed && entry[1]}</button>; })}
+        {group.keys.map(key => { const entry = navigation.find(([k]) => k === key)!; const Icon = entry[2]; return <Button key={key} aria-current={view === key ? "page" : undefined} title={collapsed ? entry[1] : undefined} onClick={() => navigate(key)} className={`flex min-h-11 w-full items-center gap-3 rounded-lg text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"} ${view === key ? "bg-[#e6f1ec] font-semibold text-[#08483f]" : "text-[#000000] hover:bg-[#f2f5f2]"}`}><Icon size={18} />{!collapsed && entry[1]}</Button>; })}
       </div>
     ));
   }
   const menuContent = renderMenu(false);
   const desktopMenuContent = renderMenu(sidebarCollapsed);
   return <Suspense fallback={<main className="grid min-h-screen place-items-center bg-white"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" /></main>}><div className="app-shell min-h-screen bg-[#f5f6f2] text-[#17211f]">
-    <header className="flex min-h-16 items-center justify-between gap-2 border-b bg-white px-4">
-      <div className="flex items-center gap-2">
-        <button aria-controls="mobile-nav" className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`} aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{!kiosk && menuOpen ? <X /> : <Menu />}</button>
-        {!kiosk && (canView("pos") ? <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button> : <span className="font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</span>)}
+    <header className={`app-header flex items-center justify-between gap-2 border-b bg-white px-4 ${kiosk ? "kiosk-header min-h-12" : "min-h-16"}`}>
+      <div className="app-header-brand flex min-w-0 items-center gap-2">
+        <Button aria-controls="mobile-nav" className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`} aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{!kiosk && menuOpen ? <X /> : <Menu />}</Button>
+        {!kiosk && (canView("pos") ? <Button onClick={() => navigate("pos")} className="app-brand min-h-11 whitespace-nowrap font-bold text-[#0e5a4f]"><span>OFC</span><span className="app-brand-label"> · {tr("إدارة المطعم", "Restaurant")}</span></Button> : <span className="app-brand whitespace-nowrap font-bold text-[#0e5a4f]"><span>OFC</span><span className="app-brand-label"> · {tr("إدارة المطعم", "Restaurant")}</span></span>)}
       </div>
-      <div className="flex items-center gap-1">
-        {view === "pos" && allowed && (kiosk ? <button aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} className="min-h-11 px-3" onClick={() => { exitKiosk(); setKiosk(false); }}><Minimize2 size={18} /></button> : <button aria-label={tr("وضع الأكشاك", "Kiosk mode")} title={tr("وضع الأكشاك", "Kiosk mode")} className="min-h-11 px-3" onClick={async () => { const success = await enterKiosk(); if (success) setKiosk(true); }}><Maximize2 size={18} /></button>)}
-        <ThemeControls language={language} theme={theme} accent={accent} onThemeChange={setTheme} onAccentChange={setAccent} />
-        <button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></button>
-        <button className="min-h-11 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}>{tr("خروج", "Sign out")}</button>
+      <div className="app-header-actions flex shrink-0 items-center gap-1">
+        {view === "pos" && allowed && (kiosk ? <Button aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} className="min-h-11 px-3" onClick={() => { exitKiosk(); setKiosk(false); }}><Minimize2 size={18} /></Button> : <Button aria-label={tr("وضع الأكشاك", "Kiosk mode")} title={tr("وضع الأكشاك", "Kiosk mode")} className="min-h-11 px-3" onClick={async () => { const success = await enterKiosk(); if (success) setKiosk(true); }}><Maximize2 size={18} /></Button>)}
+        <ThemeControls language={language} theme={theme} onThemeChange={setTheme} />
+        <Button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></Button>
+        <Button aria-label={tr("تسجيل الخروج", "Sign out")} title={tr("تسجيل الخروج", "Sign out")} className="app-signout inline-flex min-h-11 items-center gap-2 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}><LogOut size={18} /><span>{tr("خروج", "Sign out")}</span></Button>
       </div>
     </header>
     {menuOpen && (
-      <div className={`fixed inset-0 z-50 ${kiosk ? "" : "lg:hidden"}`}>
+      <div className={`fixed inset-0 z-[100] ${kiosk ? "" : "lg:hidden"}`}>
         <div className="fixed inset-0 bg-black/40" onClick={() => setMenuOpen(false)} aria-hidden="true" />
         <aside id="mobile-nav" role="dialog" aria-modal="true" aria-label={tr("القائمة الرئيسية", "Main menu")} className="drawer-in absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-white p-3 shadow-2xl">
           <div className="mb-3 flex items-center justify-between gap-2 border-b border-[#e8ece8] pb-3">
-            {canView("pos") ? <button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</button> : <span className="font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</span>}
-            <button onClick={() => setMenuOpen(false)} aria-label={tr("إغلاق القائمة", "Close menu")} className="grid size-10 place-items-center rounded-lg border border-[#cdd7d0]"><X size={18} /></button>
+            {canView("pos") ? <Button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</Button> : <span className="font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</span>}
+            <Button onClick={() => setMenuOpen(false)} aria-label={tr("إغلاق القائمة", "Close menu")} className="grid size-10 place-items-center rounded-lg border border-[#cdd7d0]"><X size={18} /></Button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-4">{menuContent}</div>
         </aside>
@@ -168,12 +165,12 @@ export function App() {
     )}
     <div className={`grid ${kiosk ? "w-full" : sidebarCollapsed ? "mx-auto max-w-[1920px] lg:grid-cols-[64px_minmax(0,1fr)]" : "mx-auto max-w-[1920px] lg:grid-cols-[210px_minmax(0,1fr)]"}`}>
       {!kiosk && <nav aria-label={tr("القائمة الرئيسية", "Main menu")} className="hidden border-e bg-white p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto">
-        <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label={sidebarCollapsed ? tr("توسيع القائمة", "Expand sidebar") : tr("طي القائمة", "Collapse sidebar")} title={sidebarCollapsed ? tr("توسيع القائمة", "Expand sidebar") : tr("طي القائمة", "Collapse sidebar")} className={`mb-3 grid size-9 place-items-center rounded-lg border border-[#cdd7d0] hover:bg-[#f2f5f2] ${sidebarCollapsed ? "mx-auto" : ""}`}>
+        <Button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label={sidebarCollapsed ? tr("توسيع القائمة", "Expand sidebar") : tr("طي القائمة", "Collapse sidebar")} title={sidebarCollapsed ? tr("توسيع القائمة", "Expand sidebar") : tr("طي القائمة", "Collapse sidebar")} className={`mb-3 grid size-9 place-items-center rounded-lg border border-[#cdd7d0] hover:bg-[#f2f5f2] ${sidebarCollapsed ? "mx-auto" : ""}`}>
           {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-        </button>
+        </Button>
         {desktopMenuContent}
       </nav>}
-      <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>{view !== "pos" && <nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#000000]"><button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>}{!allowed ? <p role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]">{tr("لا تملك صلاحية الوصول إلى هذه الصفحة.", "You do not have permission to access this page.")}</p> : view === "pos" ? <PosSection language={language} kiosk={kiosk} onKioskChange={setKiosk} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} permissions={permissions} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} permissions={permissions} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "orderHistory" ? <OrderHistorySection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
+      <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>{view !== "pos" && <nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#000000]"><Button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</Button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>}{!allowed ? <p role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]">{tr("لا تملك صلاحية الوصول إلى هذه الصفحة.", "You do not have permission to access this page.")}</p> : view === "pos" ? <PosSection language={language} kiosk={kiosk} onKioskChange={setKiosk} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} permissions={permissions} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} permissions={permissions} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "orderHistory" ? <OrderHistorySection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
     </div>
   </div></Suspense>;
 }

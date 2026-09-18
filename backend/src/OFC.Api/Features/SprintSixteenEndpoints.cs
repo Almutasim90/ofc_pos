@@ -41,7 +41,9 @@ public static class SprintSixteenEndpoints
         var context = await ActiveContext(db, code, ct);
         if (context is null) return Results.NotFound();
         var (ctx, branch, channel) = context.Value;
-        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable)).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
+        // Keep temporarily unavailable products visible in the customer menu so guests understand that
+        // the item belongs to the menu but is sold out today. Submission still enforces availability.
+        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable)).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
         var productIds = products.Select(x => x.Id).ToList();
         var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
         var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || (x.ProductId.HasValue && productIds.Contains(x.ProductId.Value))).ToListAsync(ct);
@@ -63,6 +65,7 @@ public static class SprintSixteenEndpoints
                 product.NameEn,
                 product.Type,
                 product.BasePrice,
+                isAvailable = product.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable),
                 listAmount = price.ListPrice,
                 discountAmount = price.DiscountAmount,
                 netAmount = price.UnitNetAmount,
@@ -70,7 +73,7 @@ public static class SprintSixteenEndpoints
                 grossAmount = price.UnitGrossAmount,
                 priceSource = price.PriceSource,
                 imageUrl = product.Images.OrderBy(x => x.SortOrder).Select(x => x.Url).FirstOrDefault(),
-                selectionGroups = product.SelectionGroups.OrderBy(x => x.SortOrder).Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable))).Select(x => new { x.SelectionGroup!.Id, x.SelectionGroup.Kind, x.SelectionGroup.NameAr, x.SelectionGroup.NameEn, x.SelectionGroup.IsRequired, x.SelectionGroup.MinSelections, x.SelectionGroup.MaxSelections, options = x.SelectionGroup.Options.OrderBy(o => o.SortOrder).Select(o => new { o.Id, o.ProductId, nameAr = o.Product!.NameAr, nameEn = o.Product.NameEn, o.PriceAdjustment, o.IsDefault, o.MaxQuantity }) })
+                selectionGroups = product.SelectionGroups.OrderBy(x => x.SortOrder).Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable))).Select(x => new { x.SelectionGroup!.Id, x.SelectionGroup.Kind, x.SelectionGroup.NameAr, x.SelectionGroup.NameEn, x.SelectionGroup.IsRequired, x.SelectionGroup.MinSelections, x.SelectionGroup.MaxSelections, options = x.SelectionGroup.Options.OrderBy(o => o.SortOrder).Select(o => new { o.Id, o.ProductId, nameAr = o.Product!.NameAr, nameEn = o.Product.NameEn, o.PriceAdjustment, o.IsDefault, o.MaxQuantity, isAvailable = o.Product.IsActive && (!o.Product.BranchAvailability.Any() || o.Product.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable)) }) })
             };
         }).ToList();
         return Results.Ok(new { context = ContextResponse(branch, channel, ctx), products = rows });
@@ -95,7 +98,7 @@ public static class SprintSixteenEndpoints
         if (existing is not null) return Results.Ok(OrderTracking(existing, await db.QrOrderApprovals.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == existing.Id, ct)));
 
         var productIds = request.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
+        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
         if (products.Count != productIds.Count) return Validation("lines", "One or more products are unavailable at this branch.");
         var at = DateTimeOffset.UtcNow;
         var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
@@ -122,6 +125,7 @@ public static class SprintSixteenEndpoints
             approval.ReviewedAt = at;
             order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Pending, ToStatus = OrderStatus.Confirmed, ChangedByUserId = null, Note = "Auto-approved" });
             kitchenTickets = SprintTenEndpoints.BuildTickets(db, identity, ctx.BranchId, order, products, Guid.NewGuid(), null, null, null, null, null, httpContext.TraceIdentifier);
+            if (kitchenTickets.Count > 0) await SprintTenEndpoints.EnqueueFullOrderPrint(db, order, kitchenTickets[0].Id, null, null, ct);
         }
         else
         {
@@ -151,6 +155,7 @@ public static class SprintSixteenEndpoints
         // or already auto-approved). Each connected screen re-fetches authoritative data — no state is
         // carried over the socket (docs/01-ARCHITECTURE-GUARDRAILS.md).
         await ordersBroadcaster.QrOrderReceived(ctx.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), approval.Status.ToString(), order.GrossAmount, ctx.Code);
+        await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
         foreach (var ticket in kitchenTickets) await kitchenBroadcaster.TicketChanged(ctx.BranchId, ticket.Id, "dispatched");
 
         return Results.Created($"/api/v1/qr/{ctx.Code}/orders/{order.ClientRequestId}", OrderTracking(order, approval));
@@ -260,12 +265,14 @@ public static class SprintSixteenEndpoints
                 var productIds = order.Lines.Select(x => x.ProductId).Distinct().ToList();
                 var products = productIds.Count == 0 ? new Dictionary<Guid, Product>() : await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
                 kitchenTickets = SprintTenEndpoints.BuildTickets(db, identity, order.BranchId, order, products, Guid.NewGuid(), null, null, null, UserId(user), DeviceId(user), httpContext.TraceIdentifier);
+                if (kitchenTickets.Count > 0) await SprintTenEndpoints.EnqueueFullOrderPrint(db, order, kitchenTickets[0].Id, UserId(user), DeviceId(user), ct);
             }
         }
         await db.SaveChangesAsync(ct);
         // Realtime staff notification: this QR order was approved/rejected. Screens refresh their lists;
         // the customer's own screen picks the outcome up on its next status poll.
         await ordersBroadcaster.QrOrderReviewed(order.BranchId, order.Id, order.ClientRequestId.ToString(), order.Status.ToString(), trackedApproval.Status.ToString());
+        await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
         foreach (var ticket in kitchenTickets) await kitchenBroadcaster.TicketChanged(order.BranchId, ticket.Id, "dispatched");
         return Results.Ok(OrderTracking(order, trackedApproval));
     }

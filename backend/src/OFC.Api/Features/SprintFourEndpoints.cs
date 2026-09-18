@@ -16,6 +16,7 @@ public static class SprintFourEndpoints
         api.MapGet("/sales-channels", ListChannels).RequireAuthorization(); api.MapPost("/sales-channels", CreateChannel).RequireAuthorization();
         api.MapGet("/tax-categories", ListTaxCategories).RequireAuthorization(); api.MapPost("/tax-categories", CreateTaxCategory).RequireAuthorization();
         api.MapGet("/price-rules", ListPriceRules).RequireAuthorization(); api.MapPost("/price-rules", CreatePriceRule).RequireAuthorization();
+        api.MapPost("/price-rules/copy-branch-menu", CopyBranchMenu).RequireAuthorization();
         api.MapGet("/tax-rules", ListTaxRules).RequireAuthorization(); api.MapPost("/tax-rules", CreateTaxRule).RequireAuthorization();
         api.MapGet("/promotions", ListPromotions).RequireAuthorization(); api.MapPost("/promotions", CreatePromotion).RequireAuthorization();
         api.MapGet("/catalog-versions", ListCatalogVersions).RequireAuthorization(); api.MapPost("/catalog-versions/publish", PublishCatalogVersion).RequireAuthorization();
@@ -28,7 +29,7 @@ public static class SprintFourEndpoints
         if (!CanManage(user)) return Forbidden();
         if (!ValidName(request.Code, PricingRules.CodeMax) || !ValidName(request.NameAr, CatalogRules.NameMax) || !ValidName(request.NameEn, CatalogRules.NameMax)) return Validation("channel", "Code and Arabic and English names are required and within their length limits.");
         if (await db.SalesChannels.AnyAsync(x => x.Code == request.Code.Trim().ToUpperInvariant(), ct)) return Validation("code", "A sales channel with this code already exists.");
-        var channel = new SalesChannel { Code = request.Code.Trim().ToUpperInvariant(), NameAr = request.NameAr.Trim(), NameEn = request.NameEn.Trim(), IsActive = request.IsActive };
+        var channel = new SalesChannel { Code = request.Code.Trim().ToUpperInvariant(), NameAr = request.NameAr.Trim(), NameEn = request.NameEn.Trim(), Kind = request.Kind, IsActive = request.IsActive };
         db.SalesChannels.Add(channel); Audit(identity, user, "create", "sales_channel", channel.Id, context, newValue: JsonSerializer.Serialize(channel)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/sales-channels/{channel.Id}", channel);
     }
     private static async Task<IResult> ListTaxCategories(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct) => CanManage(user) ? Results.Ok(await db.TaxCategories.AsNoTracking().OrderBy(x => x.Code).ToListAsync(ct)) : Forbidden();
@@ -58,6 +59,43 @@ public static class SprintFourEndpoints
         if (!await db.Products.AnyAsync(x => x.Id == request.ProductId, ct) || !await ValidScope(db, request.BranchId, request.SalesChannelId, ct)) return Validation("scope", "Product, branch, or sales channel is invalid.");
         var rule = new PriceRule { ProductId = request.ProductId, BranchId = request.BranchId, SalesChannelId = request.SalesChannelId, Price = request.Price, EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo, IsActive = request.IsActive };
         db.PriceRules.Add(rule); Audit(identity, user, "create", "price_rule", rule.Id, context, newValue: JsonSerializer.Serialize(rule)); await db.SaveChangesAsync(ct); return Results.Created($"/api/v1/price-rules/{rule.Id}", rule);
+    }
+    private static async Task<IResult> CopyBranchMenu(CopyBranchMenuRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!CanManage(user) || !await HasBranch(db, user, request.BranchId, ct)) return Forbidden();
+        if (request.AdjustmentPercentage is < -100m or > 1000m || !await ValidScope(db, request.BranchId, request.SalesChannelId, ct)) return Validation("priceList", "Provide a valid branch, sales channel, and percentage between -100 and 1000.");
+
+        var at = DateTimeOffset.UtcNow;
+        var products = await db.Products.AsNoTracking()
+            .Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == request.BranchId))
+            .ToListAsync(ct);
+        var ids = products.Select(x => x.Id).ToList();
+        var rules = await db.PriceRules
+            .Where(x => ids.Contains(x.ProductId) && x.IsActive && (x.BranchId == null || x.BranchId == request.BranchId))
+            .ToListAsync(ct);
+
+        // End the previous channel-specific list at the same instant the replacement starts. Historical
+        // orders retain their price snapshots, while the new list becomes deterministic immediately.
+        foreach (var old in rules.Where(x => x.BranchId == request.BranchId && x.SalesChannelId == request.SalesChannelId && PricingRules.IsEffective(x.EffectiveFrom, x.EffectiveTo, at))) old.EffectiveTo = at;
+
+        var multiplier = 1m + request.AdjustmentPercentage / 100m;
+        var created = new List<PriceRule>();
+        foreach (var product in products)
+        {
+            var baseRule = rules.Where(x => x.ProductId == product.Id && x.SalesChannelId == null && PricingRules.IsEffective(x.EffectiveFrom, x.EffectiveTo, at))
+                .OrderByDescending(x => x.BranchId == request.BranchId)
+                .ThenByDescending(x => x.EffectiveFrom)
+                .FirstOrDefault();
+            var basePrice = baseRule?.Price ?? product.BasePrice;
+            if (basePrice is null) continue;
+            var item = new PriceRule { ProductId = product.Id, BranchId = request.BranchId, SalesChannelId = request.SalesChannelId, Price = PricingRules.RoundMoney(basePrice.Value * multiplier), EffectiveFrom = at, IsActive = true };
+            db.PriceRules.Add(item);
+            created.Add(item);
+        }
+
+        Audit(identity, user, "price-list.copy", "sales_channel", request.SalesChannelId, context, newValue: JsonSerializer.Serialize(new { request.BranchId, request.SalesChannelId, request.AdjustmentPercentage, itemCount = created.Count }));
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(new { itemCount = created.Count, effectiveFrom = at });
     }
     private static async Task<IResult> ListTaxRules(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
@@ -120,9 +158,10 @@ public static class SprintFourEndpoints
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Forbidden", detail: "You do not have permission to perform this operation.");
     private static IResult Validation(string field, string detail) => Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [detail] });
-    private sealed record ChannelRequest(string Code, string NameAr, string NameEn, bool IsActive = true);
+    private sealed record ChannelRequest(string Code, string NameAr, string NameEn, SalesChannelKind Kind = SalesChannelKind.Electronic, bool IsActive = true);
     private sealed record TaxCategoryRequest(string Code, string NameAr, string NameEn, decimal Rate, bool IsActive = true);
     private sealed record PriceRuleRequest(Guid ProductId, Guid? BranchId, Guid? SalesChannelId, decimal Price, DateTimeOffset EffectiveFrom, DateTimeOffset? EffectiveTo, bool IsActive = true);
+    private sealed record CopyBranchMenuRequest(Guid BranchId, Guid SalesChannelId, decimal AdjustmentPercentage = 0m);
     private sealed record TaxRuleRequest(Guid TaxCategoryId, Guid? BranchId, decimal Rate, TaxCalculationMode CalculationMode, DateTimeOffset EffectiveFrom, DateTimeOffset? EffectiveTo, bool IsActive = true);
     private sealed record PromotionRequest(string Code, string NameAr, string NameEn, Guid? ProductId, Guid? BranchId, Guid? SalesChannelId, PromotionDiscountType DiscountType, decimal DiscountValue, int Priority, DateTimeOffset EffectiveFrom, DateTimeOffset? EffectiveTo, bool IsActive = true);
     private sealed record CatalogVersionRequest(string Note);

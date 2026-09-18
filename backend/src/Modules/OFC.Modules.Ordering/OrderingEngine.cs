@@ -105,8 +105,19 @@ public static class OrderingEngine
             if (choices is null) return (0m, Array.Empty<object>(), "A required selection group is missing.");
             var calculated = CatalogRules.Calculate(group, choices.Select(x => new SelectionChoice(x.OptionId, x.Quantity)));
             if (!calculated.IsValid) return (0m, Array.Empty<object>(), calculated.Error);
+            if (choices.Any(choice =>
+            {
+                var selected = group.Options.Single(x => x.Id == choice.OptionId).Product;
+                return selected is not null && (!selected.IsActive ||
+                    (selected.BranchAvailability.Any() && !selected.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable)));
+            }))
+                return (0m, Array.Empty<object>(), "One or more selected meal items are unavailable at this branch.");
             adjustment += calculated.PriceAdjustment;
-            snapshots.Add(new { group.Id, group.Kind, group.NameAr, group.NameEn, choices = choices.Select(choice => new { choice.OptionId, choice.Quantity, priceAdjustment = group.Options.Single(x => x.Id == choice.OptionId).PriceAdjustment }) });
+            snapshots.Add(new { group.Id, group.Kind, group.NameAr, group.NameEn, choices = choices.Select(choice =>
+            {
+                var option = group.Options.Single(x => x.Id == choice.OptionId);
+                return new { choice.OptionId, option.ProductId, choice.Quantity, NameAr = option.Product?.NameAr, NameEn = option.Product?.NameEn, option.PriceAdjustment };
+            }) });
         }
         return (adjustment, snapshots, null);
     }

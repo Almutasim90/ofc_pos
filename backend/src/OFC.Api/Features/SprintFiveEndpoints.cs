@@ -28,14 +28,14 @@ public static class SprintFiveEndpoints
     {
         if (!user.HasClaim("permission", "orders.manage")) return Forbidden();
         var userId = UserId(user); var branches = await db.UserBranches.AsNoTracking().Where(x => x.UserId == userId).Join(db.Branches, x => x.BranchId, x => x.Id, (_, branch) => new { branch.Id, branch.NameAr, branch.NameEn, branch.IsActive }).Where(x => x.IsActive).ToListAsync(ct);
-        return Results.Ok(new { branches, channels = await db.SalesChannels.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn }).ToListAsync(ct) });
+        return Results.Ok(new { branches, channels = await db.SalesChannels.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Code).Select(x => new { x.Id, x.Code, x.NameAr, x.NameEn, x.Kind }).ToListAsync(ct) });
     }
 
     private static async Task<IResult> Catalog(Guid branchId, Guid salesChannelId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
         if (!await db.SalesChannels.AnyAsync(x => x.Id == salesChannelId && x.IsActive, ct)) return Validation("salesChannelId", "The sales channel is invalid.");
-        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable)).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
+        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable)).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
         var productIds = products.Select(x => x.Id).ToList();
         var at = DateTimeOffset.UtcNow;
         var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
@@ -65,7 +65,7 @@ public static class SprintFiveEndpoints
                     catalogVersionId = snapshot.CatalogVersionId,
                     catalogVersionNumber = snapshot.CatalogVersionNumber
                 },
-                selectionGroups = product.SelectionGroups.OrderBy(x => x.SortOrder).Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))).Select(x => new { x.SelectionGroup!.Id, x.SelectionGroup.Kind, x.SelectionGroup.NameAr, x.SelectionGroup.NameEn, x.SelectionGroup.IsRequired, x.SelectionGroup.MinSelections, x.SelectionGroup.MaxSelections, options = x.SelectionGroup.Options.OrderBy(o => o.SortOrder).Select(o => new { o.Id, o.ProductId, nameAr = o.Product!.NameAr, nameEn = o.Product.NameEn, o.PriceAdjustment, o.IsDefault, o.MaxQuantity }) })
+                selectionGroups = product.SelectionGroups.OrderBy(x => x.SortOrder).Where(x => x.SelectionGroup!.IsActive && (!x.SelectionGroup.BranchAvailability.Any() || x.SelectionGroup.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable))).Select(x => new { x.SelectionGroup!.Id, x.SelectionGroup.Kind, x.SelectionGroup.NameAr, x.SelectionGroup.NameEn, x.SelectionGroup.IsRequired, x.SelectionGroup.MinSelections, x.SelectionGroup.MaxSelections, options = x.SelectionGroup.Options.OrderBy(o => o.SortOrder).Select(o => new { o.Id, o.ProductId, nameAr = o.Product!.NameAr, nameEn = o.Product.NameEn, o.PriceAdjustment, o.IsDefault, o.MaxQuantity, isAvailable = o.Product.IsActive && (!o.Product.BranchAvailability.Any() || o.Product.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable)) }) })
             };
         }));
     }
@@ -120,7 +120,7 @@ public static class SprintFiveEndpoints
         if (existing is not null) return Results.Ok(OrderResponse(existing));
         if (!await db.SalesChannels.AnyAsync(x => x.Id == request.SalesChannelId && x.IsActive, ct)) return Validation("salesChannelId", "The sales channel is invalid.");
         var productIds = request.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == request.BranchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
+        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == request.BranchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
         if (products.Count != productIds.Count) return Validation("lines", "One or more products are unavailable at this branch.");
         var at = DateTimeOffset.UtcNow;
         var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
@@ -137,13 +137,15 @@ public static class SprintFiveEndpoints
         return Results.Created($"/api/v1/orders/{order.Id}", OrderResponse(order));
     }
 
-    private static async Task<IResult> ChangeStatus(Guid id, StatusRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    private static async Task<IResult> ChangeStatus(Guid id, StatusRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster ordersBroadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
     {
         var order = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.Id == id, ct); if (order is null) return Results.NotFound();
         if (!await CanOperate(db, user, order.BranchId, ct)) return Forbidden();
         if (!OrderRules.CanTransition(order.Status, request.Status) || request.Note?.Trim().Length > OrderRules.NoteMax) return Validation("status", "This status transition or note is invalid.");
         var from = order.Status; order.Status = request.Status; order.UpdatedAt = DateTimeOffset.UtcNow; db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = from, ToStatus = request.Status, ChangedByUserId = UserId(user), Note = request.Note?.Trim() });
-        identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.status.change", "order", order.Id.ToString(), context.TraceIdentifier, JsonSerializer.Serialize(from), JsonSerializer.Serialize(request.Status)); await db.SaveChangesAsync(ct); return Results.Ok(OrderResponse(order));
+        identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.status.change", "order", order.Id.ToString(), context.TraceIdentifier, JsonSerializer.Serialize(from), JsonSerializer.Serialize(request.Status)); await db.SaveChangesAsync(ct);
+        if (order.Source == OrderSource.Qr) await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
+        return Results.Ok(OrderResponse(order));
     }
 
     private static async Task<bool> CanOperate(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationToken ct) => user.HasClaim("permission", "orders.manage") && (user.FindFirstValue("branch_id") == branchId.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId, ct));

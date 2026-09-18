@@ -4,6 +4,8 @@ import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
 import { useReliableBranchHub } from "@/lib/reliable-hub";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
@@ -151,8 +153,8 @@ export function KitchenSection({ language }: { language: Language }) {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="min-w-56 rounded-xl bg-white p-1 text-[#102e2a]"><SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect></div>
-            <button onClick={() => void refresh()} aria-label={t.reload} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 font-bold text-white transition hover:bg-white/20"><RefreshCw className={loading ? "animate-spin" : ""} size={18} />{t.reload}</button>
-            <button onClick={() => setShowDispatch(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#f3b33f] px-5 font-black text-[#18362f] shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:bg-[#ffc45b]"><Send size={18} />{t.dispatchAction}</button>
+            <Button onClick={() => void refresh()} aria-label={t.reload} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 font-bold text-white transition hover:bg-white/20"><RefreshCw className={loading ? "animate-spin" : ""} size={18} />{t.reload}</Button>
+            <Button onClick={() => setShowDispatch(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#f3b33f] px-5 font-black text-[#18362f] shadow-lg shadow-black/15 transition hover:-translate-y-0.5 hover:bg-[#ffc45b]"><Send size={18} />{t.dispatchAction}</Button>
           </div>
         </div>
       </header>
@@ -169,8 +171,8 @@ export function KitchenSection({ language }: { language: Language }) {
       <section className="rounded-2xl border border-[#dfe7e2] bg-white p-3 shadow-[0_8px_30px_rgba(20,55,45,0.04)] sm:p-4">
         <div className="mb-3 flex items-center gap-2 px-1 text-xs font-bold uppercase tracking-wider text-[#71817b]"><UtensilsCrossed size={15} />{t.stationsLabel}</div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          <button onClick={() => setStationId("")} className={`min-h-10 shrink-0 rounded-xl px-4 text-sm font-bold transition ${stationId === "" ? "bg-[#0e5a4f] text-white shadow-md shadow-[#0e5a4f]/15" : "bg-[#f1f5f3] text-[#53645e] hover:bg-[#e5eeea]"}`}>{t.allStations}<span className="ms-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px]">{tickets.length}</span></button>
-          {stations.map((station) => <button key={station.id} onClick={() => setStationId(station.id)} className={`min-h-10 shrink-0 rounded-xl px-4 text-sm font-bold transition ${stationId === station.id ? "bg-[#0e5a4f] text-white shadow-md shadow-[#0e5a4f]/15" : "bg-[#f1f5f3] text-[#53645e] hover:bg-[#e5eeea]"}`}><span className="me-2 text-[11px] opacity-60">{station.code}</span>{name(station)}</button>)}
+          <Button onClick={() => setStationId("")} className={`min-h-10 shrink-0 rounded-xl px-4 text-sm font-bold transition ${stationId === "" ? "bg-[#0e5a4f] text-white shadow-md shadow-[#0e5a4f]/15" : "bg-[#f1f5f3] text-[#53645e] hover:bg-[#e5eeea]"}`}>{t.allStations}<span className="ms-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px]">{tickets.length}</span></Button>
+          {stations.map((station) => <Button key={station.id} onClick={() => setStationId(station.id)} className={`min-h-10 shrink-0 rounded-xl px-4 text-sm font-bold transition ${stationId === station.id ? "bg-[#0e5a4f] text-white shadow-md shadow-[#0e5a4f]/15" : "bg-[#f1f5f3] text-[#53645e] hover:bg-[#e5eeea]"}`}><span className="me-2 text-[11px] opacity-60">{station.code}</span>{name(station)}</Button>)}
         </div>
       </section>
 
@@ -180,8 +182,8 @@ export function KitchenSection({ language }: { language: Language }) {
         <p className="text-sm text-[#000000]">{t.dispatchNote}</p>
         <form onSubmit={dispatch} className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><SearchableSelect label={t.order} value={dispatchForm.orderId} onChange={(v) => setDispatchForm({ ...dispatchForm, orderId: v })}>{orders.length === 0 && <option value="">{t.empty}</option>}{orders.map((o) => <option key={o.id} value={o.id}>{o.status} · {o.grossAmount}</option>)}</SearchableSelect></div>
-          <label className="block text-sm font-medium">{t.targetMinutes}<input type="number" value={dispatchForm.targetMinutes} onChange={(e) => setDispatchForm({ ...dispatchForm, targetMinutes: e.target.value })} min={1} max={999} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>
-          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={18} />{t.dispatchAction}</button>
+          <label className="block text-sm font-medium">{t.targetMinutes}<Input type="number" value={dispatchForm.targetMinutes} onChange={(e) => setDispatchForm({ ...dispatchForm, targetMinutes: e.target.value })} min={1} max={999} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3" /></label>
+          <Button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Send size={18} />{t.dispatchAction}</Button>
         </form>
       </FormDialog>}
 
@@ -227,7 +229,7 @@ export function KitchenSection({ language }: { language: Language }) {
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${item.status === "Completed" ? "bg-[#d9f1e2] text-[#137347]" : item.status === "Preparing" ? "bg-[#f8e7ca] text-[#9b5915]" : item.status === "Cancelled" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#e8ece8] text-[#53645e]"}`}>{itemLabel(item.status)}</span>
                     <div className="flex gap-1.5">
-                      {itemNext(item) && ticket.dispatchStatus !== "Cancelled" && <button onClick={() => void setItem(ticket.id, item.id, itemNext(item)!)} className="min-h-8 rounded-lg bg-[#123d35] px-3 text-xs font-bold text-white transition hover:bg-[#0e5a4f]">{itemNext(item) === "Preparing" ? t.start : itemNext(item) === "Ready" ? t.ready : t.complete}</button>}
+                      {itemNext(item) && ticket.dispatchStatus !== "Cancelled" && <Button onClick={() => void setItem(ticket.id, item.id, itemNext(item)!)} className="min-h-8 rounded-lg bg-[#123d35] px-3 text-xs font-bold text-white transition hover:bg-[#0e5a4f]">{itemNext(item) === "Preparing" ? t.start : itemNext(item) === "Ready" ? t.ready : t.complete}</Button>}
                     </div>
                   </div>
                 </li>
@@ -235,14 +237,14 @@ export function KitchenSection({ language }: { language: Language }) {
             </ul>
 
             <div className="mt-4 flex flex-wrap gap-2 border-t border-[#e8eeeb] pt-4">
-              {ticket.dispatchStatus === "Pending" && <button onClick={() => void act(ticket, "send")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.send}</button>}
-              {ticket.dispatchStatus === "SentToKds" && <button onClick={() => void act(ticket, "fallback")} className="min-h-10 rounded-lg bg-[#8a6d1f] px-3 text-sm font-semibold text-white">{t.fallback}</button>}
-              {ticket.dispatchStatus === "PrintFallbackPending" && <button onClick={() => void act(ticket, "printed")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.printed}</button>}
-              {ticket.dispatchStatus === "PrintFallbackPending" && <button onClick={() => void act(ticket, "fail")} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.fail}</button>}
-              {ticket.dispatchStatus === "SentToKds" && <button onClick={() => void act(ticket, "ack")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.ack}</button>}
+              {ticket.dispatchStatus === "Pending" && <Button onClick={() => void act(ticket, "send")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.send}</Button>}
+              {ticket.dispatchStatus === "SentToKds" && <Button onClick={() => void act(ticket, "fallback")} className="min-h-10 rounded-lg bg-[#8a6d1f] px-3 text-sm font-semibold text-white">{t.fallback}</Button>}
+              {ticket.dispatchStatus === "PrintFallbackPending" && <Button onClick={() => void act(ticket, "printed")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.printed}</Button>}
+              {ticket.dispatchStatus === "PrintFallbackPending" && <Button onClick={() => void act(ticket, "fail")} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.fail}</Button>}
+              {ticket.dispatchStatus === "SentToKds" && <Button onClick={() => void act(ticket, "ack")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.ack}</Button>}
               {confirmCancelId === ticket.id
-                ? <><button onClick={() => void cancel(ticket.id)} className="min-h-10 rounded-lg bg-[#b4322a] px-3 text-sm font-semibold text-white">{t.confirmCancel}</button><button onClick={() => setConfirmCancelId(null)} className="min-h-10 rounded-lg border border-[#cdd7d0] px-3 text-sm font-semibold">{t.cancel}</button></>
-                : <button onClick={() => setConfirmCancelId(ticket.id)} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.cancel}</button>}
+                ? <><Button onClick={() => void cancel(ticket.id)} className="min-h-10 rounded-lg bg-[#b4322a] px-3 text-sm font-semibold text-white">{t.confirmCancel}</Button><Button onClick={() => setConfirmCancelId(null)} className="min-h-10 rounded-lg border border-[#cdd7d0] px-3 text-sm font-semibold">{t.cancel}</Button></>
+                : <Button onClick={() => setConfirmCancelId(ticket.id)} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.cancel}</Button>}
             </div>
             </div>
           </article>

@@ -3,6 +3,8 @@ import { Plus, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type PrinterKind = "Receipt" | "Kitchen" | "CashDrawer";
@@ -100,7 +102,7 @@ export function PrintingSection({ language }: { language: Language }) {
       </div>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
-        {tabs.map(([key, label]) => <button key={key} onClick={() => setTab(key)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === key ? "bg-[#0e5a4f] text-white" : "bg-white text-[#000000]"}`}>{label}</button>)}
+        {tabs.map(([key, label]) => <Button key={key} onClick={() => setTab(key)} className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${tab === key ? "bg-[#0e5a4f] text-white" : "bg-white text-[#000000]"}`}>{label}</Button>)}
       </div>
 
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
@@ -109,7 +111,7 @@ export function PrintingSection({ language }: { language: Language }) {
       {!loading && tab === "configs" && (
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.configs}</h2><button type="button" onClick={() => setDialog("config")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addConfig}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.configs}</h2><Button type="button" onClick={() => setDialog("config")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addConfig}</Button></div>
             {configs.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noConfigs}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{configs.map((c) => <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{name(c)}</p><p className="text-sm text-[#000000]">{c.code} · {printerKindLabel(c.kind)}{c.deviceName ? ` · ${c.deviceName}` : ""}</p>{c.lastHealthError && <p className="text-xs text-[#b4322a]">{c.lastHealthError}</p>}</div><div className="flex items-center gap-1.5"><span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.isActive ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#e8ece8] text-[#000000]"}`}>{c.isActive ? t.active : t.inactive}</span><span title={c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString(language) : undefined} className={`rounded-full px-3 py-1 text-xs font-semibold ${c.online ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#fbe4e2] text-[#b4322a]"}`}>{c.online ? t.agentOnline : t.agentOffline}</span></div></li>)}</ul>
             )}
@@ -120,7 +122,7 @@ export function PrintingSection({ language }: { language: Language }) {
       {!loading && tab === "templates" && (
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.templates}</h2><button type="button" onClick={() => setDialog("template")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addTemplate}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.templates}</h2><Button type="button" onClick={() => setDialog("template")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addTemplate}</Button></div>
             {templates.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noTemplates}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{templates.map((x) => <li key={x.id} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{name(x)}</p><span className="rounded-full bg-[#edf5f1] px-2 py-1 text-xs font-medium text-[#0e5a4f]">{printerKindLabel(x.kind)}</span></div><p className="mt-1 text-sm text-[#000000]">{x.code} · {x.widthChars}</p></li>)}</ul>
             )}
@@ -131,7 +133,7 @@ export function PrintingSection({ language }: { language: Language }) {
       {!loading && tab === "routes" && (
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.routes}</h2><button type="button" onClick={() => setDialog("route")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addRoute}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.routes}</h2><Button type="button" onClick={() => setDialog("route")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.addRoute}</Button></div>
             {routes.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noRoutes}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{routes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3"><div className="min-w-0"><p className="font-medium">{r.stationCode ? `${r.stationCode} · ${r.stationNameAr ?? r.stationNameEn}` : t.defaultRoute}</p><p className="text-sm text-[#000000]">{r.printerNameAr ?? r.printerCode} → {r.templateCode}</p></div><span className="rounded-full bg-[#e8ece8] px-3 py-1 text-xs font-semibold text-[#000000]">{r.priority}</span></li>)}</ul>
             )}
@@ -142,7 +144,7 @@ export function PrintingSection({ language }: { language: Language }) {
       {!loading && tab === "queue" && (
         <div className="mt-6">
           <section className="rounded-xl border border-[#dfe5df] bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.queue}</h2><button type="button" onClick={() => setDialog("enqueue")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.enqueue}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.queue}</h2><Button type="button" onClick={() => setDialog("enqueue")} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white hover:bg-[#08483f]"><Plus size={16} />{t.enqueue}</Button></div>
             {jobs.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.jobsEmpty}</p> : (
               <ul className="mt-3 divide-y divide-[#e8ece8]">{jobs.map((job) => (
                 <li key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -154,9 +156,9 @@ export function PrintingSection({ language }: { language: Language }) {
                     <p className="mt-1 text-sm text-[#000000]">{t.attempt} {job.attemptCount}/{job.maxAttempts} · {job.templateCode ?? t.none}{job.nextAttemptAt && job.status !== "Printed" ? ` · ${new Intl.DateTimeFormat(language, { timeStyle: "short" }).format(new Date(job.nextAttemptAt))}` : ""}</p>
                     {job.lastError && <p className="mt-1 text-xs text-[#b4322a]">{job.lastError}</p>}
                   </div>
-                  {job.status === "Pending" && <button onClick={() => void jobAction(job.id, "claim")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.claim}</button>}
-                  {job.status === "Printing" && <div className="flex gap-2"><button onClick={() => void jobAction(job.id, "complete")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.complete}</button><button onClick={() => void jobAction(job.id, "fail")} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.fail}</button></div>}
-                  {job.status === "Failed" && <button onClick={() => void jobAction(job.id, "retry")} className="min-h-10 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]">{t.retry}</button>}
+                  {job.status === "Pending" && <Button onClick={() => void jobAction(job.id, "claim")} className="min-h-10 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.claim}</Button>}
+                  {job.status === "Printing" && <div className="flex gap-2"><Button onClick={() => void jobAction(job.id, "complete")} className="min-h-10 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white">{t.complete}</Button><Button onClick={() => void jobAction(job.id, "fail")} className="min-h-10 rounded-lg border border-[#b4322a] px-3 text-sm font-semibold text-[#b4322a]">{t.fail}</Button></div>}
+                  {job.status === "Failed" && <Button onClick={() => void jobAction(job.id, "retry")} className="min-h-10 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]">{t.retry}</Button>}
                 </li>
               ))}</ul>
             )}
@@ -172,7 +174,7 @@ export function PrintingSection({ language }: { language: Language }) {
           <SelectField label={t.kind} value={configForm.kind} onChange={(v) => setConfigForm({ ...configForm, kind: v as PrinterKind })} options={printerKinds.map((k) => [k, printerKindLabel(k)])} />
           <Field label={t.deviceName} value={configForm.deviceName} onChange={(v) => setConfigForm({ ...configForm, deviceName: v })} max={100} />
           <Field label={t.sortOrder} value={configForm.sortOrder} onChange={(v) => setConfigForm({ ...configForm, sortOrder: v })} type="number" />
-          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
+          <Button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</Button>
         </form>
       </FormDialog>}
 
@@ -184,7 +186,7 @@ export function PrintingSection({ language }: { language: Language }) {
           <Field label={t.nameEn} value={templateForm.nameEn} onChange={(v) => setTemplateForm({ ...templateForm, nameEn: v })} max={160} />
           <Field label={t.widthChars} value={templateForm.widthChars} onChange={(v) => setTemplateForm({ ...templateForm, widthChars: v })} type="number" />
           <label className="block text-sm font-medium sm:col-span-2">{t.content}<textarea value={templateForm.content} onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })} maxLength={4000} rows={5} className="mt-2 min-h-24 w-full rounded-lg border border-[#cdd7d0] px-3 py-2 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>
-          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
+          <Button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</Button>
         </form>
       </FormDialog>}
 
@@ -194,7 +196,7 @@ export function PrintingSection({ language }: { language: Language }) {
           <SelectField label={t.printer} required value={routeForm.configId} onChange={(v) => setRouteForm({ ...routeForm, configId: v })} options={configs.map((c) => [c.id, `${name(c)} (${c.code})`])} />
           <SelectField label={t.template} required value={routeForm.templateId} onChange={(v) => setRouteForm({ ...routeForm, templateId: v })} options={templates.map((x) => [x.id, `${name(x)} (${x.code})`])} />
           <Field label={t.priority} value={routeForm.priority} onChange={(v) => setRouteForm({ ...routeForm, priority: v })} type="number" />
-          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</button>
+          <Button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60"><Printer size={18} />{t.add}</Button>
         </form>
       </FormDialog>}
 
@@ -205,7 +207,7 @@ export function PrintingSection({ language }: { language: Language }) {
           <SearchableSelect label={t.station} value={enqueueForm.stationId} onChange={(v) => setEnqueueForm({ ...enqueueForm, stationId: v })}><option value="">{t.stationOptional}</option>{stations.map((s) => <option key={s.id} value={s.id}>{s.code} · {name(s)}</option>)}</SearchableSelect>
           <Field label={t.templateCode} value={enqueueForm.templateCode} onChange={(v) => setEnqueueForm({ ...enqueueForm, templateCode: v })} max={50} />
           <label className="block text-sm font-medium sm:col-span-2">{t.payload}<textarea value={enqueueForm.payload} onChange={(e) => setEnqueueForm({ ...enqueueForm, payload: e.target.value })} rows={3} className="mt-2 min-h-20 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 py-2 font-mono text-xs outline-none focus:border-[#0e5a4f]" /></label>
-          <button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60">{t.sendToAgent}</button>
+          <Button disabled={loading} className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f] disabled:opacity-60">{t.sendToAgent}</Button>
         </form>
       </FormDialog>}
     </div>
@@ -213,7 +215,7 @@ export function PrintingSection({ language }: { language: Language }) {
 }
 
 function Field({ label, value, onChange, max, type = "text" }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string }) {
-  return <label className="block text-sm font-medium">{label}<input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+  return <label className="block text-sm font-medium">{label}<Input type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-12 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]>; required?: boolean }) {

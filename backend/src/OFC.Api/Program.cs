@@ -90,6 +90,7 @@ app.MapSprintSeventeenEndpoints();
 app.MapSprintEighteenEndpoints();
 app.MapHub<KitchenHub>("/hubs/kitchen");
 app.MapHub<OrdersHub>("/hubs/orders");
+app.MapHub<CustomerOrdersHub>("/hubs/customer-orders");
 
 var indexFile = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "index.html");
 if (File.Exists(indexFile))

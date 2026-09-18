@@ -704,7 +704,7 @@ Refunded
 Payment Methods ديناميكية:
 
 - Cash
-- OmanNet
+- Card
 - Visa
 - Mastercard
 - Apple Pay
@@ -724,7 +724,7 @@ Payment Methods ديناميكية:
 
 ```text
 Cash: 1.000
-OmanNet: 1.700
+Card: 1.700
 Total: 2.700 OMR
 ```
 

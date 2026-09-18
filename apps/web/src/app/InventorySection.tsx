@@ -4,6 +4,8 @@ import { createId, store } from "@/lib/local-store";
 import { FormDialog } from "@/app/FormDialog";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { SearchableSelect } from "@/app/SearchableSelect";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
@@ -240,7 +242,7 @@ export function InventorySection({ language, permissions }: { language: Language
       <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{t.title}</h1>
       <p className="mt-3 max-w-3xl text-[#000000]">{t.intro}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Boxes size={18} /><span>{t.isolated}</span><button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</button></div>
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#d9dfd7] bg-[#edf5f1] p-3 text-sm text-[#08483f]"><Boxes size={18} /><span>{t.isolated}</span><Button onClick={() => void refreshAll()} className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white"><RefreshCw size={15} />{t.reload}</Button></div>
 
       <div className="mt-5 max-w-md">
         <SearchableSelect label={t.branch} value={branchId} onChange={setBranchId}>{branches.map((b) => <option key={b.id} value={b.id}>{name(b)}</option>)}</SearchableSelect>
@@ -249,9 +251,9 @@ export function InventorySection({ language, permissions }: { language: Language
       {message && <p role={isError ? "alert" : "status"} className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}>{message}</p>}
       {loading && <div className="mt-4 flex items-center gap-3 text-[#000000]"><RefreshCw className="animate-spin" size={20} />{t.loading}</div>}
 
-      <nav aria-label={language === "ar" ? "أقسام المخزون" : "Inventory sections"} className="mt-5 flex flex-wrap gap-2">{[["stock", t.stock], ["items", t.items], ["recipes", t.recipes], ["units", t.units]].map(([id, label]) => <button key={id} onClick={() => setInventoryTab(id)} aria-pressed={inventoryTab === id} className={`min-h-11 rounded-lg border px-4 text-sm ${inventoryTab === id ? "bg-[#0e5a4f] text-white" : "bg-white"}`}>{label}</button>)}</nav>
+      <nav aria-label={language === "ar" ? "أقسام المخزون" : "Inventory sections"} className="mt-5 flex flex-wrap gap-2">{[["stock", t.stock], ["items", t.items], ["recipes", t.recipes], ["units", t.units]].map(([id, label]) => <Button key={id} onClick={() => setInventoryTab(id)} aria-pressed={inventoryTab === id} className={`min-h-11 rounded-lg border px-4 text-sm ${inventoryTab === id ? "bg-[#0e5a4f] text-white" : "bg-white"}`}>{label}</Button>)}</nav>
       <div className="mt-6 grid gap-5">
-        <section hidden={inventoryTab !== "units"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.units}</h2>{canUoms && <button onClick={() => setUnitDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addUnit}</button>}</div>
+        <section hidden={inventoryTab !== "units"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.units}</h2>{canUoms && <Button onClick={() => setUnitDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addUnit}</Button>}</div>
           {units.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">{units.map((u) => <li key={u.id} className="flex items-center justify-between rounded-lg bg-[#f4f7f4] px-3 py-2 text-sm"><span>{u.code} · {name(u)}</span><span className="text-xs text-[#000000]">{u.symbol ?? ""}</span></li>)}</ul>
           )}
@@ -262,10 +264,10 @@ export function InventorySection({ language, permissions }: { language: Language
               <Field label={t.nameAr} value={unitForm.nameAr} onChange={(v) => setUnitForm({ ...unitForm, nameAr: v })} max={160} />
               <Field label={t.nameEn} value={unitForm.nameEn} onChange={(v) => setUnitForm({ ...unitForm, nameEn: v })} max={160} />
             </div>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</button>
+            <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.add}</Button>
           </form></FormDialog>}
           <section className="mt-5 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{t.conversions}</h3>{canUoms && <button onClick={() => setConversionDialogOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white"><Plus size={16} />{t.addConversion}</button>}</div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">{t.conversions}</h3>{canUoms && <Button onClick={() => setConversionDialogOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white"><Plus size={16} />{t.addConversion}</Button>}</div>
             {conversions.length === 0 ? <p className="mt-2 text-sm text-[#000000]">{t.empty}</p> : (
               <ul className="mt-2 divide-y divide-[#e8ece8]">{conversions.map((c) => <li key={c.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span>{c.fromCode} → {c.toCode}</span><span className="font-medium">{fmt(c.factor)}</span></li>)}</ul>
             )}
@@ -273,22 +275,22 @@ export function InventorySection({ language, permissions }: { language: Language
               <Select label={t.fromUnit} value={convForm.fromUnitId} onChange={(v) => setConvForm({ ...convForm, fromUnitId: v })}>{unitOptions}</Select>
               <Select label={t.toUnit} value={convForm.toUnitId} onChange={(v) => setConvForm({ ...convForm, toUnitId: v })}>{unitOptions}</Select>
               <Field label={t.factor} value={convForm.factor} onChange={(v) => setConvForm({ ...convForm, factor: v })} type="number" />
-              <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white"><Plus size={16} />{t.addConversion}</button>
+              <Button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white"><Plus size={16} />{t.addConversion}</Button>
             </form></FormDialog>}
             <form onSubmit={doConvert} className="mt-4 grid gap-3 sm:grid-cols-3">
               <Select label={t.fromUnit} value={convertForm.fromUnitId} onChange={(v) => setConvertForm({ ...convertForm, fromUnitId: v })}>{unitOptions}</Select>
               <Select label={t.toUnit} value={convertForm.toUnitId} onChange={(v) => setConvertForm({ ...convertForm, toUnitId: v })}>{unitOptions}</Select>
               <Field label={t.quantity} value={convertForm.quantity} onChange={(v) => setConvertForm({ ...convertForm, quantity: v })} type="number" />
-              <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white sm:col-span-3">{t.convertTitle}</button>
+              <Button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#137347] px-3 text-sm font-semibold text-white sm:col-span-3">{t.convertTitle}</Button>
             </form>
             {convertResult && <p className="mt-3 text-sm text-[#0e5a4f]">{fmt(convertForm.quantity === "" ? null : Number(convertForm.quantity))} → {fmt(convertResult.convertedQuantity)} {convertResult.toUnitCode ?? ""}</p>}
           </section>
         </section>
 
-        <section hidden={inventoryTab !== "items"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.items}</h2>{canItems && <button onClick={() => { setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); setItemDialogOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addItem}</button>}</div>
-          <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
+        <section hidden={inventoryTab !== "items"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.items}</h2>{canItems && <Button onClick={() => { setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); setItemDialogOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addItem}</Button>}</div>
+          <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><Input aria-label={t.search} placeholder={t.search} value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
           {filteredItems.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
-            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageItems.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{item.sku}</span><span className="text-[#000000]"> · {name(item)}</span></div><span className="text-xs text-[#000000]">{typeLabel(item.type)} · {fmt(item.unitCost)}</span>{canItems && <button onClick={() => { setEditingItem(item); setItemForm({ sku: item.sku, barcode: item.barcode ?? "", nameAr: item.nameAr, nameEn: item.nameEn, type: item.type, baseUnitId: item.baseUnitId, unitCost: item.unitCost.toString() }); setItemDialogOpen(true); }} className="min-h-11 rounded-lg border px-3 font-semibold text-[#0e5a4f]">{language === "ar" ? "تعديل" : "Edit"}</button>}</li>)}</ul>
+            <ul className="mt-3 divide-y divide-[#e8ece8]">{pageItems.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><div><span className="font-medium">{item.sku}</span><span className="text-[#000000]"> · {name(item)}</span></div><span className="text-xs text-[#000000]">{typeLabel(item.type)} · {fmt(item.unitCost)}</span>{canItems && <Button onClick={() => { setEditingItem(item); setItemForm({ sku: item.sku, barcode: item.barcode ?? "", nameAr: item.nameAr, nameEn: item.nameEn, type: item.type, baseUnitId: item.baseUnitId, unitCost: item.unitCost.toString() }); setItemDialogOpen(true); }} className="min-h-11 rounded-lg border px-3 font-semibold text-[#0e5a4f]">{language === "ar" ? "تعديل" : "Edit"}</Button>}</li>)}</ul>
             <Pagination page={itemPage} pageSize={PAGE_SIZE} total={filteredItems.length} onPageChange={setItemPage} language={language} />
           </>)}
           {itemDialogOpen && <FormDialog title={editingItem ? (language === "ar" ? "تعديل المادة" : "Edit item") : t.addItem} closeLabel={t.close} onClose={() => { setItemDialogOpen(false); setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }}><form onSubmit={createItem} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
@@ -301,16 +303,16 @@ export function InventorySection({ language, permissions }: { language: Language
               <Select disabled={!!editingItem} label={t.baseUnit} value={itemForm.baseUnitId} onChange={(v) => setItemForm({ ...itemForm, baseUnitId: v })}>{unitOptions}</Select>
               <Field label={t.unitCost} value={itemForm.unitCost} onChange={(v) => setItemForm({ ...itemForm, unitCost: v })} type="number" />
             </div>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{editingItem ? (language === "ar" ? "حفظ التعديلات" : "Save changes") : t.add}</button>
-          {editingItem && <><label className="mt-3 flex min-h-11 items-center gap-2"><input type="checkbox" checked={editingItem.isActive} onChange={e => setEditingItem({ ...editingItem, isActive: e.target.checked })} />{t.active}</label><p className="mt-2 text-xs text-[#000000]">{language === "ar" ? "الوحدة ونوع المادة ثابتان لحماية الحركات السابقة. تكلفة مادة لها حركات تُحدّث من المشتريات." : "Unit and type stay fixed to preserve past movements. Cost for an item with movements is updated through purchasing."}</p><button type="button" onClick={() => { setItemDialogOpen(false); setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }} className="mt-3 min-h-11 rounded-lg border px-4">{language === "ar" ? "إلغاء التعديل" : "Cancel editing"}</button></>}</form></FormDialog>}
+            <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{editingItem ? (language === "ar" ? "حفظ التعديلات" : "Save changes") : t.add}</Button>
+          {editingItem && <><label className="mt-3 flex min-h-11 items-center gap-2"><Input type="checkbox" checked={editingItem.isActive} onChange={e => setEditingItem({ ...editingItem, isActive: e.target.checked })} />{t.active}</label><p className="mt-2 text-xs text-[#000000]">{language === "ar" ? "الوحدة ونوع المادة ثابتان لحماية الحركات السابقة. تكلفة مادة لها حركات تُحدّث من المشتريات." : "Unit and type stay fixed to preserve past movements. Cost for an item with movements is updated through purchasing."}</p><Button type="button" onClick={() => { setItemDialogOpen(false); setEditingItem(null); setItemForm({ sku: "", barcode: "", nameAr: "", nameEn: "", type: "RawMaterial", baseUnitId: "", unitCost: "" }); }} className="mt-3 min-h-11 rounded-lg border px-4">{language === "ar" ? "إلغاء التعديل" : "Cancel editing"}</Button></>}</form></FormDialog>}
         </section>
 
-        <section hidden={inventoryTab !== "recipes"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.recipes}</h2>{canRecipes && <button onClick={() => setRecipeDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addRecipe}</button>}</div>
+        <section hidden={inventoryTab !== "recipes"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.recipes}</h2>{canRecipes && <Button onClick={() => setRecipeDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Plus size={18} />{t.addRecipe}</Button>}</div>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row">
             <Select label={t.product} value={recipeFilter} onChange={setRecipeFilter}><option value="">{t.none}</option>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
           </div>
           {recipes.length === 0 ? <p className="mt-4 text-sm text-[#000000]">{t.empty}</p> : (
-            <ul className="mt-4 space-y-2">{recipes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8ece8] px-3 py-2 text-sm"><span className="min-w-0">{r.productSku ?? "—"} · v{r.versionNumber} <span className="text-[#000000]">({r.lineCount} {t.linesCount})</span></span><div className="flex items-center gap-1.5"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.status === "Active" ? "bg-[#e3f4ea] text-[#137347]" : r.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]"}`}>{statusLabel(r.status)}</span>{canRecipes && r.status === "Active" && <button onClick={() => void revise(r.id)} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.revise}</button>}{canRecipes && r.status === "Draft" && <button onClick={() => void activate(r.id)} className="min-h-8 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white">{t.activate}</button>}<button onClick={() => void openRecipe(r.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</button></div></li>)}</ul>
+            <ul className="mt-4 space-y-2">{recipes.map((r) => <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8ece8] px-3 py-2 text-sm"><span className="min-w-0">{r.productSku ?? "—"} · v{r.versionNumber} <span className="text-[#000000]">({r.lineCount} {t.linesCount})</span></span><div className="flex items-center gap-1.5"><span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.status === "Active" ? "bg-[#e3f4ea] text-[#137347]" : r.status === "Draft" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e8ece8] text-[#000000]"}`}>{statusLabel(r.status)}</span>{canRecipes && r.status === "Active" && <Button onClick={() => void revise(r.id)} className="min-h-8 rounded-lg border border-[#0e5a4f] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.revise}</Button>}{canRecipes && r.status === "Draft" && <Button onClick={() => void activate(r.id)} className="min-h-8 rounded-lg bg-[#137347] px-2.5 text-xs font-semibold text-white">{t.activate}</Button>}<Button onClick={() => void openRecipe(r.id)} className="min-h-8 rounded-lg bg-[#edf5f1] px-2.5 text-xs font-semibold text-[#0e5a4f]">{t.view}</Button></div></li>)}</ul>
           )}
           {(detail || recipeForm.productId) && <div className="mt-4 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4"><h3 className="font-semibold">{t.recipeLines}</h3>{detail ? <ol className="mt-2 space-y-1 text-sm">{detail.lines.map((l) => <li key={l.id} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn ?? ""} · {fmt(l.quantity)} {l.unitCode ?? ""}</span></li>)}</ol> : <p className="mt-2 text-sm text-[#000000]">{t.empty}</p>}</div>}
           {recipeDialogOpen && <FormDialog title={t.addRecipe} closeLabel={t.close} onClose={() => setRecipeDialogOpen(false)}><form onSubmit={createRecipe} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
@@ -326,17 +328,17 @@ export function InventorySection({ language, permissions }: { language: Language
                   <Select label={t.ingredient} value={l.inventoryItemId} onChange={(v) => updateRecipeLine(index, { inventoryItemId: v })}>{itemOptions}</Select>
                   <Select label={t.lineUnit} value={l.unitId} onChange={(v) => updateRecipeLine(index, { unitId: v })}>{unitOptions}</Select>
                   <Field label={t.lineQuantity} value={l.quantity} onChange={(v) => updateRecipeLine(index, { quantity: v })} type="number" />
-                  <button type="button" onClick={() => setRecipeLines(recipeLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
+                  <Button type="button" onClick={() => setRecipeLines(recipeLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</Button>
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => setRecipeLines([...recipeLines, { inventoryItemId: "", unitId: "", quantity: "" }])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Scale size={16} />{t.addLine}</button>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
+            <Button type="button" onClick={() => setRecipeLines([...recipeLines, { inventoryItemId: "", unitId: "", quantity: "" }])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Scale size={16} />{t.addLine}</Button>
+            <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</Button>
           </form></FormDialog>}
         </section>
 
-        <section hidden={inventoryTab !== "stock"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.stock}</h2>{canMovements && <button onClick={() => setMovementDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><PackagePlus size={18} />{t.addMovement}</button>}</div>
-          {branchId && <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><input aria-label={t.search} placeholder={t.search} value={stockSearch} onChange={(e) => setStockSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>}
+        <section hidden={inventoryTab !== "stock"} className="rounded-xl border border-[#dfe5df] bg-white p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">{t.stock}</h2>{canMovements && <Button onClick={() => setMovementDialogOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><PackagePlus size={18} />{t.addMovement}</Button>}</div>
+          {branchId && <label className={`mt-3 ${searchInput}`}><Search size={16} aria-hidden="true" /><Input aria-label={t.search} placeholder={t.search} value={stockSearch} onChange={(e) => setStockSearch(e.target.value)} className="min-h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>}
           {!branchId ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : filteredStock.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.empty}</p> : (<>
             <ul className="mt-3 divide-y divide-[#e8ece8]">{pageStock.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0">{row.sku} · {language === "ar" ? row.itemNameAr : row.itemNameEn}</span><span className={`font-semibold ${(row.balance ?? 0) < 0 ? "text-[#b4322a]" : "text-[#137347]"}`}>{fmt(row.balance)} <span className="text-xs text-[#000000]">{row.baseUnitCode ?? ""}</span></span></li>)}</ul>
             <Pagination page={stockPage} pageSize={PAGE_SIZE} total={filteredStock.length} onPageChange={setStockPage} language={language} />
@@ -350,7 +352,7 @@ export function InventorySection({ language, permissions }: { language: Language
               <Field label={t.reference} value={movementForm.reference} onChange={(v) => setMovementForm({ ...movementForm, reference: v })} max={200} />
               <Field label={t.reason} value={movementForm.reason} onChange={(v) => setMovementForm({ ...movementForm, reason: v })} max={500} />
             </div>
-            <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><PackagePlus size={18} />{t.record}</button>
+            <Button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><PackagePlus size={18} />{t.record}</Button>
           </form></FormDialog>}
           <div className="mt-5">
             <h3 className="font-semibold">{t.movements}</h3>
@@ -364,13 +366,13 @@ export function InventorySection({ language, permissions }: { language: Language
             <form onSubmit={previewDeduction} className="mt-3 grid gap-3 sm:grid-cols-2">
               <Select label={t.product} value={deductionForm.productId} onChange={(v) => setDeductionForm({ ...deductionForm, productId: v })}>{products.map((p) => <option key={p.id} value={p.id}>{p.sku} · {name(p)}</option>)}</Select>
               <Field label={t.productQty} value={deductionForm.quantity} onChange={(v) => setDeductionForm({ ...deductionForm, quantity: v })} type="number" />
-              <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f] sm:col-span-2">{t.preview}</button>
+              <Button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f] sm:col-span-2">{t.preview}</Button>
             </form>
             {deductionPreview && (
               <div className="mt-4">
                 <h4 className="text-sm font-semibold">{t.deductionTitle}</h4>
                 <ul className="mt-2 space-y-1 text-sm">{deductionPreview.flatMap((d) => d.lines.map((l) => <li key={`${d.productId}-${l.inventoryItemId}`} className="flex items-center justify-between"><span>{l.itemNameAr ?? l.itemNameEn}</span><span className="text-[#000000]">{fmt(l.sourceQuantity)} {l.sourceUnitCode ?? ""}</span></li>))}</ul>
-                {canMovements && <button onClick={() => void postDeduction()} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.post}</button>}
+                {canMovements && <Button onClick={() => void postDeduction()} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0e5a4f] px-3 text-sm font-semibold text-white">{t.post}</Button>}
               </div>
             )}
           </div>
@@ -383,7 +385,7 @@ export function InventorySection({ language, permissions }: { language: Language
 type RecipeLineForm = { inventoryItemId: string; unitId: string; quantity: string };
 
 function Field({ label, value, onChange, max, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; max?: number; type?: string; required?: boolean }) {
-  return <label className="block text-sm font-medium">{label}{required && " *"}<input required={required} type={type} step={type === "number" ? "any" : undefined} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
+  return <label className="block text-sm font-medium">{label}{required && " *"}<Input required={required} type={type} step={type === "number" ? "any" : undefined} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 outline-none focus:border-[#0e5a4f] focus:ring-2 focus:ring-[#0e5a4f]/20" /></label>;
 }
 
 function Select({ label, value, onChange, children, disabled = false }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode; disabled?: boolean }) {
