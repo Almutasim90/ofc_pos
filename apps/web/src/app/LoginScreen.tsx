@@ -2,7 +2,7 @@ import { Eye, EyeOff, Moon, ShieldCheck, Sparkles, Sun } from "lucide-react";
 import { useState } from "react";
 
 export type ThemeMode = "light" | "dark";
-export type Accent = "sky" | "teal" | "violet";
+export type Accent = "sky" | "teal" | "violet" | "orange" | "tomato" | "gold" | "olive";
 
 type LoginScreenProps = {
   language: "ar" | "en";
@@ -18,10 +18,14 @@ type LoginScreenProps = {
   onSubmit: (event: React.FormEvent) => void;
 };
 
-const accents: Array<{ value: Accent; light: string; dark: string }> = [
-  { value: "sky", light: "#38bdf8", dark: "#0284c7" },
-  { value: "teal", light: "#2dd4bf", dark: "#0f766e" },
-  { value: "violet", light: "#a78bfa", dark: "#7c3aed" },
+const accents: Array<{ value: Accent; light: string; dark: string; nameAr: string; nameEn: string }> = [
+  { value: "sky", light: "#38bdf8", dark: "#0284c7", nameAr: "سماوي", nameEn: "Sky" },
+  { value: "teal", light: "#2dd4bf", dark: "#0f766e", nameAr: "فيروزي", nameEn: "Teal" },
+  { value: "violet", light: "#a78bfa", dark: "#7c3aed", nameAr: "بنفسجي", nameEn: "Violet" },
+  { value: "orange", light: "#fb923c", dark: "#c2410c", nameAr: "برتقالي", nameEn: "Orange" },
+  { value: "tomato", light: "#f87171", dark: "#b91c1c", nameAr: "طماطمي", nameEn: "Tomato" },
+  { value: "gold", light: "#fbbf24", dark: "#a16207", nameAr: "ذهبي", nameEn: "Gold" },
+  { value: "olive", light: "#a3e635", dark: "#4d7c0f", nameAr: "زيتوني", nameEn: "Olive" },
 ];
 
 export function LoginScreen({ language, credentials, error, loggingIn, theme, accent, onLanguageChange, onCredentialsChange, onThemeChange, onAccentChange, onSubmit }: LoginScreenProps) {
@@ -47,7 +51,7 @@ export function LoginScreen({ language, credentials, error, loggingIn, theme, ac
         <div className="login-form-panel">
           <div className="login-toolbar">
             <div className="login-accents" aria-label={tr("اختيار اللون", "Choose color")}>
-              {accents.map((item) => <button key={item.value} type="button" aria-label={item.value} aria-pressed={accent === item.value} onClick={() => onAccentChange(item.value)} style={{ background: `linear-gradient(135deg, ${item.light}, ${item.dark})` }} />)}
+              {accents.map((item) => <button key={item.value} type="button" title={tr(item.nameAr, item.nameEn)} aria-label={tr(item.nameAr, item.nameEn)} aria-pressed={accent === item.value} onClick={() => onAccentChange(item.value)} style={{ background: `linear-gradient(135deg, ${item.light}, ${item.dark})` }} />)}
             </div>
             <button type="button" className="login-icon-button" onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? tr("الوضع النهاري", "Light mode") : tr("الوضع الليلي", "Dark mode")}>
               {theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}

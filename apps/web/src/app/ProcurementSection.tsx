@@ -279,18 +279,18 @@ export function ProcurementSection({ language }: { language: Language }) {
       </FormDialog>}
 
       {dialog === "purchaseOrder" && <FormDialog title={t.addPo} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
-        <form onSubmit={createPurchaseOrder} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+        <form onSubmit={createPurchaseOrder} className="min-w-0 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-3 sm:p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Select label={t.supplier} value={poForm.supplierId} onChange={(v) => setPoForm({ ...poForm, supplierId: v })}>{supplierOptions}</Select>
             <Field label={t.expectedDate} value={poForm.expectedDate} onChange={(v) => setPoForm({ ...poForm, expectedDate: v })} type="date" />
             <Field label={t.reference} value={poForm.reference} onChange={(v) => setPoForm({ ...poForm, reference: v })} max={200} />
           </div>
-          <div className="mt-4 space-y-2">{poLines.map((l, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_5rem_auto]">
+          <div className="mt-4 space-y-2">{poLines.map((l, index) => <div key={index} className="grid min-w-0 gap-2 rounded-lg border border-[#e3e8e4] bg-white p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5rem_5rem_auto] lg:border-0 lg:bg-transparent lg:p-0">
             <Select label={t.product} value={l.inventoryItemId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, inventoryItemId: v } : row))}>{itemOptions}</Select>
             <Select label={t.unit} value={l.unitId} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
             <Field label={t.quantity} value={l.quantity} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
             <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setPoLines(poLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
-            <button type="button" onClick={() => setPoLines(poLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
+            <button type="button" onClick={() => setPoLines(poLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:col-span-2 lg:col-span-1 lg:self-end">{t.remove}</button>
           </div>)}</div>
           <button type="button" onClick={() => setPoLines([...poLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
           <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>
@@ -298,18 +298,18 @@ export function ProcurementSection({ language }: { language: Language }) {
       </FormDialog>}
 
       {dialog === "goodsReceipt" && <FormDialog title={t.addGr} closeLabel={language === "ar" ? "إغلاق" : "Close"} onClose={() => setDialog(null)}>
-        <form onSubmit={createGoodsReceipt} className="rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+        <form onSubmit={createGoodsReceipt} className="min-w-0 rounded-lg border border-[#e8ece8] bg-[#fafbfa] p-3 sm:p-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Select label={t.supplier} value={grForm.supplierId} onChange={(v) => setGrForm({ ...grForm, supplierId: v })}>{supplierOptions}</Select>
             <Field label={t.reference} value={grForm.reference} onChange={(v) => setGrForm({ ...grForm, reference: v })} max={200} />
             <Field label={t.notes} value={grForm.notes} onChange={(v) => setGrForm({ ...grForm, notes: v })} max={2000} />
           </div>
-          <div className="mt-4 space-y-2">{grLines.map((l, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_5rem_auto]">
+          <div className="mt-4 space-y-2">{grLines.map((l, index) => <div key={index} className="grid min-w-0 gap-2 rounded-lg border border-[#e3e8e4] bg-white p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_5rem_5rem_auto] lg:border-0 lg:bg-transparent lg:p-0">
             <Select label={t.product} value={l.inventoryItemId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, inventoryItemId: v } : row))}>{itemOptions}</Select>
             <Select label={t.unit} value={l.unitId} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitId: v } : row))}>{unitOptions}</Select>
             <Field label={t.quantity} value={l.quantity} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, quantity: v } : row))} type="number" />
             <Field label={t.unitCost} value={l.unitCost} onChange={(v) => setGrLines(grLines.map((row, i) => i === index ? { ...row, unitCost: v } : row))} type="number" />
-            <button type="button" onClick={() => setGrLines(grLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]">{t.remove}</button>
+            <button type="button" onClick={() => setGrLines(grLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:col-span-2 lg:col-span-1 lg:self-end">{t.remove}</button>
           </div>)}</div>
           <button type="button" onClick={() => setGrLines([...grLines, LineDef()])} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#0e5a4f] px-3 text-sm font-semibold text-[#0e5a4f]"><Plus size={16} />{t.addLine}</button>
           <button className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white hover:bg-[#08483f]"><Save size={18} />{t.create}</button>

@@ -103,8 +103,8 @@ export function PaymentDialog({ language, orderId, branchId, total, onClose }: {
   );
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 sm:place-items-center sm:p-5">
-      <section role="dialog" aria-modal="true" aria-label={t.title} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-5 shadow-2xl sm:rounded-2xl sm:p-6">
+    <div className="fixed inset-0 z-50 grid min-w-0 place-items-end bg-black/35 sm:place-items-center sm:p-5">
+      <section role="dialog" aria-modal="true" aria-label={t.title} className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl sm:p-6">
         <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p><h2 className="text-2xl font-bold">OMR {total.toFixed(3)}</h2></div><button aria-label={t.close} onClick={onClose} className="grid size-11 place-items-center rounded-lg bg-white"><X size={19} /></button></div>
         {!methodsLoaded ? null : methods.length === 0 ? <p role="alert" className="mt-6 rounded-xl bg-[#fff5f4] p-4 text-sm text-[#9b2922]">{t.none}</p> : <>
           <p className="mt-5 text-sm font-medium">{t.method}</p>

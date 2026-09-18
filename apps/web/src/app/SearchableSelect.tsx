@@ -79,7 +79,7 @@ export function SearchableSelect({ label, value, onChange, children, disabled = 
     if (e.key === "Tab") setOpen(false);
   }
 
-  return <div ref={rootRef} className="relative">
+  return <div ref={rootRef} className="relative min-w-0">
     <span className={hideLabel ? "sr-only" : "block text-sm font-medium"} id={`${uid}-label`}>{label}</span>
     <button type="button" disabled={disabled} onClick={() => setOpen((v) => !v)} onKeyDown={onKeyDown}
       role="combobox" aria-expanded={open} aria-haspopup="listbox" aria-controls={`${uid}-list`} aria-labelledby={`${uid}-label`}
@@ -87,7 +87,7 @@ export function SearchableSelect({ label, value, onChange, children, disabled = 
       <span className={`truncate ${selected ? "" : "text-[#8b968f]"}`}>{selected ? selected.label : (placeholder ?? "—")}</span>
       <svg aria-hidden="true" viewBox="0 0 20 20" className={`size-4 shrink-0 text-[#69766f] transition-transform ${open ? "rotate-180" : ""}`}><path d="M5.5 7.5l4.5 4.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
-    {open && <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-[#cdd7d0] bg-white shadow-lg">
+    {open && <div className="absolute inset-x-0 z-20 mt-1 min-w-0 overflow-hidden rounded-lg border border-[#cdd7d0] bg-white shadow-lg">
       <div className="border-b border-[#e8ece8] p-2">
         <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeyDown}
           role="searchbox" aria-autocomplete="list" aria-controls={`${uid}-list`}

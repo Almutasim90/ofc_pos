@@ -213,10 +213,10 @@ export function AdvancedInventorySection({ language, permissions }: { language: 
             <div className="mt-3"><Field label={t.reason} value={countForm.reason} onChange={(v) => setCountForm({ ...countForm, reason: v })} max={500} /></div>
             <div className="mt-3 space-y-2">
               {countLines.map((l, index) => (
-                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_5rem_auto]">
+                <div key={index} className="grid min-w-0 gap-2 rounded-lg border border-[#e3e8e4] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_5rem_auto] sm:border-0 sm:bg-transparent sm:p-0">
                   <Select label={t.countItem} value={l.inventoryItemId} onChange={(v) => updateCountLine(index, { inventoryItemId: v })}>{itemOptions}</Select>
                   <Field required label={t.countedQty} value={l.countedQuantity} onChange={(v) => updateCountLine(index, { countedQuantity: v })} type="number" />
-                  <button type="button" onClick={() => setCountLines(countLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]"><Trash2 size={15} /></button>
+                  <button type="button" onClick={() => setCountLines(countLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:self-end"><Trash2 className="mx-auto" size={15} /></button>
                 </div>
               ))}
             </div>
@@ -248,10 +248,10 @@ export function AdvancedInventorySection({ language, permissions }: { language: 
             </div>
             <div className="mt-3 space-y-2">
               {transferLines.map((l, index) => (
-                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_5rem_auto]">
+                <div key={index} className="grid min-w-0 gap-2 rounded-lg border border-[#e3e8e4] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_5rem_auto] sm:border-0 sm:bg-transparent sm:p-0">
                   <Select label={t.transferItem} value={l.inventoryItemId} onChange={(v) => updateTransferLine(index, { inventoryItemId: v })}>{itemOptions}</Select>
                   <Field label={t.quantity} value={l.quantity} onChange={(v) => updateTransferLine(index, { quantity: v })} type="number" />
-                  <button type="button" onClick={() => setTransferLines(transferLines.filter((_, i) => i !== index))} className="min-h-10 rounded-lg border border-[#b4322a] px-2 text-sm text-[#b4322a]"><Trash2 size={15} /></button>
+                  <button type="button" onClick={() => setTransferLines(transferLines.filter((_, i) => i !== index))} className="min-h-11 rounded-lg border border-[#b4322a] px-3 text-sm text-[#b4322a] sm:self-end"><Trash2 className="mx-auto" size={15} /></button>
                 </div>
               ))}
             </div>

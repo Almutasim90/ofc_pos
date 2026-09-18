@@ -10,10 +10,14 @@ type Props = {
   onAccentChange: (accent: Accent) => void;
 };
 
-const colors: Array<{ value: Accent; color: string }> = [
-  { value: "sky", color: "linear-gradient(135deg,#38bdf8,#0284c7)" },
-  { value: "teal", color: "linear-gradient(135deg,#2dd4bf,#0f766e)" },
-  { value: "violet", color: "linear-gradient(135deg,#a78bfa,#7c3aed)" },
+const colors: Array<{ value: Accent; color: string; nameAr: string; nameEn: string }> = [
+  { value: "sky", color: "linear-gradient(135deg,#38bdf8,#0284c7)", nameAr: "سماوي", nameEn: "Sky" },
+  { value: "teal", color: "linear-gradient(135deg,#2dd4bf,#0f766e)", nameAr: "فيروزي", nameEn: "Teal" },
+  { value: "violet", color: "linear-gradient(135deg,#a78bfa,#7c3aed)", nameAr: "بنفسجي", nameEn: "Violet" },
+  { value: "orange", color: "linear-gradient(135deg,#fb923c,#c2410c)", nameAr: "برتقالي", nameEn: "Orange" },
+  { value: "tomato", color: "linear-gradient(135deg,#f87171,#b91c1c)", nameAr: "طماطمي", nameEn: "Tomato" },
+  { value: "gold", color: "linear-gradient(135deg,#fbbf24,#a16207)", nameAr: "ذهبي", nameEn: "Gold" },
+  { value: "olive", color: "linear-gradient(135deg,#a3e635,#4d7c0f)", nameAr: "زيتوني", nameEn: "Olive" },
 ];
 
 export function ThemeControls({ language, theme, accent, onThemeChange, onAccentChange }: Props) {
@@ -32,7 +36,7 @@ export function ThemeControls({ language, theme, accent, onThemeChange, onAccent
         </div>
         <p>{tr("اللون الرئيسي", "Accent color")}</p>
         <div className="theme-color-options">
-          {colors.map((item) => <button key={item.value} aria-label={item.value} aria-pressed={accent === item.value} onClick={() => onAccentChange(item.value)} style={{ background: item.color }} />)}
+          {colors.map((item) => <button key={item.value} title={tr(item.nameAr, item.nameEn)} aria-label={tr(item.nameAr, item.nameEn)} aria-pressed={accent === item.value} onClick={() => onAccentChange(item.value)} style={{ background: item.color }} />)}
         </div>
       </div>}
       <button className="theme-fab" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={tr("تخصيص المظهر", "Customize appearance")}><Palette size={21} /></button>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChefHat, Clock, Languages, Minus, Plus, RefreshCw, ShoppingBag, Trash2, X } from "lucide-react";
+import { Check, ChefHat, ChevronDown, ChevronUp, Clock, Languages, MapPin, Minus, Plus, ReceiptText, RefreshCw, ShoppingBag, Trash2, X } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
@@ -10,7 +10,8 @@ type Context = { code: string; kind: string; nameAr: string; nameEn: string; bra
 type Choice = { optionId: string; quantity: number };
 type Selection = { selectionGroupId: string; choices: Choice[] };
 type CartLine = { key: string; product: MenuProduct; quantity: number; note: string; selections: Selection[]; unitGrossAmount: number };
-type OrderResult = { id: string; clientRequestId: string; status: string; grossAmount: number; requiresApproval: boolean; approvalStatus: string | null };
+type TrackingLine = { id: string; productNameAr: string; productNameEn: string; quantity: number; note: string | null; selectionsSnapshot: string; unitGrossAmount: number };
+type OrderResult = { id: string; number: number; clientRequestId: string; status: string; netAmount: number; taxAmount: number; grossAmount: number; createdAt: string; requiresApproval: boolean; approvalStatus: string | null; lines: TrackingLine[] };
 type Toast = { id: number; text: string; error: boolean };
 
 const copy = {
@@ -40,7 +41,7 @@ const copy = {
 
 const statusEn = { Pending: "Pending", Confirmed: "Confirmed", Paid: "Paid", SentToKitchen: "SentToKitchen", Preparing: "Preparing", Ready: "Ready", Completed: "Completed", Cancelled: "Cancelled", Rejected: "Rejected" } as const;
 
-export function QrCustomerPage({ code }: { code: string }) {
+export function QrCustomerPage({ code, trackingId }: { code: string; trackingId?: string }) {
   const [language, setLanguage] = useState<Language>(() => (store.get<Language>("qr-lang") === "en" ? "en" : "ar"));
   const [context, setContext] = useState<Context | null>(null);
   const [products, setProducts] = useState<MenuProduct[]>([]);
@@ -53,6 +54,7 @@ export function QrCustomerPage({ code }: { code: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [result, setResult] = useState<OrderResult | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedCopies, setSelectedCopies] = useState(1);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -87,8 +89,9 @@ export function QrCustomerPage({ code }: { code: string }) {
       setContext(ctx);
       setProducts(menu.products);
       setState("ready");
-      const saved = store.get<string>("qr-" + code + "-order");
-      if (saved) { const parsed = JSON.parse(saved) as { clientRequestId: string }; setResult({ id: "", clientRequestId: parsed.clientRequestId, status: "Pending", grossAmount: 0, requiresApproval: ctx.requiresApproval, approvalStatus: "Pending" }); void refreshOrder(parsed.clientRequestId); }
+      const saved = store.get<{ clientRequestId: string }>("qr-" + code + "-order");
+      const clientRequestId = trackingId || saved?.clientRequestId;
+      if (clientRequestId) void refreshOrder(clientRequestId, true);
     } catch {
       setState("error");
     }
@@ -196,13 +199,14 @@ export function QrCustomerPage({ code }: { code: string }) {
     try {
       const response = await fetch(`/api/v1/qr/${code}/orders`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!response.ok) throw new Error(t.invalid);
-      const value = await response.json() as { clientRequestId: string; grossAmount: number; status: string; requiresApproval?: boolean; approval?: { status: string } | null };
+      const value = await response.json() as OrderResult & { approval?: { status: string } | null };
       orderRequestId.current = null;
       store.set("qr-" + code + "-order", { clientRequestId: value.clientRequestId });
+      window.history.replaceState(null, "", `#/qr/${encodeURIComponent(code)}/order/${value.clientRequestId}`);
       const approvalStatus = value.approval?.status ?? null;
       lastSigRef.current = `${value.status}|${approvalStatus}`;
       notify(value.status === "Confirmed" ? t.sentApproved : t.awaitingApproval);
-      setResult({ id: value.clientRequestId, clientRequestId: value.clientRequestId, status: value.status, grossAmount: value.grossAmount, requiresApproval: value.requiresApproval ?? context?.requiresApproval ?? false, approvalStatus });
+      setResult({ ...value, requiresApproval: context?.requiresApproval ?? false, approvalStatus, lines: value.lines ?? [] });
       setCart([]);
       setOrderNote("");
       setSubmitting(false);
@@ -212,13 +216,13 @@ export function QrCustomerPage({ code }: { code: string }) {
     }
   }
 
-  async function refreshOrder(clientRequestId: string) {
+  async function refreshOrder(clientRequestId: string, restoring = false) {
     // Inferred status refresh from the track endpoint; kept lightweight. The SPA updates the visible
     // order state and surfaces a notification toast on meaningful changes — no page refresh is needed.
     try {
       const response = await fetch(`/api/v1/qr/${code}/orders/${clientRequestId}`);
       if (response.ok) {
-        const value = await response.json() as { status: string; approval: { status: string } | null };
+        const value = await response.json() as OrderResult & { approval: { status: string } | null };
         const approvalStatus = value.approval?.status ?? null;
         const nextSig = `${value.status}|${approvalStatus}`;
         if (lastSigRef.current !== nextSig) {
@@ -227,7 +231,9 @@ export function QrCustomerPage({ code }: { code: string }) {
           const notice = statusNotice(language, value.status, approvalStatus, previous);
           if (notice) notify(notice.text, notice.tone === "error");
         }
-        setResult((prev) => prev ? { ...prev, status: value.status, approvalStatus } : prev);
+        setResult({ ...value, requiresApproval: context?.requiresApproval ?? value.approval !== null, approvalStatus, lines: value.lines ?? [] });
+        store.set("qr-" + code + "-order", { clientRequestId });
+        if (restoring && !trackingId) window.history.replaceState(null, "", `#/qr/${encodeURIComponent(code)}/order/${clientRequestId}`);
       }
     } catch {
       // Ignore transient polling failures.
@@ -287,19 +293,41 @@ export function QrCustomerPage({ code }: { code: string }) {
       )}
 
       {state === "ready" && result && (
-        <div className="mx-auto max-w-xl px-4 py-10">
-          <div className="rounded-2xl border border-[#dfe5df] bg-white p-6 text-center">
-            <div className={`mx-auto grid size-16 place-items-center rounded-full ${result.status === "Cancelled" || result.status === "Rejected" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#e3f4ea] text-[#137347]"}`}><Check size={30} /></div>
-            <h1 className="mt-4 text-2xl font-semibold">{t.submitted}</h1>
-            <p className="mt-2 text-sm text-[#66736d]">{t.orderNo}: <strong className="text-[#17211f]">{result.clientRequestId.slice(0, 8)}</strong></p>
-            <div className="mt-5 rounded-xl bg-[#f7faf7] p-4 text-start">
-              <p className="text-xs font-semibold text-[#66736d]">{t.status}</p>
-              <p className="mt-1 flex items-center gap-2 text-lg font-semibold"><Clock size={18} className="text-[#0e5a4f]" />{statusLabel(language, result.status, result.approvalStatus)}</p>
+        <div className="mx-auto max-w-xl px-4 py-6 sm:py-10">
+          <section className="overflow-hidden rounded-[28px] border border-[#dfe5df] bg-white shadow-[0_18px_60px_rgba(14,90,79,0.10)]">
+            <div className="bg-[#0e5a4f] px-6 py-7 text-center text-white">
+              <p className="text-sm font-medium text-white/75">{language === "ar" ? "نحن نجهّز طلبك" : "We're preparing your order"}</p>
+              <div className="mx-auto mt-4 w-fit rounded-[22px] bg-[#f5b942] px-8 py-3 text-4xl font-black tracking-tight text-[#17332d] shadow-sm">#{result.number || "—"}</div>
+              <p className="mt-4 text-sm text-white/80">{context ? (language === "ar" ? context.branchNameAr : context.branchNameEn) : ""}</p>
             </div>
-            {(() => { const n = currentNotice(language, result.status, result.approvalStatus); if (!n) return null; return <p role="status" className={`mt-3 rounded-xl px-4 py-3 text-start text-sm font-medium ${n.tone === "error" ? "bg-[#fbe4e2] text-[#b4322a]" : n.tone === "amber" ? "bg-[#f4f1e3] text-[#8a6d1f]" : "bg-[#e3f4ea] text-[#137347]"}`}>{n.text}</p>; })()}
-            <p className="mt-4 text-sm text-[#66736d]">{t.contact}</p>
-            <button onClick={() => setResult(null)} className="mt-5 min-h-11 rounded-lg bg-[#0e5a4f] px-5 font-semibold text-white">{t.back}</button>
-          </div>
+
+            <div className="p-5 sm:p-7">
+              <div className="flex items-start gap-3 rounded-2xl bg-[#f5f8f5] p-4">
+                <div className={`grid size-11 shrink-0 place-items-center rounded-full ${result.status === "Cancelled" || result.status === "Rejected" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#dff3e7] text-[#0e7550]"}`}>
+                  {result.status === "Cancelled" || result.status === "Rejected" ? <X size={22} /> : <Clock size={21} />}
+                </div>
+                <div className="min-w-0 text-start">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#73807a]">{t.status}</p>
+                  <h1 className="mt-1 text-xl font-black text-[#17332d]">{statusLabel(language, result.status, result.approvalStatus)}</h1>
+                  {(() => { const n = currentNotice(language, result.status, result.approvalStatus); return n ? <p role="status" className="mt-1 text-sm leading-6 text-[#59655f]">{n.text}</p> : null; })()}
+                </div>
+              </div>
+
+              <OrderProgress language={language} status={result.status} approvalStatus={result.approvalStatus} />
+
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-[#e2e8e3] p-4 text-start"><MapPin size={18} className="text-[#0e5a4f]" /><p className="mt-2 text-xs text-[#73807a]">{language === "ar" ? "مكان الطلب" : "Order location"}</p><p className="mt-1 text-sm font-bold">{context ? (language === "ar" ? context.nameAr : context.nameEn) : code}</p></div>
+                <div className="rounded-2xl border border-[#e2e8e3] p-4 text-start"><ReceiptText size={18} className="text-[#0e5a4f]" /><p className="mt-2 text-xs text-[#73807a]">{language === "ar" ? "الإجمالي" : "Total"}</p><p className="mt-1 text-sm font-bold">{money(language, result.grossAmount)} {t.currency}</p></div>
+              </div>
+
+              <button onClick={() => setDetailsOpen((open) => !open)} className="mt-5 flex min-h-12 w-full items-center justify-between rounded-xl border border-[#cfd8d1] px-4 font-bold text-[#17332d]">
+                <span>{language === "ar" ? "تفاصيل الطلب" : "Order details"}</span>{detailsOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+              {detailsOpen && <OrderDetails language={language} result={result} currency={t.currency} />}
+
+              {(result.status === "Completed" || result.status === "Cancelled" || result.status === "Rejected") && <button onClick={() => { store.remove("qr-" + code + "-order"); window.location.hash = `#/qr/${encodeURIComponent(code)}`; setResult(null); }} className="mt-4 min-h-12 w-full rounded-xl bg-[#0e5a4f] px-5 font-bold text-white">{language === "ar" ? "طلب جديد" : "Start a new order"}</button>}
+            </div>
+          </section>
         </div>
       )}
 
@@ -314,7 +342,7 @@ export function QrCustomerPage({ code }: { code: string }) {
 
       {editing && (
         <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4" onClick={() => setEditing(null)}>
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between"><h2 className="text-lg font-semibold">{language === "ar" ? editing.product.nameAr : editing.product.nameEn}</h2><button onClick={() => setEditing(null)} className="min-h-10 rounded-lg p-1 text-[#66736d] hover:bg-[#f2f5f2]"><X size={20} /></button></div>
             <p className="mt-1 text-sm text-[#0e5a4f] font-bold">{new Intl.NumberFormat(language, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(selectionTotal(editing.product, editing.choices))} {t.currency}</p>
             <div className="mt-4 space-y-5">
@@ -350,7 +378,7 @@ export function QrCustomerPage({ code }: { code: string }) {
 
       {cartOpen && (
         <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 sm:items-center sm:p-4" onClick={() => setCartOpen(false)}>
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[100dvh] min-w-0 w-full max-w-lg overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{t.cart}</h2><button onClick={() => setCartOpen(false)} className="min-h-10 rounded-lg p-1 text-[#66736d] hover:bg-[#f2f5f2]"><X size={20} /></button></div>
             {cart.length === 0 ? <p className="mt-10 text-center text-[#000000]">{t.emptyCart}</p> : (
               <ul className="mt-4 space-y-3">
@@ -384,6 +412,40 @@ export function QrCustomerPage({ code }: { code: string }) {
       )}
     </main>
   );
+}
+
+function OrderProgress({ language, status, approvalStatus }: { language: Language; status: string; approvalStatus: string | null }) {
+  const failed = status === "Cancelled" || status === "Rejected" || approvalStatus === "Rejected";
+  const current = status === "Ready" || status === "Completed" ? 3 : status === "Preparing" ? 2 : status === "SentToKitchen" || status === "Confirmed" || status === "Paid" ? 1 : 0;
+  const labels = language === "ar" ? ["تم الاستلام", "إلى المطبخ", "قيد التحضير", "جاهز"] : ["Received", "In kitchen", "Preparing", "Ready"];
+  return <div className="mt-7" aria-label={language === "ar" ? "مراحل الطلب" : "Order progress"}>
+    <div className="flex items-start">
+      {labels.map((label, index) => <div key={label} className="relative flex flex-1 flex-col items-center text-center">
+        {index > 0 && <span className={`absolute end-1/2 top-3 h-1 w-full ${!failed && current >= index ? "bg-[#18a77e]" : "bg-[#dfe5df]"}`} />}
+        <span className={`relative z-[1] grid size-7 place-items-center rounded-full border-2 text-xs font-black ${!failed && current >= index ? "border-[#18a77e] bg-[#18a77e] text-white" : "border-[#cfd8d1] bg-white text-[#8a9690]"}`}>{!failed && current > index ? <Check size={14} strokeWidth={3} /> : index + 1}</span>
+        <span className={`mt-2 text-[11px] font-bold sm:text-xs ${!failed && current >= index ? "text-[#0e5a4f]" : "text-[#8a9690]"}`}>{label}</span>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function OrderDetails({ language, result, currency }: { language: Language; result: OrderResult; currency: string }) {
+  return <div className="mt-3 rounded-2xl bg-[#f7f9f7] p-4 text-start">
+    <ul className="space-y-4">
+      {result.lines.map((line) => <li key={line.id} className="border-b border-[#dde4de] pb-4 last:border-0 last:pb-0">
+        <div className="flex items-start justify-between gap-4"><div><p className="font-bold">{line.quantity} × {language === "ar" ? line.productNameAr : line.productNameEn}</p>{line.note && <p className="mt-1 text-xs text-[#66736d]">{line.note}</p>}</div><p className="shrink-0 font-bold">{money(language, line.unitGrossAmount * line.quantity)} {currency}</p></div>
+      </li>)}
+    </ul>
+    <div className="mt-5 space-y-2 border-t border-[#cfd8d1] pt-4 text-sm">
+      <div className="flex justify-between text-[#66736d]"><span>{language === "ar" ? "المبلغ قبل الضريبة" : "Subtotal"}</span><span>{money(language, result.netAmount)} {currency}</span></div>
+      <div className="flex justify-between text-[#66736d]"><span>{language === "ar" ? "الضريبة" : "Tax"}</span><span>{money(language, result.taxAmount)} {currency}</span></div>
+      <div className="flex justify-between pt-2 text-lg font-black"><span>{language === "ar" ? "الإجمالي" : "Total"}</span><span>{money(language, result.grossAmount)} {currency}</span></div>
+    </div>
+  </div>;
+}
+
+function money(language: Language, value: number) {
+  return new Intl.NumberFormat(language === "ar" ? "ar-OM" : "en-OM", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(value);
 }
 
 function statusLabel(language: Language, status: string, approvalStatus: string | null) {

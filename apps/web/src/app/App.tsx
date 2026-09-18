@@ -38,7 +38,7 @@ export function App() {
   const [theme, setTheme] = useState<ThemeMode>(() => store.get<ThemeMode>("theme") === "dark" ? "dark" : "light");
   const [accent, setAccent] = useState<Accent>(() => {
     const saved = store.get<Accent>("accent");
-    return saved === "teal" || saved === "violet" ? saved : "sky";
+    return saved && ["sky", "teal", "violet", "orange", "tomato", "gold", "olive"].includes(saved) ? saved : "sky";
   });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
@@ -99,7 +99,10 @@ export function App() {
     try { const r = await fetch("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials) }); if (!r.ok) throw new Error(); const value = await r.json() as { token: string }; store.set("session-token", value.token); setToken(value.token); }
     catch { setLoginError(tr("تعذر الدخول. تحقق من اسم المستخدم وكلمة المرور والاتصال.", "Unable to sign in. Check your credentials and connection.")); } finally { setLoggingIn(false); }
   }
-  if (hash.startsWith("#/qr/")) return <div className="app-shell min-h-screen"><QrCustomerPage code={decodeURIComponent(hash.slice(5))} /></div>;
+  if (hash.startsWith("#/qr/")) {
+    const [encodedCode, route, trackingId] = hash.slice(5).split("/");
+    return <div className="app-shell min-h-screen"><QrCustomerPage code={decodeURIComponent(encodedCode)} trackingId={route === "order" ? trackingId : undefined} /></div>;
+  }
   if (checkingSession) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2]"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" aria-label={tr("جارٍ التحقق من الجلسة", "Checking session")} /></main>;
   if (!token) return <LoginScreen language={language} credentials={credentials} error={loginError} loggingIn={loggingIn} theme={theme} accent={accent} onLanguageChange={() => setLanguage(ar ? "en" : "ar")} onCredentialsChange={setCredentials} onThemeChange={setTheme} onAccentChange={setAccent} onSubmit={login} />;
   const allGroups: Array<{ label: string; keys: View[] }> = [

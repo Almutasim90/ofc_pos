@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using OFC.Infrastructure.Persistence;
 using OFC.Modules.Kitchen;
+using OFC.Modules.Ordering;
 using OFC.Modules.Printing;
 using Xunit;
 
@@ -38,5 +39,17 @@ public sealed class KitchenPersistenceTests
         var property = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(PrintJob))!.FindProperty(nameof(PrintJob.CreatedByUserId))!;
 
         Assert.True(property.IsNullable);
+    }
+
+    [Fact]
+    public void Customer_order_number_is_unique_and_generated_by_the_database()
+    {
+        using var db = CreateModelContext();
+        var entity = db.GetService<IDesignTimeModel>().Model.FindEntityType(typeof(Order))!;
+        var number = entity.FindProperty(nameof(Order.Number))!;
+        var uniqueIndex = entity.GetIndexes().Single(x => x.Properties.Count == 1 && x.Properties[0] == number);
+
+        Assert.Equal(ValueGenerated.OnAdd, number.ValueGenerated);
+        Assert.True(uniqueIndex.IsUnique);
     }
 }

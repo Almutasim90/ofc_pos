@@ -8,6 +8,7 @@ public enum OrderStatus { Draft = 0, Pending = 1, Confirmed = 2, Paid = 3, SentT
 public sealed class Order
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
+    public long Number { get; set; }
     public Guid BranchId { get; set; }
     public Guid SalesChannelId { get; set; }
     public Guid? DeviceId { get; set; }

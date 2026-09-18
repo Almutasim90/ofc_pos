@@ -72,6 +72,10 @@
 
 :root[data-accent="teal"] { --login-accent: #0f766e; --login-accent-bright: #2dd4bf; --login-accent-soft: #ccfbf1; --app-primary: #0f766e; --app-primary-hover: #115e59; --app-primary-soft: #ccfbf1; }
 :root[data-accent="violet"] { --login-accent: #7c3aed; --login-accent-bright: #a78bfa; --login-accent-soft: #ede9fe; --app-primary: #7c3aed; --app-primary-hover: #6d28d9; --app-primary-soft: #ede9fe; }
+:root[data-accent="orange"] { --login-accent: #c2410c; --login-accent-bright: #fb923c; --login-accent-soft: #ffedd5; --app-primary: #c2410c; --app-primary-hover: #9a3412; --app-primary-soft: #ffedd5; }
+:root[data-accent="tomato"] { --login-accent: #b91c1c; --login-accent-bright: #f87171; --login-accent-soft: #fee2e2; --app-primary: #b91c1c; --app-primary-hover: #991b1b; --app-primary-soft: #fee2e2; }
+:root[data-accent="gold"] { --login-accent: #a16207; --login-accent-bright: #fbbf24; --login-accent-soft: #fef3c7; --app-primary: #a16207; --app-primary-hover: #854d0e; --app-primary-soft: #fef3c7; }
+:root[data-accent="olive"] { --login-accent: #4d7c0f; --login-accent-bright: #a3e635; --login-accent-soft: #ecfccb; --app-primary: #4d7c0f; --app-primary-hover: #3f6212; --app-primary-soft: #ecfccb; }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --login-bg: #020303;
@@ -101,6 +105,10 @@
 }
 :root[data-theme="dark"][data-accent="teal"] { --login-accent-soft: rgba(45, 212, 191, 0.13); --app-primary-soft: rgba(45, 212, 191, .14); }
 :root[data-theme="dark"][data-accent="violet"] { --login-accent-soft: rgba(167, 139, 250, 0.13); --app-primary-soft: rgba(167, 139, 250, .14); }
+:root[data-theme="dark"][data-accent="orange"] { --login-accent-soft: rgba(251, 146, 60, .13); --app-primary-soft: rgba(251, 146, 60, .14); }
+:root[data-theme="dark"][data-accent="tomato"] { --login-accent-soft: rgba(248, 113, 113, .13); --app-primary-soft: rgba(248, 113, 113, .14); }
+:root[data-theme="dark"][data-accent="gold"] { --login-accent-soft: rgba(251, 191, 36, .13); --app-primary-soft: rgba(251, 191, 36, .14); }
+:root[data-theme="dark"][data-accent="olive"] { --login-accent-soft: rgba(163, 230, 53, .13); --app-primary-soft: rgba(163, 230, 53, .14); }
 
 .login-shell {
   position: relative;
@@ -154,7 +162,7 @@
 
 .login-form-panel { display: flex; min-width: 0; flex-direction: column; padding: 34px 52px 28px; }
 .login-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
-.login-accents { display: flex; gap: 7px; margin-inline-end: auto; border: 1px solid var(--login-border); border-radius: 999px; padding: 7px; }
+.login-accents { display: flex; flex-wrap: wrap; gap: 7px; margin-inline-end: auto; border: 1px solid var(--login-border); border-radius: 999px; padding: 7px; }
 .login-accents button { width: 18px; height: 18px; border: 2px solid transparent; border-radius: 999px; outline: 2px solid transparent; outline-offset: 2px; transition: transform .15s ease; }
 .login-accents button:hover { transform: scale(1.12); }
 .login-accents button[aria-pressed="true"] { outline-color: var(--login-accent); }
@@ -374,7 +382,7 @@
 .theme-mode-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .theme-mode-options button { display: flex; min-height: 42px; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--app-border); border-radius: 11px; color: var(--app-muted); font-size: 12px; font-weight: 700; }
 .theme-mode-options button.active { border-color: var(--app-primary); background: var(--app-primary-soft); color: var(--app-primary); }
-.theme-color-options { display: flex; gap: 11px; }
+.theme-color-options { display: flex; flex-wrap: wrap; gap: 11px; }
 .theme-color-options button { width: 27px; height: 27px; border: 3px solid var(--app-surface); border-radius: 999px; outline: 2px solid transparent; outline-offset: 1px; }
 .theme-color-options button[aria-pressed="true"] { outline-color: var(--app-primary); }
 @keyframes theme-pop { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
