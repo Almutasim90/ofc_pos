@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Banknote,
+  CreditCard,
   Minus,
   Plus,
   QrCode,
@@ -10,6 +12,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
+import { normalizeMoneyInput, type PaymentMethod } from "@/lib/payment";
 import { paymentMethodName } from "@/lib/payment-method";
 import { enqueue, setBranchId as persistBranch } from "@/lib/sync-outbox";
 import { exitKiosk } from "@/lib/fullscreen-kiosk";
@@ -173,6 +176,26 @@ const words = {
     qrReviewTitle: "طلبات QR بانتظار الاعتماد",
     qrApprove: "اعتماد",
     qrReject: "رفض",
+    payMethod: "طريقة الدفع",
+    cash: "نقدي",
+    card: "بطاقة",
+    mixed: "نقد + بطاقة",
+    payNoMethods: "لا توجد وسائل دفع مفعلة لهذا الفرع.",
+    payExceed: "المبلغ المدخل أكبر من المستحق.",
+    payInvalid: "أدخل مبلغًا صحيحًا لتقسيم الدفع.",
+    payNoCash: "لا توجد طريقة دفع نقدية.",
+    payNoCard: "لا توجد طريقة دفع بالبطاقة.",
+    payFailed: "تعذر تسجيل الدفع.",
+    paidAndSent: "تم الدفع وإرسال الطلب للمطبخ.",
+    addDiscount: "إضافة خصم",
+    discountPercentage: "نسبة %",
+    discountAmount: "مبلغ ثابت",
+    discountApply: "تطبيق",
+    discountRemove: "إزالة الخصم",
+    discountLabel: "خصم",
+    subtotal: "المجموع الفرعي",
+    discountTooHigh: "لا يمكن أن يتجاوز الخصم الحد الأقصى المسموح.",
+    discountFailed: "تعذر تطبيق الخصم على هذا الطلب.",
   },
   en: {
     title: "Point of sale",
@@ -226,6 +249,26 @@ const words = {
     qrReviewTitle: "QR orders awaiting approval",
     qrApprove: "Approve",
     qrReject: "Reject",
+    payMethod: "Payment method",
+    cash: "Cash",
+    card: "Card",
+    mixed: "Cash + Card",
+    payNoMethods: "No active payment methods are configured for this branch.",
+    payExceed: "Amount entered exceeds the amount due.",
+    payInvalid: "Enter a valid split payment amount.",
+    payNoCash: "No cash payment method is configured.",
+    payNoCard: "No card payment method is configured.",
+    payFailed: "Unable to record the payment.",
+    paidAndSent: "Payment completed and the order was sent to the kitchen.",
+    addDiscount: "Add discount",
+    discountPercentage: "Percentage %",
+    discountAmount: "Fixed amount",
+    discountApply: "Apply",
+    discountRemove: "Remove discount",
+    discountLabel: "Discount",
+    subtotal: "Subtotal",
+    discountTooHigh: "The discount cannot exceed the maximum allowed.",
+    discountFailed: "Unable to apply the discount to this order.",
   },
 } as const;
 type HeldOrder = {
@@ -280,17 +323,29 @@ const channelIcons: Record<string, typeof Store> = {
 function channelIcon(code: string) {
   return channelIcons[code] ?? Store;
 }
+const channelLogos: Record<string, string> = {
+  TALABAT: "/channels/talabat.jpg",
+  TMDONE: "/channels/tmdone.png",
+  KHIDMA: "/channels/khedmah.jpg",
+};
+function channelLogo(code: string) {
+  return channelLogos[code.toUpperCase()];
+}
 
 export function PosSection({
   language,
   kiosk,
   onKioskChange,
+  permissions,
 }: {
   language: Language;
   kiosk: boolean;
   onKioskChange: (value: boolean) => void;
+  permissions: string[] | null;
 }) {
   const t = words[language];
+  const canDiscount =
+    permissions !== null && permissions.includes("orders.discount");
   const name = (x: {
     nameAr: string;
     nameEn: string;
@@ -322,6 +377,22 @@ export function PosSection({
     methodId: string;
     tendered: string;
   } | null>(null);
+  const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
+  const [payCash, setPayCash] = useState("");
+  const [payCard, setPayCard] = useState("");
+  const [payMessage, setPayMessage] = useState("");
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountType, setDiscountType] = useState<"Percentage" | "Amount">(
+    "Percentage",
+  );
+  const [discountValue, setDiscountValue] = useState("");
+  useEffect(() => {
+    setPayCash("");
+    setPayCard("");
+    setPayMessage("");
+    setDiscountOpen(false);
+    setDiscountValue("");
+  }, [branchId]);
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [heldSearch, setHeldSearch] = useState("");
@@ -816,6 +887,106 @@ export function PosSection({
         line.quantity,
     0,
   );
+  const payCashMethod = offlineMethods.find((m) => m.kind === "Cash");
+  const payCardMethod = offlineMethods.find(
+    (m) => m.kind !== "Cash" && m.kind !== "External",
+  );
+  // Mirrors backend OrderRules.ManualDiscountMaxPercent — this is a display estimate only, the server
+  // is the authority and re-validates the cap independently when the order is created.
+  const discountMaxPercent = 20;
+  const discountRawValue = discountValue === "" ? 0 : Number(discountValue);
+  const discountRequestedAmount = roundMoney(
+    discountType === "Percentage"
+      ? (total * discountRawValue) / 100
+      : discountRawValue,
+  );
+  const discountMaxAmount = roundMoney((total * discountMaxPercent) / 100);
+  const discountEstimate =
+    discountOpen && discountRawValue > 0
+      ? Math.min(discountRequestedAmount, total)
+      : 0;
+  // The server enforces the cap independently and rejects the order outright rather than silently
+  // shrinking the discount, so the button stays disabled until the cashier lowers the value themselves.
+  const discountExceedsMax =
+    discountOpen &&
+    discountRawValue > 0 &&
+    discountRequestedAmount > discountMaxAmount;
+  const payableTotal = roundMoney(Math.max(0, total - discountEstimate));
+  // Falls back to whichever tender the branch actually has configured, so a branch with only one of
+  // cash/card (payMethod still defaulting to "Cash") doesn't silently build a payment for a tender
+  // that isn't available there.
+  const effectivePayMethod: PaymentMethod =
+    payMethod === "Cash" && !payCashMethod && payCardMethod
+      ? "Card"
+      : payMethod === "Card" && !payCardMethod && payCashMethod
+        ? "Cash"
+        : payMethod;
+  const payCashAmount =
+    effectivePayMethod === "Cash"
+      ? payableTotal
+      : effectivePayMethod === "Card"
+        ? 0
+        : roundMoney(payCash === "" ? 0 : Number(payCash));
+  const payCardAmount =
+    effectivePayMethod === "Card"
+      ? payableTotal
+      : effectivePayMethod === "Cash"
+        ? 0
+        : roundMoney(payableTotal - payCashAmount);
+  const payValid =
+    Number.isFinite(payCashAmount) &&
+    payCashAmount >= 0 &&
+    payCardAmount >= 0 &&
+    (effectivePayMethod !== "Mixed" ||
+      (payCashAmount > 0 && payCardAmount > 0));
+  function choosePayMethod(next: PaymentMethod) {
+    setPayMethod(next);
+    setPayCash("");
+    setPayCard("");
+    setPayMessage("");
+  }
+  function setPayCashAmount(raw: string) {
+    setPayMessage("");
+    const normalized = normalizeMoneyInput(raw);
+    if (normalized === null) return;
+    setPayCash(normalized);
+    const value = normalized === "" ? 0 : Number(normalized);
+    if (value > payableTotal) {
+      setPayCard("");
+      setPayMessage(t.payExceed);
+      return;
+    }
+    setPayCard(
+      normalized === "" ? payableTotal.toFixed(3) : (payableTotal - value).toFixed(3),
+    );
+  }
+  function setPayCardAmount(raw: string) {
+    setPayMessage("");
+    const normalized = normalizeMoneyInput(raw);
+    if (normalized === null) return;
+    setPayCard(normalized);
+    const value = normalized === "" ? 0 : Number(normalized);
+    if (value > payableTotal) {
+      setPayCash("");
+      setPayMessage(t.payExceed);
+      return;
+    }
+    setPayCash(
+      normalized === "" ? payableTotal.toFixed(3) : (payableTotal - value).toFixed(3),
+    );
+  }
+  function applyDiscount() {
+    setPayCash("");
+    setPayCard("");
+    setPayMessage("");
+  }
+  function clearDiscount() {
+    setDiscountOpen(false);
+    setDiscountValue("");
+    setPayCash("");
+    setPayCard("");
+    setPayMessage("");
+  }
   function add(product: Product) {
     if (!product.selectionGroups.length) {
       setCart([
@@ -895,6 +1066,20 @@ export function PosSection({
       });
       return;
     }
+    if (discountExceedsMax) {
+      setMessage(t.discountTooHigh);
+      return;
+    }
+    if (status === "Pending" && !isExternallyPaidChannel) {
+      if (offlineMethods.length === 0) {
+        setMessage(t.payNoMethods);
+        return;
+      }
+      if (!payValid) {
+        setMessage(payMessage || t.payInvalid);
+        return;
+      }
+    }
     setBusy(true);
     setMessage("");
     try {
@@ -907,6 +1092,10 @@ export function PosSection({
         clientRequestId: requestRef.current.id,
         source: "Pos",
         note: null,
+        discount:
+          canDiscount && discountOpen && discountRawValue > 0
+            ? { type: discountType, value: discountRawValue }
+            : null,
         lines: cart.map((line) => ({
           productId: line.product.id,
           quantity: line.quantity,
@@ -924,7 +1113,12 @@ export function PosSection({
         body: JSON.stringify(body),
       });
       if (handleAuthFailure(response)) return;
-      if (!response.ok) throw new Error(t.unavailable);
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new Error(
+          problem?.errors?.discount?.[0] ?? t.unavailable,
+        );
+      }
       const order = (await response.json()) as {
         id: string;
         grossAmount: number;
@@ -932,6 +1126,8 @@ export function PosSection({
       setCart([]);
       requestRef.current = { snapshot: "", id: "" };
       if (status === "Draft") {
+        setDiscountOpen(false);
+        setDiscountValue("");
         setMessage(t.saved);
         return;
       }
@@ -980,10 +1176,68 @@ export function PosSection({
               : "Order saved, but its external payment could not be recorded.",
           );
         await dispatchOrder(order.id);
+        setDiscountOpen(false);
+        setDiscountValue("");
         return;
       }
+      // Re-based on the order the server actually created (order.grossAmount), never on the client's
+      // pre-submit estimate: the server independently validates and rounds the discount, so this is the
+      // only amount guaranteed to match what the cashier is actually collecting.
+      const finalCashAmount =
+        effectivePayMethod === "Cash"
+          ? order.grossAmount
+          : effectivePayMethod === "Card"
+            ? 0
+            : roundMoney(
+                order.grossAmount *
+                  (payableTotal > 0 ? payCashAmount / payableTotal : 0),
+              );
+      const finalCardAmount = roundMoney(order.grossAmount - finalCashAmount);
+      const payments: Array<{
+        clientRequestId: string;
+        paymentMethodId: string;
+        amount: number;
+        tenderedAmount: number;
+        status: string;
+        providerReference: string | null;
+      }> = [];
+      if (finalCashAmount > 0) {
+        if (!payCashMethod) throw new Error(t.payNoCash);
+        payments.push({
+          clientRequestId: createId(),
+          paymentMethodId: payCashMethod.id,
+          amount: finalCashAmount,
+          tenderedAmount: finalCashAmount,
+          status: "Captured",
+          providerReference: null,
+        });
+      }
+      if (finalCardAmount > 0) {
+        if (!payCardMethod) throw new Error(t.payNoCard);
+        payments.push({
+          clientRequestId: createId(),
+          paymentMethodId: payCardMethod.id,
+          amount: finalCardAmount,
+          tenderedAmount: finalCardAmount,
+          status: "Captured",
+          providerReference: `POS-${createId()}`,
+        });
+      }
+      const paid = await auth(`/api/v1/orders/${order.id}/payments`, {
+        method: "POST",
+        body: JSON.stringify({ payments }),
+      });
+      if (!paid.ok) {
+        const problem = await paid.json().catch(() => null);
+        throw new Error(problem?.errors?.payments?.[0] ?? t.payFailed);
+      }
       setCartOpen(false);
-      setPayment({ orderId: order.id, total: order.grossAmount });
+      await dispatchOrder(order.id);
+      setPayCash("");
+      setPayCard("");
+      setDiscountOpen(false);
+      setDiscountValue("");
+      setMessage(t.paidAndSent);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t.unavailable);
     } finally {
@@ -1468,20 +1722,172 @@ export function PosSection({
           )}
         </div>
         <div className="border-t border-border p-4">
+          {canDiscount && online && cart.length > 0 && (
+            <div className="mb-4">
+              {!discountOpen ? (
+                <Button
+                  type="button"
+                  onClick={() => setDiscountOpen(true)}
+                  className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
+                >
+                  <Plus size={15} />
+                  {t.addDiscount}
+                </Button>
+              ) : (
+                <div className="rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{t.addDiscount}</p>
+                    <Button
+                      type="button"
+                      onClick={clearDiscount}
+                      className="text-xs text-destructive"
+                    >
+                      {t.discountRemove}
+                    </Button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setDiscountType("Percentage");
+                        applyDiscount();
+                      }}
+                      className={`min-h-10 rounded-lg border text-sm font-semibold ${discountType === "Percentage" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                    >
+                      {t.discountPercentage}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setDiscountType("Amount");
+                        applyDiscount();
+                      }}
+                      className={`min-h-10 rounded-lg border text-sm font-semibold ${discountType === "Amount" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                    >
+                      {t.discountAmount}
+                    </Button>
+                  </div>
+                  <Input
+                    aria-label={t.addDiscount}
+                    type="text"
+                    inputMode="decimal"
+                    value={discountValue}
+                    onChange={(e) => {
+                      const normalized = normalizeMoneyInput(e.target.value);
+                      if (normalized === null) return;
+                      setDiscountValue(normalized);
+                      setPayCash("");
+                      setPayCard("");
+                    }}
+                    placeholder={discountType === "Percentage" ? "0" : "0.000"}
+                    className="mt-2 min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  />
+                  {discountEstimate > 0 && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {t.discountLabel}: -OMR {discountEstimate.toFixed(3)}
+                    </p>
+                  )}
+                  {discountExceedsMax && (
+                    <p className="mt-1 text-xs text-destructive">
+                      {t.discountTooHigh}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {!isExternallyPaidChannel && cart.length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-medium">{t.payMethod}</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  disabled={!payCashMethod}
+                  onClick={() => choosePayMethod("Cash")}
+                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  <Banknote size={16} />
+                  {t.cash}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!payCardMethod}
+                  onClick={() => choosePayMethod("Card")}
+                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  <CreditCard size={16} />
+                  {t.card}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!payCashMethod || !payCardMethod}
+                  onClick={() => choosePayMethod("Mixed")}
+                  className={`flex min-h-11 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  {t.mixed}
+                </Button>
+              </div>
+              {effectivePayMethod === "Mixed" && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Input
+                    aria-label={t.cash}
+                    type="text"
+                    inputMode="decimal"
+                    value={payCash}
+                    onChange={(e) => setPayCashAmount(e.target.value)}
+                    placeholder="0.000"
+                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  />
+                  <Input
+                    aria-label={t.card}
+                    type="text"
+                    inputMode="decimal"
+                    value={payCard}
+                    onChange={(e) => setPayCardAmount(e.target.value)}
+                    placeholder="0.000"
+                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+              )}
+              {(offlineMethods.length === 0 || payMessage) && (
+                <p role="alert" className="mt-2 text-xs text-destructive">
+                  {payMessage || t.payNoMethods}
+                </p>
+              )}
+            </div>
+          )}
+          {discountEstimate > 0 && (
+            <>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{t.subtotal}</span>
+                <span>OMR {total.toFixed(3)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-destructive">
+                <span>{t.discountLabel}</span>
+                <span>-OMR {discountEstimate.toFixed(3)}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between text-lg font-bold">
             <span>{t.total}</span>
-            <span>OMR {total.toFixed(3)}</span>
+            <span>OMR {payableTotal.toFixed(3)}</span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Button
-              disabled={busy || !cart.length}
+              disabled={busy || !cart.length || discountExceedsMax}
               onClick={() => void submit("Draft")}
               className="min-h-12 rounded-lg border border-primary font-semibold text-primary"
             >
               {t.hold}
             </Button>
             <Button
-              disabled={busy || !cart.length}
+              disabled={
+                busy ||
+                !cart.length ||
+                discountExceedsMax ||
+                (!isExternallyPaidChannel &&
+                  (!payValid || offlineMethods.length === 0))
+              }
               onClick={() => void submit("Pending")}
               className="min-h-12 rounded-lg bg-primary font-semibold text-primary-foreground"
             >
@@ -1586,22 +1992,34 @@ export function PosSection({
                 : "Electronic order company"
             }
           >
-            {externalChannels.map((channel) => (
-              <Button
-                key={channel.id}
-                type="button"
-                role="radio"
-                aria-checked={channel.id === channelId}
-                disabled={cart.length > 0 || busy || !!payment}
-                onClick={() => {
-                  setChannelId(channel.id);
-                  store.set("pos-electronic-channel", channel.id);
-                }}
-                className={`min-h-10 shrink-0 rounded-lg border px-4 text-sm font-semibold ${channel.id === channelId ? "border-primary bg-accent text-primary" : "border-border bg-card"}`}
-              >
-                {name(channel)}
-              </Button>
-            ))}
+            {externalChannels.map((channel) => {
+              const logo = channelLogo(channel.code);
+              return (
+                <Button
+                  key={channel.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={channel.id === channelId}
+                  disabled={cart.length > 0 || busy || !!payment}
+                  onClick={() => {
+                    setChannelId(channel.id);
+                    store.set("pos-electronic-channel", channel.id);
+                  }}
+                  className={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-4 text-sm font-semibold ${channel.id === channelId ? "border-primary bg-accent text-primary" : "border-border bg-card"}`}
+                >
+                  {logo ? (
+                    <img
+                      src={logo}
+                      alt=""
+                      className="h-6 w-6 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <ShoppingBag size={16} className="shrink-0" />
+                  )}
+                  {name(channel)}
+                </Button>
+              );
+            })}
             <span className="self-center whitespace-nowrap text-xs text-muted-foreground">
               {language === "ar"
                 ? "مدفوع خارجيًا · تُطبق قائمة أسعار الشركة"

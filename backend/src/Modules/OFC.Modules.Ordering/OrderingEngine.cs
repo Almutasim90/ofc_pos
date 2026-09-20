@@ -6,6 +6,7 @@ namespace OFC.Modules.Ordering;
 public sealed record OrderLineInput(Guid ProductId, int Quantity, string? Note, List<GroupSelectionInput>? Selections);
 public sealed record GroupSelectionInput(Guid SelectionGroupId, List<ChoiceInput> Choices);
 public sealed record ChoiceInput(Guid OptionId, int Quantity);
+public sealed record ManualDiscountInput(string Type, decimal Value);
 
 public sealed record OrderingBuildResult(Order? Order, string? Field, string? Error)
 {
@@ -30,7 +31,8 @@ public static class OrderingEngine
         IReadOnlyList<PriceRule> prices,
         IReadOnlyList<Promotion> promotions,
         IReadOnlyList<TaxRule> taxes,
-        CatalogVersion? version)
+        CatalogVersion? version,
+        ManualDiscountInput? discount = null)
     {
         var order = new Order
         {
@@ -85,6 +87,26 @@ public static class OrderingEngine
         order.NetAmount = PricingRules.RoundMoney(order.NetAmount);
         order.TaxAmount = PricingRules.RoundMoney(order.TaxAmount);
         order.GrossAmount = PricingRules.RoundMoney(order.GrossAmount);
+
+        if (discount is not null)
+        {
+            if (discount.Type is not ("Percentage" or "Amount") || discount.Value <= 0)
+                return OrderingBuildResult.Fail("discount", "Provide a valid discount type and a positive value.");
+            var requestedAmount = PricingRules.RoundMoney(discount.Type == "Percentage" ? order.GrossAmount * discount.Value / 100 : discount.Value);
+            var maxAmount = PricingRules.RoundMoney(order.GrossAmount * OrderRules.ManualDiscountMaxPercent / 100);
+            if (requestedAmount <= 0 || requestedAmount > order.GrossAmount || requestedAmount > maxAmount)
+                return OrderingBuildResult.Fail("discount", $"The discount must be greater than zero and cannot exceed {OrderRules.ManualDiscountMaxPercent}% of the order total.");
+            // Reduces net/tax proportionally so Net + Tax still equals Gross exactly; per-line unit
+            // amounts are left untouched since this is an invoice-level adjustment, not a re-price of
+            // individual items (kitchen tickets and per-item reporting stay accurate).
+            var newGross = order.GrossAmount - requestedAmount;
+            var ratio = order.GrossAmount == 0 ? 0 : newGross / order.GrossAmount;
+            order.NetAmount = PricingRules.RoundMoney(order.NetAmount * ratio);
+            order.GrossAmount = newGross;
+            order.TaxAmount = PricingRules.RoundMoney(order.GrossAmount - order.NetAmount);
+            order.ManualDiscountAmount = requestedAmount;
+        }
+
         return new OrderingBuildResult(order, null, null);
     }
 

@@ -676,6 +676,7 @@ export function App() {
                 language={language}
                 kiosk={kiosk}
                 onKioskChange={setKiosk}
+                permissions={permissions}
               />
             ) : view === "kitchen" ? (
               <KitchenSection language={language} />

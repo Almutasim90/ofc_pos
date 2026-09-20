@@ -21,6 +21,7 @@ public sealed class Order
     public decimal NetAmount { get; set; }
     public decimal TaxAmount { get; set; }
     public decimal GrossAmount { get; set; }
+    public decimal ManualDiscountAmount { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<OrderLine> Lines { get; set; } = [];
@@ -67,6 +68,11 @@ public sealed class OrderStatusHistory
 public static class OrderRules
 {
     public const int NoteMax = 500;
+    // A cashier-applied ad-hoc discount (see OrderingEngine) is capped at this share of the order's
+    // pre-discount gross total, regardless of whether it was entered as a percentage or a fixed amount.
+    // Gated behind the "orders.discount" permission; this cap is enforced server-side and is the actual
+    // authority — the POS client mirrors it only to show an estimate before submitting.
+    public const decimal ManualDiscountMaxPercent = 20m;
     public static bool CanTransition(OrderStatus from, OrderStatus to) => from == to || (from, to) switch
     {
         (OrderStatus.Draft, OrderStatus.Pending or OrderStatus.Cancelled) => true,
