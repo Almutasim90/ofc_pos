@@ -1,5 +1,33 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Building2, FolderTree, Languages, Monitor, Package, Users, Menu, X, Home, ListChecks, BadgeDollarSign, ShoppingBag, Printer, ChefHat, Boxes, CloudOff, BarChart3, Truck, Scale, QrCode, Sparkles, Maximize2, Minimize2, History, PanelLeftClose, PanelLeftOpen, LogOut } from "lucide-react";
+import {
+  Building2,
+  FolderTree,
+  Languages,
+  Monitor,
+  Package,
+  Users,
+  Menu,
+  X,
+  Home,
+  ListChecks,
+  BadgeDollarSign,
+  ShoppingBag,
+  Printer,
+  ChefHat,
+  Boxes,
+  CloudOff,
+  BarChart3,
+  Truck,
+  Scale,
+  QrCode,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  History,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LogOut,
+} from "lucide-react";
 
 import { store } from "@/lib/local-store";
 import { enterKiosk, exitKiosk } from "@/lib/fullscreen-kiosk";
@@ -18,63 +46,246 @@ import { QrAdminSection } from "@/app/QrAdminSection";
 import { QrCustomerPage } from "@/app/QrCustomerPage";
 import { IntegrationsSection } from "@/app/IntegrationsSection";
 import { AdminSection } from "@/app/AdminSection";
-import { LoginScreen, type ThemeMode } from "@/app/LoginScreen";
+import { LoginScreen } from "@/app/LoginScreen";
 import { ThemeControls } from "@/app/ThemeControls";
+import { applyTheme, resolveTheme, type ThemeMode } from "@/lib/theme";
 
 import { CatalogScreen } from "@/app/CatalogScreen";
 import { Button } from "@/components/ui/button";
 type Language = "ar" | "en";
-type View = "branches" | "devices" | "users" | "categories" | "products" | "selectionGroups" | "pricing" | "pos" | "cancellations" | "shifts" | "printing" | "kitchen" | "inventory" | "inventoryAdvanced" | "procurement" | "sync" | "reports" | "qr" | "integrations" | "orderHistory";
-const CancellationSection = lazy(() => import("@/app/CancellationSection").then((module) => ({ default: module.CancellationSection })));
-const OrderHistorySection = lazy(() => import("@/app/OrderHistorySection").then((module) => ({ default: module.OrderHistorySection })));
+type View =
+  | "branches"
+  | "devices"
+  | "users"
+  | "categories"
+  | "products"
+  | "selectionGroups"
+  | "pricing"
+  | "pos"
+  | "cancellations"
+  | "shifts"
+  | "printing"
+  | "kitchen"
+  | "inventory"
+  | "inventoryAdvanced"
+  | "procurement"
+  | "sync"
+  | "reports"
+  | "qr"
+  | "integrations"
+  | "orderHistory";
+const CancellationSection = lazy(() =>
+  import("@/app/CancellationSection").then((module) => ({
+    default: module.CancellationSection,
+  })),
+);
+const OrderHistorySection = lazy(() =>
+  import("@/app/OrderHistorySection").then((module) => ({
+    default: module.OrderHistorySection,
+  })),
+);
 export function App() {
-  const [language, setLanguage] = useState<Language>(() => store.get<Language>("language") === "en" ? "en" : "ar");
-  const [token, setToken] = useState(() => store.get<string>("session-token") ?? "");
-  const [checkingSession, setCheckingSession] = useState(() => Boolean(store.get<string>("session-token")));
+  const [language, setLanguage] = useState<Language>(() =>
+    store.get<Language>("language") === "en" ? "en" : "ar",
+  );
+  const [token, setToken] = useState(
+    () => store.get<string>("session-token") ?? "",
+  );
+  const [checkingSession, setCheckingSession] = useState(() =>
+    Boolean(store.get<string>("session-token")),
+  );
   const [view, setView] = useState<View>("pos");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => store.get<boolean>("sidebar-collapsed") ?? false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => store.get<boolean>("sidebar-collapsed") ?? false,
+  );
   const [kiosk, setKiosk] = useState(false);
-  const [credentials, setCredentials] = useState({ username: "", password: "" });
-  const [theme, setTheme] = useState<ThemeMode>(() => store.get<ThemeMode>("theme") === "dark" ? "dark" : "light");
+  const [credentials, setCredentials] = useState({
+    username: "",
+    password: "",
+  });
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const saved = store.get<ThemeMode>("theme");
+    return saved === "light" || saved === "dark" || saved === "system"
+      ? saved
+      : "system";
+  });
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
   const [hash, setHash] = useState(window.location.hash);
   const [permissions, setPermissions] = useState<string[] | null>(null);
   const ar = language === "ar";
-  const tr = (a: string, e: string) => ar ? a : e;
-  const text = { sync: tr("المزامنة", "Sync"), branches: tr("الفروع", "Branches"), devices: tr("الأجهزة", "Devices"), users: tr("المستخدمون", "Users"), categories: tr("التصنيفات", "Categories"), products: tr("المنتجات", "Products"), selectionGroups: tr("الوجبات والإضافات", "Combos & modifiers") };
-  const navigation: Array<[View, string, typeof Building2]> = [["pos", language === "ar" ? "نقطة البيع" : "POS", ShoppingBag], ["kitchen", language === "ar" ? "المطبخ" : "Kitchen", ChefHat], ["inventory", language === "ar" ? "المخزون والوصفات" : "Inventory & recipes", Boxes], ["inventoryAdvanced", language === "ar" ? "الجرد والهدر والتكلفة" : "Counts, waste & costing", Scale], ["procurement", language === "ar" ? "المشتريات والموردون" : "Procurement & suppliers", Truck], ["shifts", language === "ar" ? "الورديات والنقد" : "Shifts & cash", BadgeDollarSign], ["printing", language === "ar" ? "الطباعة والأجهزة" : "Printing & hardware", Printer], ["cancellations", language === "ar" ? "الإلغاء والاسترجاع" : "Cancellations", BadgeDollarSign], ["orderHistory", language === "ar" ? "سجل الطلبات" : "Order history", History], ["sync", text.sync, CloudOff], ["branches", text.branches, Building2], ["devices", text.devices, Monitor], ["users", text.users, Users], ["categories", text.categories, FolderTree], ["products", text.products, Package], ["selectionGroups", text.selectionGroups, ListChecks], ["pricing", language === "ar" ? "التسعير والضريبة" : "Pricing & tax", BadgeDollarSign], ["reports", language === "ar" ? "التقارير والتدقيق" : "Reports & audit", BarChart3], ["qr", language === "ar" ? "QR" : "QR", QrCode], ["integrations", language === "ar" ? "التكاملات والذكاء" : "Integrations & AI", Sparkles]];
+  const tr = (a: string, e: string) => (ar ? a : e);
+  const text = {
+    sync: tr("المزامنة", "Sync"),
+    branches: tr("الفروع", "Branches"),
+    devices: tr("الأجهزة", "Devices"),
+    users: tr("المستخدمون", "Users"),
+    categories: tr("التصنيفات", "Categories"),
+    products: tr("المنتجات", "Products"),
+    selectionGroups: tr("الوجبات والإضافات", "Combos & modifiers"),
+  };
+  const navigation: Array<[View, string, typeof Building2]> = [
+    ["pos", language === "ar" ? "نقطة البيع" : "POS", ShoppingBag],
+    ["kitchen", language === "ar" ? "المطبخ" : "Kitchen", ChefHat],
+    [
+      "inventory",
+      language === "ar" ? "المخزون والوصفات" : "Inventory & recipes",
+      Boxes,
+    ],
+    [
+      "inventoryAdvanced",
+      language === "ar" ? "الجرد والهدر والتكلفة" : "Counts, waste & costing",
+      Scale,
+    ],
+    [
+      "procurement",
+      language === "ar" ? "المشتريات والموردون" : "Procurement & suppliers",
+      Truck,
+    ],
+    [
+      "shifts",
+      language === "ar" ? "الورديات والنقد" : "Shifts & cash",
+      BadgeDollarSign,
+    ],
+    [
+      "printing",
+      language === "ar" ? "الطباعة والأجهزة" : "Printing & hardware",
+      Printer,
+    ],
+    [
+      "cancellations",
+      language === "ar" ? "الإلغاء والاسترجاع" : "Cancellations",
+      BadgeDollarSign,
+    ],
+    [
+      "orderHistory",
+      language === "ar" ? "سجل الطلبات" : "Order history",
+      History,
+    ],
+    ["sync", text.sync, CloudOff],
+    ["branches", text.branches, Building2],
+    ["devices", text.devices, Monitor],
+    ["users", text.users, Users],
+    ["categories", text.categories, FolderTree],
+    ["products", text.products, Package],
+    ["selectionGroups", text.selectionGroups, ListChecks],
+    [
+      "pricing",
+      language === "ar" ? "التسعير والضريبة" : "Pricing & tax",
+      BadgeDollarSign,
+    ],
+    [
+      "reports",
+      language === "ar" ? "التقارير والتدقيق" : "Reports & audit",
+      BarChart3,
+    ],
+    ["qr", language === "ar" ? "QR" : "QR", QrCode],
+    [
+      "integrations",
+      language === "ar" ? "التكاملات والذكاء" : "Integrations & AI",
+      Sparkles,
+    ],
+  ];
   // Mirrors the server's permission checks per endpoint group (see backend Sprint*Endpoints.cs `Has`/
   // `HasClaim("permission", ...)` guards) so the sidebar only offers what the signed-in role can actually
   // open, instead of letting the user hit a 403 after navigating in.
   const permissionsFor: Record<View, string[]> = {
-    pos: ["orders.manage"], kitchen: ["kitchen.view", "kitchen.manage"], inventory: ["inventory.view"], inventoryAdvanced: ["inventory.view"], procurement: ["procurement.view"],
-    shifts: ["shifts.open", "shifts.close", "shifts.manage", "shifts.approve", "shifts.report", "shifts.view-variance"],
-    printing: ["printing.view", "printing.configs.manage", "printing.templates.manage", "printing.routes.manage", "printing.jobs.manage"],
-    cancellations: ["cancellations.cancel", "cancellations.void", "cancellations.refund", "cancellations.approve", "cancellations.report", "cancellations.manage"],
-    orderHistory: ["orders.manage"], sync: ["orders.manage"], branches: ["branches.manage"], devices: ["devices.manage"], users: ["users.manage"],
-    categories: ["catalog.categories.manage"], products: ["catalog.products.manage"], selectionGroups: ["catalog.selection-groups.manage"],
-    pricing: ["pricing.manage", "pricing.override"], reports: ["reports.view", "reports.export"], qr: ["qr.manage", "qr.approve"], integrations: ["integrations.view", "integrations.manage", "integrations.ai"],
+    pos: ["orders.manage"],
+    kitchen: ["kitchen.view", "kitchen.manage"],
+    inventory: ["inventory.view"],
+    inventoryAdvanced: ["inventory.view"],
+    procurement: ["procurement.view"],
+    shifts: [
+      "shifts.open",
+      "shifts.close",
+      "shifts.manage",
+      "shifts.approve",
+      "shifts.report",
+      "shifts.view-variance",
+    ],
+    printing: [
+      "printing.view",
+      "printing.configs.manage",
+      "printing.templates.manage",
+      "printing.routes.manage",
+      "printing.jobs.manage",
+    ],
+    cancellations: [
+      "cancellations.cancel",
+      "cancellations.void",
+      "cancellations.refund",
+      "cancellations.approve",
+      "cancellations.report",
+      "cancellations.manage",
+    ],
+    orderHistory: ["orders.manage"],
+    sync: ["orders.manage"],
+    branches: ["branches.manage"],
+    devices: ["devices.manage"],
+    users: ["users.manage"],
+    categories: ["catalog.categories.manage"],
+    products: ["catalog.products.manage"],
+    selectionGroups: ["catalog.selection-groups.manage"],
+    pricing: ["pricing.manage", "pricing.override"],
+    reports: ["reports.view", "reports.export"],
+    qr: ["qr.manage", "qr.approve"],
+    integrations: [
+      "integrations.view",
+      "integrations.manage",
+      "integrations.ai",
+    ],
   };
   // Authorization must fail closed. Missing permissions must never expose a protected page.
-  function canView(key: View) { return permissions !== null && permissionsFor[key].some((code) => permissions.includes(code)); }
-  function firstAllowedView() { return navigation.find(([key]) => canView(key))?.[0] ?? null; }
+  function canView(key: View) {
+    return (
+      permissions !== null &&
+      permissionsFor[key].some((code) => permissions.includes(code))
+    );
+  }
+  function firstAllowedView() {
+    return navigation.find(([key]) => canView(key))?.[0] ?? null;
+  }
 
-  useEffect(() => { document.documentElement.lang = language; document.documentElement.dir = ar ? "rtl" : "ltr"; store.set("language", language); }, [language]);
-  useEffect(() => { document.documentElement.dataset.theme = theme; store.set("theme", theme); }, [theme]);
-  useEffect(() => { document.documentElement.dataset.accent = "teal"; store.set("accent", "teal"); }, []);
-  useEffect(() => { store.set("sidebar-collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
-  useEffect(() => { const update = () => setHash(window.location.hash); window.addEventListener("hashchange", update); return () => window.removeEventListener("hashchange", update); }, []);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = ar ? "rtl" : "ltr";
+    store.set("language", language);
+  }, [language]);
+  useEffect(() => {
+    applyTheme(theme);
+    store.set("theme", theme);
+    if (theme !== "system") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => applyTheme("system");
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [theme]);
+  useEffect(() => {
+    document.documentElement.dataset.accent = "teal";
+    store.set("accent", "teal");
+  }, []);
+  useEffect(() => {
+    store.set("sidebar-collapsed", sidebarCollapsed);
+  }, [sidebarCollapsed]);
+  useEffect(() => {
+    const update = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
+  }, []);
   useEffect(() => {
     if (permissions === null) return;
     const target = hash.slice(2);
     // Select known forbidden routes so the guard renders Access Denied without mounting their page.
-    if (navigation.some(([key]) => key === target)) { setView(target as View); return; }
+    if (navigation.some(([key]) => key === target)) {
+      setView(target as View);
+      return;
+    }
     const fallback = firstAllowedView();
     if (fallback) {
       setView(fallback);
-      if (!hash || hash === "#/") window.history.replaceState(null, "", `#/${fallback}`);
+      if (!hash || hash === "#/")
+        window.history.replaceState(null, "", `#/${fallback}`);
     }
   }, [hash, permissions]);
   // While the mobile drawer is open, keep the page from scrolling behind it and close on Escape.
@@ -82,9 +293,14 @@ export function App() {
     if (!menuOpen) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
     window.addEventListener("keydown", onKey);
-    return () => { document.body.style.overflow = previous; window.removeEventListener("keydown", onKey); };
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [menuOpen]);
   function navigate(next: View) {
     if (!canView(next)) return;
@@ -92,85 +308,419 @@ export function App() {
     setView(next);
     setMenuOpen(false);
   }
-  useEffect(() => { if (view !== "pos" && kiosk) { exitKiosk(); setKiosk(false); } }, [view, kiosk]);
   useEffect(() => {
-    if (!token) { setCheckingSession(false); setPermissions(null); return; }
+    if (view !== "pos" && kiosk) {
+      exitKiosk();
+      setKiosk(false);
+    }
+  }, [view, kiosk]);
+  useEffect(() => {
+    if (!token) {
+      setCheckingSession(false);
+      setPermissions(null);
+      return;
+    }
     const controller = new AbortController();
     setCheckingSession(true);
     setPermissions(null);
-    void fetch("/api/v1/auth/me", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+    void fetch("/api/v1/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
       .then(async (response) => {
-        if (response.status === 401) { store.remove("session-token"); setToken(""); return; }
-        if (!response.ok) { setPermissions([]); return; }
-        setPermissions((await response.json() as { permissions: string[] }).permissions);
+        if (response.status === 401) {
+          store.remove("session-token");
+          setToken("");
+          return;
+        }
+        if (!response.ok) {
+          setPermissions([]);
+          return;
+        }
+        setPermissions(
+          ((await response.json()) as { permissions: string[] }).permissions,
+        );
       })
-      .catch(() => { if (!controller.signal.aborted) setPermissions([]); })
-      .finally(() => { if (!controller.signal.aborted) setCheckingSession(false); });
+      .catch(() => {
+        if (!controller.signal.aborted) setPermissions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCheckingSession(false);
+      });
     return () => controller.abort();
   }, [token]);
   async function login(event: React.FormEvent) {
-    event.preventDefault(); setLoginError(""); setLoggingIn(true);
-    try { const r = await fetch("/api/v1/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credentials) }); if (!r.ok) throw new Error(); const value = await r.json() as { token: string }; store.set("session-token", value.token); setToken(value.token); }
-    catch { setLoginError(tr("تعذر الدخول. تحقق من اسم المستخدم وكلمة المرور والاتصال.", "Unable to sign in. Check your credentials and connection.")); } finally { setLoggingIn(false); }
+    event.preventDefault();
+    setLoginError("");
+    setLoggingIn(true);
+    try {
+      const r = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      });
+      if (!r.ok) throw new Error();
+      const value = (await r.json()) as { token: string };
+      store.set("session-token", value.token);
+      setToken(value.token);
+    } catch {
+      setLoginError(
+        tr(
+          "تعذر الدخول. تحقق من اسم المستخدم وكلمة المرور والاتصال.",
+          "Unable to sign in. Check your credentials and connection.",
+        ),
+      );
+    } finally {
+      setLoggingIn(false);
+    }
   }
   if (hash.startsWith("#/qr/")) {
     const [encodedCode, route, trackingId] = hash.slice(5).split("/");
-    return <div className="app-shell min-h-screen"><QrCustomerPage code={decodeURIComponent(encodedCode)} trackingId={route === "order" ? trackingId : undefined} /></div>;
+    return (
+      <div className="app-shell min-h-screen">
+        <QrCustomerPage
+          code={decodeURIComponent(encodedCode)}
+          trackingId={route === "order" ? trackingId : undefined}
+        />
+      </div>
+    );
   }
-  if (checkingSession) return <main className="grid min-h-screen place-items-center bg-[#f5f6f2]"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" aria-label={tr("جارٍ التحقق من الجلسة", "Checking session")} /></main>;
-  if (!token) return <LoginScreen language={language} credentials={credentials} error={loginError} loggingIn={loggingIn} theme={theme} onLanguageChange={() => setLanguage(ar ? "en" : "ar")} onCredentialsChange={setCredentials} onThemeChange={setTheme} onSubmit={login} />;
+  if (checkingSession)
+    return (
+      <main className="grid min-h-screen place-items-center bg-background">
+        <div
+          className="size-8 animate-spin rounded-full border-4 border-border border-t-primary"
+          aria-label={tr("جارٍ التحقق من الجلسة", "Checking session")}
+        />
+      </main>
+    );
+  if (!token)
+    return (
+      <LoginScreen
+        language={language}
+        credentials={credentials}
+        error={loginError}
+        loggingIn={loggingIn}
+        theme={resolveTheme(theme)}
+        onLanguageChange={() => setLanguage(ar ? "en" : "ar")}
+        onCredentialsChange={setCredentials}
+        onThemeChange={setTheme}
+        onSubmit={login}
+      />
+    );
   const allGroups: Array<{ label: string; keys: View[] }> = [
-    { label: tr("العمل اليومي", "Daily work"), keys: ["pos", "kitchen", "shifts", "cancellations", "qr", "orderHistory"] },
-    { label: tr("المخزون والمتابعة", "Stock & insights"), keys: ["inventory", "inventoryAdvanced", "procurement", "reports"] },
-    { label: tr("إعداد القائمة", "Menu setup"), keys: ["products", "categories", "selectionGroups", "pricing"] },
-    { label: tr("الإدارة والإعدادات", "Administration"), keys: ["users", "branches", "devices", "printing", "sync", "integrations"] }
+    {
+      label: tr("العمل اليومي", "Daily work"),
+      keys: ["pos", "kitchen", "shifts", "cancellations", "qr", "orderHistory"],
+    },
+    {
+      label: tr("المخزون والمتابعة", "Stock & insights"),
+      keys: ["inventory", "inventoryAdvanced", "procurement", "reports"],
+    },
+    {
+      label: tr("إعداد القائمة", "Menu setup"),
+      keys: ["products", "categories", "selectionGroups", "pricing"],
+    },
+    {
+      label: tr("الإدارة والإعدادات", "Administration"),
+      keys: [
+        "users",
+        "branches",
+        "devices",
+        "printing",
+        "sync",
+        "integrations",
+      ],
+    },
   ];
-  const groups = allGroups.map((group) => ({ ...group, keys: group.keys.filter(canView) })).filter((group) => group.keys.length > 0);
+  const groups = allGroups
+    .map((group) => ({ ...group, keys: group.keys.filter(canView) }))
+    .filter((group) => group.keys.length > 0);
   const allowed = canView(view);
   const current = navigation.find(([key]) => key === view)?.[1];
   function renderMenu(collapsed: boolean) {
-    return groups.map(group => (
+    return groups.map((group) => (
       <div key={group.label} className="mb-4">
-        {!collapsed && <p className="px-3 py-2 text-xs font-semibold text-[#000000]">{group.label}</p>}
-        {group.keys.map(key => { const entry = navigation.find(([k]) => k === key)!; const Icon = entry[2]; return <Button key={key} aria-current={view === key ? "page" : undefined} title={collapsed ? entry[1] : undefined} onClick={() => navigate(key)} className={`flex min-h-11 w-full items-center gap-3 rounded-lg text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"} ${view === key ? "bg-[#e6f1ec] font-semibold text-[#08483f]" : "text-[#000000] hover:bg-[#f2f5f2]"}`}><Icon size={18} />{!collapsed && entry[1]}</Button>; })}
+        {!collapsed && (
+          <p className="px-3 py-2 text-xs font-semibold text-muted-foreground">
+            {group.label}
+          </p>
+        )}
+        {group.keys.map((key) => {
+          const entry = navigation.find(([k]) => k === key)!;
+          const Icon = entry[2];
+          return (
+            <Button
+              key={key}
+              aria-current={view === key ? "page" : undefined}
+              title={collapsed ? entry[1] : undefined}
+              onClick={() => navigate(key)}
+              className={`flex min-h-11 w-full items-center gap-3 rounded-lg text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"} ${view === key ? "bg-accent font-semibold text-primary" : "text-muted-foreground hover:bg-muted"}`}
+            >
+              <Icon size={18} />
+              {!collapsed && entry[1]}
+            </Button>
+          );
+        })}
       </div>
     ));
   }
   const menuContent = renderMenu(false);
   const desktopMenuContent = renderMenu(sidebarCollapsed);
-  return <Suspense fallback={<main className="grid min-h-screen place-items-center bg-white"><div className="size-8 animate-spin rounded-full border-4 border-[#cdd7d0] border-t-[#0e5a4f]" /></main>}><div className="app-shell min-h-screen bg-[#f5f6f2] text-[#17211f]">
-    <header className={`app-header flex items-center justify-between gap-2 border-b bg-white px-4 ${kiosk ? "kiosk-header min-h-12" : "min-h-16"}`}>
-      <div className="app-header-brand flex min-w-0 items-center gap-2">
-        <Button aria-controls="mobile-nav" className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`} aria-label={tr("القائمة الرئيسية", "Main menu")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{!kiosk && menuOpen ? <X /> : <Menu />}</Button>
-        {!kiosk && (canView("pos") ? <Button onClick={() => navigate("pos")} className="app-brand min-h-11 whitespace-nowrap font-bold text-[#0e5a4f]"><span>OFC</span><span className="app-brand-label"> · {tr("إدارة المطعم", "Restaurant")}</span></Button> : <span className="app-brand whitespace-nowrap font-bold text-[#0e5a4f]"><span>OFC</span><span className="app-brand-label"> · {tr("إدارة المطعم", "Restaurant")}</span></span>)}
-      </div>
-      <div className="app-header-actions flex shrink-0 items-center gap-1">
-        {view === "pos" && allowed && (kiosk ? <Button aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")} className="min-h-11 px-3" onClick={() => { exitKiosk(); setKiosk(false); }}><Minimize2 size={18} /></Button> : <Button aria-label={tr("وضع الأكشاك", "Kiosk mode")} title={tr("وضع الأكشاك", "Kiosk mode")} className="min-h-11 px-3" onClick={async () => { const success = await enterKiosk(); if (success) setKiosk(true); }}><Maximize2 size={18} /></Button>)}
-        <ThemeControls language={language} theme={theme} onThemeChange={setTheme} />
-        <Button aria-label={tr("تغيير اللغة", "Change language")} className="min-h-11 px-3" onClick={() => setLanguage(ar ? "en" : "ar")}><Languages size={18} /></Button>
-        <Button aria-label={tr("تسجيل الخروج", "Sign out")} title={tr("تسجيل الخروج", "Sign out")} className="app-signout inline-flex min-h-11 items-center gap-2 px-3 text-sm" onClick={() => { store.remove("session-token"); setToken(""); }}><LogOut size={18} /><span>{tr("خروج", "Sign out")}</span></Button>
-      </div>
-    </header>
-    {menuOpen && (
-      <div className={`fixed inset-0 z-[100] ${kiosk ? "" : "lg:hidden"}`}>
-        <div className="fixed inset-0 bg-black/40" onClick={() => setMenuOpen(false)} aria-hidden="true" />
-        <aside id="mobile-nav" role="dialog" aria-modal="true" aria-label={tr("القائمة الرئيسية", "Main menu")} className="drawer-in absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-white p-3 shadow-2xl">
-          <div className="mb-3 flex items-center justify-between gap-2 border-b border-[#e8ece8] pb-3">
-            {canView("pos") ? <Button onClick={() => navigate("pos")} className="min-h-11 font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</Button> : <span className="font-bold text-[#0e5a4f]">OFC · {tr("إدارة المطعم", "Restaurant")}</span>}
-            <Button onClick={() => setMenuOpen(false)} aria-label={tr("إغلاق القائمة", "Close menu")} className="grid size-10 place-items-center rounded-lg border border-[#cdd7d0]"><X size={18} /></Button>
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center bg-card">
+          <div className="size-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+        </main>
+      }
+    >
+      <div className="app-shell min-h-screen bg-background text-foreground">
+        <header
+          className={`app-header flex items-center justify-between gap-2 border-b bg-card px-4 ${kiosk ? "kiosk-header min-h-12" : "min-h-16"}`}
+        >
+          <div className="app-header-brand flex min-w-0 items-center gap-2">
+            <Button
+              aria-controls="mobile-nav"
+              className={`grid size-11 place-items-center rounded-lg border ${kiosk ? "" : "lg:hidden"}`}
+              aria-label={tr("القائمة الرئيسية", "Main menu")}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(!menuOpen)}
+            >
+              {!kiosk && menuOpen ? <X /> : <Menu />}
+            </Button>
+            {!kiosk &&
+              (canView("pos") ? (
+                <Button
+                  onClick={() => navigate("pos")}
+                  className="app-brand min-h-11 whitespace-nowrap font-bold text-primary"
+                >
+                  <span>OFC</span>
+                  <span className="app-brand-label">
+                    {" "}
+                    · {tr("إدارة المطعم", "Restaurant")}
+                  </span>
+                </Button>
+              ) : (
+                <span className="app-brand whitespace-nowrap font-bold text-primary">
+                  <span>OFC</span>
+                  <span className="app-brand-label">
+                    {" "}
+                    · {tr("إدارة المطعم", "Restaurant")}
+                  </span>
+                </span>
+              ))}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-4">{menuContent}</div>
-        </aside>
+          <div className="app-header-actions flex shrink-0 items-center gap-1">
+            {view === "pos" &&
+              allowed &&
+              (kiosk ? (
+                <Button
+                  aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")}
+                  title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")}
+                  className="min-h-11 px-3"
+                  onClick={() => {
+                    exitKiosk();
+                    setKiosk(false);
+                  }}
+                >
+                  <Minimize2 size={18} />
+                </Button>
+              ) : (
+                <Button
+                  aria-label={tr("وضع الأكشاك", "Kiosk mode")}
+                  title={tr("وضع الأكشاك", "Kiosk mode")}
+                  className="min-h-11 px-3"
+                  onClick={async () => {
+                    const success = await enterKiosk();
+                    if (success) setKiosk(true);
+                  }}
+                >
+                  <Maximize2 size={18} />
+                </Button>
+              ))}
+            <ThemeControls
+              language={language}
+              theme={theme}
+              onThemeChange={setTheme}
+            />
+            <Button
+              aria-label={tr("تغيير اللغة", "Change language")}
+              className="min-h-11 px-3"
+              onClick={() => setLanguage(ar ? "en" : "ar")}
+            >
+              <Languages size={18} />
+            </Button>
+            <Button
+              aria-label={tr("تسجيل الخروج", "Sign out")}
+              title={tr("تسجيل الخروج", "Sign out")}
+              className="app-signout inline-flex min-h-11 items-center gap-2 px-3 text-sm"
+              onClick={() => {
+                store.remove("session-token");
+                setToken("");
+              }}
+            >
+              <LogOut size={18} />
+              <span>{tr("خروج", "Sign out")}</span>
+            </Button>
+          </div>
+        </header>
+        {menuOpen && (
+          <div className={`fixed inset-0 z-[100] ${kiosk ? "" : "lg:hidden"}`}>
+            <div
+              className="fixed inset-0 bg-black/40"
+              onClick={() => setMenuOpen(false)}
+              aria-hidden="true"
+            />
+            <aside
+              id="mobile-nav"
+              role="dialog"
+              aria-modal="true"
+              aria-label={tr("القائمة الرئيسية", "Main menu")}
+              className="drawer-in absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-card p-3 shadow-2xl"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-3">
+                {canView("pos") ? (
+                  <Button
+                    onClick={() => navigate("pos")}
+                    className="min-h-11 font-bold text-primary"
+                  >
+                    OFC · {tr("إدارة المطعم", "Restaurant")}
+                  </Button>
+                ) : (
+                  <span className="font-bold text-primary">
+                    OFC · {tr("إدارة المطعم", "Restaurant")}
+                  </span>
+                )}
+                <Button
+                  onClick={() => setMenuOpen(false)}
+                  aria-label={tr("إغلاق القائمة", "Close menu")}
+                  className="grid size-10 place-items-center rounded-lg border border-border"
+                >
+                  <X size={18} />
+                </Button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+                {menuContent}
+              </div>
+            </aside>
+          </div>
+        )}
+        <div
+          className={`grid ${kiosk ? "w-full" : sidebarCollapsed ? "mx-auto max-w-[1920px] lg:grid-cols-[64px_minmax(0,1fr)]" : "mx-auto max-w-[1920px] lg:grid-cols-[210px_minmax(0,1fr)]"}`}
+        >
+          {!kiosk && (
+            <nav
+              aria-label={tr("القائمة الرئيسية", "Main menu")}
+              className="hidden border-e bg-card p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto"
+            >
+              <Button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                aria-label={
+                  sidebarCollapsed
+                    ? tr("توسيع القائمة", "Expand sidebar")
+                    : tr("طي القائمة", "Collapse sidebar")
+                }
+                title={
+                  sidebarCollapsed
+                    ? tr("توسيع القائمة", "Expand sidebar")
+                    : tr("طي القائمة", "Collapse sidebar")
+                }
+                className={`mb-3 grid size-9 place-items-center rounded-lg border border-border hover:bg-muted ${sidebarCollapsed ? "mx-auto" : ""}`}
+              >
+                {sidebarCollapsed ? (
+                  <PanelLeftOpen size={18} />
+                ) : (
+                  <PanelLeftClose size={18} />
+                )}
+              </Button>
+              {desktopMenuContent}
+            </nav>
+          )}
+          <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>
+            {view !== "pos" && (
+              <nav
+                aria-label={tr("مسار التنقل", "Breadcrumb")}
+                className="mb-5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+              >
+                <Button
+                  onClick={() => navigate("pos")}
+                  className="inline-flex min-h-9 items-center gap-1 text-primary"
+                >
+                  <Home size={15} />
+                  {tr("الرئيسية", "Home")}
+                </Button>
+                <span aria-hidden="true">/</span>
+                <span>{groups.find((g) => g.keys.includes(view))?.label}</span>
+                <span aria-hidden="true">/</span>
+                <span
+                  aria-current="page"
+                  className="font-medium text-foreground"
+                >
+                  {current}
+                </span>
+              </nav>
+            )}
+            {!allowed ? (
+              <p
+                role="alert"
+                className="rounded-xl border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive"
+              >
+                {tr(
+                  "لا تملك صلاحية الوصول إلى هذه الصفحة.",
+                  "You do not have permission to access this page.",
+                )}
+              </p>
+            ) : view === "pos" ? (
+              <PosSection
+                language={language}
+                kiosk={kiosk}
+                onKioskChange={setKiosk}
+              />
+            ) : view === "kitchen" ? (
+              <KitchenSection language={language} />
+            ) : view === "inventory" ? (
+              <InventorySection language={language} permissions={permissions} />
+            ) : view === "inventoryAdvanced" ? (
+              <AdvancedInventorySection
+                language={language}
+                permissions={permissions}
+              />
+            ) : view === "procurement" ? (
+              <ProcurementSection language={language} />
+            ) : view === "reports" ? (
+              <ReportsSection language={language} />
+            ) : view === "integrations" ? (
+              <IntegrationsSection language={language} />
+            ) : view === "sync" ? (
+              <SyncSection language={language} />
+            ) : view === "cancellations" ? (
+              <CancellationSection language={language} />
+            ) : view === "orderHistory" ? (
+              <OrderHistorySection language={language} />
+            ) : view === "categories" ? (
+              <CatalogScreen language={language} mode="categories" />
+            ) : view === "products" ? (
+              <CatalogScreen language={language} mode="products" />
+            ) : view === "selectionGroups" ? (
+              <SelectionGroupsSection language={language} />
+            ) : view === "shifts" ? (
+              <ShiftsSection language={language} />
+            ) : view === "printing" ? (
+              <PrintingSection language={language} />
+            ) : view === "pricing" ? (
+              <PricingSection language={language} />
+            ) : view === "qr" ? (
+              <QrAdminSection language={language} />
+            ) : (
+              <AdminSection
+                language={language}
+                view={view as "branches" | "devices" | "users"}
+              />
+            )}
+          </main>
+        </div>
       </div>
-    )}
-    <div className={`grid ${kiosk ? "w-full" : sidebarCollapsed ? "mx-auto max-w-[1920px] lg:grid-cols-[64px_minmax(0,1fr)]" : "mx-auto max-w-[1920px] lg:grid-cols-[210px_minmax(0,1fr)]"}`}>
-      {!kiosk && <nav aria-label={tr("القائمة الرئيسية", "Main menu")} className="hidden border-e bg-white p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto">
-        <Button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label={sidebarCollapsed ? tr("توسيع القائمة", "Expand sidebar") : tr("طي القائمة", "Collapse sidebar")} title={sidebarCollapsed ? tr("توسيع القائمة", "Expand sidebar") : tr("طي القائمة", "Collapse sidebar")} className={`mb-3 grid size-9 place-items-center rounded-lg border border-[#cdd7d0] hover:bg-[#f2f5f2] ${sidebarCollapsed ? "mx-auto" : ""}`}>
-          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-        </Button>
-        {desktopMenuContent}
-      </nav>}
-      <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>{view !== "pos" && <nav aria-label={tr("مسار التنقل", "Breadcrumb")} className="mb-5 flex flex-wrap items-center gap-2 text-sm text-[#000000]"><Button onClick={() => navigate("pos")} className="inline-flex min-h-9 items-center gap-1 text-[#0e5a4f]"><Home size={15} />{tr("الرئيسية", "Home")}</Button><span aria-hidden="true">/</span><span>{groups.find(g => g.keys.includes(view))?.label}</span><span aria-hidden="true">/</span><span aria-current="page" className="font-medium text-[#17211f]">{current}</span></nav>}{!allowed ? <p role="alert" className="rounded-xl border border-[#efc5c1] bg-[#fff5f4] p-5 text-sm text-[#9b2922]">{tr("لا تملك صلاحية الوصول إلى هذه الصفحة.", "You do not have permission to access this page.")}</p> : view === "pos" ? <PosSection language={language} kiosk={kiosk} onKioskChange={setKiosk} /> : view === "kitchen" ? <KitchenSection language={language} /> : view === "inventory" ? <InventorySection language={language} permissions={permissions} /> : view === "inventoryAdvanced" ? <AdvancedInventorySection language={language} permissions={permissions} /> : view === "procurement" ? <ProcurementSection language={language} /> : view === "reports" ? <ReportsSection language={language} /> : view === "integrations" ? <IntegrationsSection language={language} /> : view === "sync" ? <SyncSection language={language} /> : view === "cancellations" ? <CancellationSection language={language} /> : view === "orderHistory" ? <OrderHistorySection language={language} /> : view === "categories" ? <CatalogScreen language={language} mode="categories" /> : view === "products" ? <CatalogScreen language={language} mode="products" /> : view === "selectionGroups" ? <SelectionGroupsSection language={language} /> : view === "shifts" ? <ShiftsSection language={language} /> : view === "printing" ? <PrintingSection language={language} /> : view === "pricing" ? <PricingSection language={language} /> : view === "qr" ? <QrAdminSection language={language} /> : <AdminSection language={language} view={view as "branches" | "devices" | "users"} />}</main>
-    </div>
-  </div></Suspense>;
+    </Suspense>
+  );
 }

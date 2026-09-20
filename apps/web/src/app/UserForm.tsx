@@ -11,18 +11,98 @@ type Language = "ar" | "en";
 type Role = { id: string; name: string; permissions: string[] };
 type Permission = { id: string; code: string };
 type Branch = { id: string; nameAr: string; nameEn: string };
-type User = { id: string; username: string; email: string | null; displayName: string; isActive: boolean; roles: string[]; branchIds: string[] };
+type User = {
+  id: string;
+  username: string;
+  email: string | null;
+  displayName: string;
+  isActive: boolean;
+  roles: string[];
+  branchIds: string[];
+};
 
 const copy = {
-  ar: { create: "مستخدم جديد", edit: "تعديل المستخدم", account: "بيانات الحساب", username: "اسم المستخدم *", email: "البريد الإلكتروني (اختياري)", displayName: "الاسم الظاهر *", password: "كلمة المرور *", newPassword: "كلمة مرور جديدة (اتركها فارغة للإبقاء)", roles: "الأدوار", branches: "الفروع المخصصة *", active: "الحساب نشط", permissions: "الصلاحيات (تخصيص إضافي على الدور)", save: "حفظ", cancel: "إلغاء", saving: "جارٍ الحفظ...", error: "تعذر الحفظ. تحقق من اسم المستخدم والبريد والفروع.", selfNote: "سيحتاج المستخدم إلى تسجيل الدخول مجددًا بعد التعديل.", noRoles: "لا توجد أدوار. أنشئ دورًا أولًا.", noBranches: "لا توجد فروع.", roleHint: "اختر دورًا لمنح المستخدم صلاحياته الافتراضية، ثم يمكنك منح أو سحب صلاحيات إضافية أدناه." },
-  en: { create: "New user", edit: "Edit user", account: "Account details", username: "Username *", email: "Email (optional)", displayName: "Display name *", password: "Password *", newPassword: "New password (leave blank to keep)", roles: "Roles", branches: "Assigned branches *", active: "Account active", permissions: "Permissions (extra overrides on top of the role)", save: "Save", cancel: "Cancel", saving: "Saving...", error: "Unable to save. Check the username, email and branches.", selfNote: "The user will need to sign in again after these changes.", noRoles: "No roles yet. Create a role first.", noBranches: "No branches.", roleHint: "Choose a role to give the user its default permissions, then grant or revoke extra permissions below." },
+  ar: {
+    create: "مستخدم جديد",
+    edit: "تعديل المستخدم",
+    account: "بيانات الحساب",
+    username: "اسم المستخدم *",
+    email: "البريد الإلكتروني (اختياري)",
+    displayName: "الاسم الظاهر *",
+    password: "كلمة المرور *",
+    newPassword: "كلمة مرور جديدة (اتركها فارغة للإبقاء)",
+    roles: "الأدوار",
+    branches: "الفروع المخصصة *",
+    active: "الحساب نشط",
+    permissions: "الصلاحيات (تخصيص إضافي على الدور)",
+    save: "حفظ",
+    cancel: "إلغاء",
+    saving: "جارٍ الحفظ...",
+    error: "تعذر الحفظ. تحقق من اسم المستخدم والبريد والفروع.",
+    selfNote: "سيحتاج المستخدم إلى تسجيل الدخول مجددًا بعد التعديل.",
+    noRoles: "لا توجد أدوار. أنشئ دورًا أولًا.",
+    noBranches: "لا توجد فروع.",
+    roleHint:
+      "اختر دورًا لمنح المستخدم صلاحياته الافتراضية، ثم يمكنك منح أو سحب صلاحيات إضافية أدناه.",
+  },
+  en: {
+    create: "New user",
+    edit: "Edit user",
+    account: "Account details",
+    username: "Username *",
+    email: "Email (optional)",
+    displayName: "Display name *",
+    password: "Password *",
+    newPassword: "New password (leave blank to keep)",
+    roles: "Roles",
+    branches: "Assigned branches *",
+    active: "Account active",
+    permissions: "Permissions (extra overrides on top of the role)",
+    save: "Save",
+    cancel: "Cancel",
+    saving: "Saving...",
+    error: "Unable to save. Check the username, email and branches.",
+    selfNote: "The user will need to sign in again after these changes.",
+    noRoles: "No roles yet. Create a role first.",
+    noBranches: "No branches.",
+    roleHint:
+      "Choose a role to give the user its default permissions, then grant or revoke extra permissions below.",
+  },
 } as const;
 
-export function UserForm({ language, user, roles, permissions, branches, auth, onClose, onSaved }: { language: Language; user: User | null; roles: Role[]; permissions: Permission[]; branches: Branch[]; auth: (p: string, i?: RequestInit) => Promise<Response>; onClose: () => void; onSaved: () => void }) {
+export function UserForm({
+  language,
+  user,
+  roles,
+  permissions,
+  branches,
+  auth,
+  onClose,
+  onSaved,
+}: {
+  language: Language;
+  user: User | null;
+  roles: Role[];
+  permissions: Permission[];
+  branches: Branch[];
+  auth: (p: string, i?: RequestInit) => Promise<Response>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const t = copy[language];
   const ar = language === "ar";
-  const [form, setForm] = useState({ username: user?.username ?? "", email: user?.email ?? "", displayName: user?.displayName ?? "", password: "", isActive: user?.isActive ?? true });
-  const [roleIds, setRoleIds] = useState<string[]>(user ? roles.filter((r) => user.roles.includes(r.name)).map((r) => r.id) : []);
+  const [form, setForm] = useState({
+    username: user?.username ?? "",
+    email: user?.email ?? "",
+    displayName: user?.displayName ?? "",
+    password: "",
+    isActive: user?.isActive ?? true,
+  });
+  const [roleIds, setRoleIds] = useState<string[]>(
+    user
+      ? roles.filter((r) => user.roles.includes(r.name)).map((r) => r.id)
+      : [],
+  );
   const [branchIds, setBranchIds] = useState<string[]>(user?.branchIds ?? []);
   const [states, setStates] = useState<Record<string, PermissionOverride>>({});
   const [saving, setSaving] = useState(false);
@@ -33,77 +113,266 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
     void (async () => {
       const response = await auth(`/api/v1/users/${user.id}/permissions`);
       if (!response.ok) return;
-      const value = await response.json() as { permissions: Array<{ code: string; source: string }> };
+      const value = (await response.json()) as {
+        permissions: Array<{ code: string; source: string }>;
+      };
       const next: Record<string, PermissionOverride> = {};
-      for (const row of value.permissions) if (row.source === "granted") next[row.code] = "grant"; else if (row.source === "revoked") next[row.code] = "revoke";
+      for (const row of value.permissions)
+        if (row.source === "granted") next[row.code] = "grant";
+        else if (row.source === "revoked") next[row.code] = "revoke";
       setStates(next);
     })();
   }, [user]);
 
-  const roleDefault = useMemo(() => new Set(roles.filter((r) => roleIds.includes(r.id)).flatMap((r) => r.permissions)), [roles, roleIds]);
+  const roleDefault = useMemo(
+    () =>
+      new Set(
+        roles
+          .filter((r) => roleIds.includes(r.id))
+          .flatMap((r) => r.permissions),
+      ),
+    [roles, roleIds],
+  );
   const name = (b: Branch) => (ar ? b.nameAr : b.nameEn);
 
-  function toggleRole(id: string, checked: boolean) { setRoleIds(checked ? [...roleIds, id] : roleIds.filter((x) => x !== id)); }
-  function toggleBranch(id: string, checked: boolean) { setBranchIds(checked ? [...branchIds, id] : branchIds.filter((x) => x !== id)); }
-  function setOverride(code: string, state: PermissionOverride) { setStates((prev) => { const next = { ...prev }; if (state === "inherit") delete next[code]; else next[code] = state; return next; }); }
+  function toggleRole(id: string, checked: boolean) {
+    setRoleIds(checked ? [...roleIds, id] : roleIds.filter((x) => x !== id));
+  }
+  function toggleBranch(id: string, checked: boolean) {
+    setBranchIds(
+      checked ? [...branchIds, id] : branchIds.filter((x) => x !== id),
+    );
+  }
+  function setOverride(code: string, state: PermissionOverride) {
+    setStates((prev) => {
+      const next = { ...prev };
+      if (state === "inherit") delete next[code];
+      else next[code] = state;
+      return next;
+    });
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (saving) return;
     setSaving(true);
     setError("");
-    const permissionsPayload = Object.entries(states).map(([code, state]) => ({ permissionCode: code, isGrant: state === "grant" }));
+    const permissionsPayload = Object.entries(states).map(([code, state]) => ({
+      permissionCode: code,
+      isGrant: state === "grant",
+    }));
     try {
       if (user) {
-        const r2 = await auth(`/api/v1/users/${user.id}/roles`, { method: "PUT", body: JSON.stringify(roleIds) });
+        const r2 = await auth(`/api/v1/users/${user.id}/roles`, {
+          method: "PUT",
+          body: JSON.stringify(roleIds),
+        });
         if (!r2.ok) throw new Error();
-        const r1 = await auth(`/api/v1/users/${user.id}`, { method: "PUT", body: JSON.stringify({ username: form.username, email: form.email.trim() || null, displayName: form.displayName, password: form.password || null, isActive: form.isActive, branchIds, permissions: permissionsPayload }) });
+        const r1 = await auth(`/api/v1/users/${user.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            username: form.username,
+            email: form.email.trim() || null,
+            displayName: form.displayName,
+            password: form.password || null,
+            isActive: form.isActive,
+            branchIds,
+            permissions: permissionsPayload,
+          }),
+        });
         if (!r1.ok || !r2.ok) throw new Error();
-        const result = await r1.json() as { signInRequired: boolean };
-        if (result.signInRequired) { store.remove("session-token"); window.location.reload(); return; }
+        const result = (await r1.json()) as { signInRequired: boolean };
+        if (result.signInRequired) {
+          store.remove("session-token");
+          window.location.reload();
+          return;
+        }
       } else {
-        const r = await auth("/api/v1/users", { method: "POST", body: JSON.stringify({ username: form.username, email: form.email.trim() || null, displayName: form.displayName, password: form.password, roleIds, branchIds, permissions: permissionsPayload }) });
-        if (!r.ok) { const problem = await r.json().catch(() => null); throw new Error(problem?.errors?.username?.[0] ?? problem?.errors?.password?.[0] ?? problem?.errors?.branchIds?.[0] ?? t.error); }
+        const r = await auth("/api/v1/users", {
+          method: "POST",
+          body: JSON.stringify({
+            username: form.username,
+            email: form.email.trim() || null,
+            displayName: form.displayName,
+            password: form.password,
+            roleIds,
+            branchIds,
+            permissions: permissionsPayload,
+          }),
+        });
+        if (!r.ok) {
+          const problem = await r.json().catch(() => null);
+          throw new Error(
+            problem?.errors?.username?.[0] ??
+              problem?.errors?.password?.[0] ??
+              problem?.errors?.branchIds?.[0] ??
+              t.error,
+          );
+        }
       }
       onSaved();
-    } catch (e2) { setError(e2 instanceof Error ? e2.message : t.error); } finally { setSaving(false); }
+    } catch (e2) {
+      setError(e2 instanceof Error ? e2.message : t.error);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div className="fixed inset-0 z-[100] grid min-w-0 place-items-end bg-black/35 sm:place-items-center sm:p-5">
-      <form onSubmit={save} className="flex max-h-[100dvh] min-w-0 w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-[#f5f6f2] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e8ece8] bg-white px-4 py-3 sm:px-5 sm:py-4"><div className="min-w-0"><p className="text-sm font-semibold text-[#0e5a4f]">{user ? t.edit : t.create}</p><h2 className="break-words text-lg font-bold sm:text-xl">{user ? user.displayName : t.create}</h2></div><Button type="button" variant="outline" size="icon" aria-label={t.cancel} onClick={onClose} className="size-11 shrink-0"><X size={18} /></Button></div>
+      <form
+        onSubmit={save}
+        className="flex max-h-[100dvh] min-w-0 w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-background shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3 sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-primary">
+              {user ? t.edit : t.create}
+            </p>
+            <h2 className="break-words text-lg font-bold sm:text-xl">
+              {user ? user.displayName : t.create}
+            </h2>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={t.cancel}
+            onClick={onClose}
+            className="size-11 shrink-0"
+          >
+            <X size={18} />
+          </Button>
+        </div>
         <div className="min-h-0 min-w-0 flex-1 space-y-4 overscroll-contain overflow-x-hidden overflow-y-auto p-3 sm:space-y-5 sm:p-5">
-          <section className="rounded-xl border border-[#dfe5df] bg-white p-3 sm:p-5">
+          <section className="rounded-xl border border-border bg-card p-3 sm:p-5">
             <h3 className="text-sm font-semibold">{t.account}</h3>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field required label={t.username} value={form.username} onChange={(v) => setForm({ ...form, username: v })} max={40} />
-              <Field label={t.email} type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} max={160} />
-              <Field required label={t.displayName} value={form.displayName} onChange={(v) => setForm({ ...form, displayName: v })} max={160} />
-              <Field required={!user} label={user ? t.newPassword : t.password} type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} min={6} />
+              <Field
+                required
+                label={t.username}
+                value={form.username}
+                onChange={(v) => setForm({ ...form, username: v })}
+                max={40}
+              />
+              <Field
+                label={t.email}
+                type="email"
+                value={form.email}
+                onChange={(v) => setForm({ ...form, email: v })}
+                max={160}
+              />
+              <Field
+                required
+                label={t.displayName}
+                value={form.displayName}
+                onChange={(v) => setForm({ ...form, displayName: v })}
+                max={160}
+              />
+              <Field
+                required={!user}
+                label={user ? t.newPassword : t.password}
+                type="password"
+                value={form.password}
+                onChange={(v) => setForm({ ...form, password: v })}
+                min={6}
+              />
             </div>
-            {user && <Label className="mt-4 flex min-h-11 items-center gap-2 text-sm"><Checkbox checked={form.isActive} onCheckedChange={(checked) => setForm({ ...form, isActive: checked === true })} />{t.active}</Label>}
+            {user && (
+              <Label className="mt-4 flex min-h-11 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={form.isActive}
+                  onCheckedChange={(checked) =>
+                    setForm({ ...form, isActive: checked === true })
+                  }
+                />
+                {t.active}
+              </Label>
+            )}
           </section>
 
-          <section className="rounded-xl border border-[#dfe5df] bg-white p-3 sm:p-5">
+          <section className="rounded-xl border border-border bg-card p-3 sm:p-5">
             <h3 className="text-sm font-semibold">{t.roles}</h3>
-            <p className="mt-1 text-xs text-[#000000]">{t.roleHint}</p>
-            {roles.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noRoles}</p> : <div className="mt-3 flex flex-wrap gap-2">{roles.map((r) => <Label key={r.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${roleIds.includes(r.id) ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}><Checkbox checked={roleIds.includes(r.id)} onCheckedChange={(checked) => toggleRole(r.id, checked === true)} />{r.name}</Label>)}</div>}
+            <p className="mt-1 text-xs text-muted-foreground">{t.roleHint}</p>
+            {roles.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">{t.noRoles}</p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {roles.map((r) => (
+                  <Label
+                    key={r.id}
+                    className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${roleIds.includes(r.id) ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}
+                  >
+                    <Checkbox
+                      checked={roleIds.includes(r.id)}
+                      onCheckedChange={(checked) =>
+                        toggleRole(r.id, checked === true)
+                      }
+                    />
+                    {r.name}
+                  </Label>
+                ))}
+              </div>
+            )}
             <h3 className="mt-5 text-sm font-semibold">{t.branches}</h3>
-            {branches.length === 0 ? <p className="mt-3 text-sm text-[#000000]">{t.noBranches}</p> : <div className="mt-3 flex flex-wrap gap-2">{branches.map((b) => <Label key={b.id} className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${branchIds.includes(b.id) ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}><Checkbox checked={branchIds.includes(b.id)} onCheckedChange={(checked) => toggleBranch(b.id, checked === true)} />{name(b)}</Label>)}</div>}
+            {branches.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                {t.noBranches}
+              </p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {branches.map((b) => (
+                  <Label
+                    key={b.id}
+                    className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm ${branchIds.includes(b.id) ? "border-primary bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}
+                  >
+                    <Checkbox
+                      checked={branchIds.includes(b.id)}
+                      onCheckedChange={(checked) =>
+                        toggleBranch(b.id, checked === true)
+                      }
+                    />
+                    {name(b)}
+                  </Label>
+                ))}
+              </div>
+            )}
           </section>
 
           <section>
             <h3 className="mb-2 text-sm font-semibold">{t.permissions}</h3>
-            <PermissionGrid language={language} permissions={permissions} mode="user" states={states} roleDefault={roleDefault} onChange={setOverride} />
+            <PermissionGrid
+              language={language}
+              permissions={permissions}
+              mode="user"
+              states={states}
+              roleDefault={roleDefault}
+              onChange={setOverride}
+            />
           </section>
         </div>
-        <div className="shrink-0 border-t border-[#e8ece8] bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
-          <p className="text-xs text-[#000000]">{t.selfNote}</p>
-          {error && <p role="alert" className="mt-2 break-words text-sm text-[#b4322a]">{error}</p>}
+        <div className="shrink-0 border-t border-border bg-card px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-4">
+          <p className="text-xs text-muted-foreground">{t.selfNote}</p>
+          {error && (
+            <p
+              role="alert"
+              className="mt-2 break-words text-sm text-destructive"
+            >
+              {error}
+            </p>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-            <Button type="button" variant="outline" onClick={onClose} className="min-h-11">{t.cancel}</Button>
-            <Button variant="default" disabled={saving} className="min-h-11">{saving ? t.saving : t.save}</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="min-h-11"
+            >
+              {t.cancel}
+            </Button>
+            <Button variant="default" disabled={saving} className="min-h-11">
+              {saving ? t.saving : t.save}
+            </Button>
           </div>
         </div>
       </form>
@@ -111,6 +380,36 @@ export function UserForm({ language, user, roles, permissions, branches, auth, o
   );
 }
 
-function Field({ label, value, onChange, type = "text", max, min, required = false }: { label: string; value: string; onChange: (v: string) => void; type?: string; max?: number; min?: number; required?: boolean }) {
-  return <Label className="block text-sm font-medium">{label}<Input required={required} type={type} value={value} onChange={(e) => onChange(e.target.value)} maxLength={max} minLength={min} autoComplete={type === "password" ? "new-password" : "off"} className="mt-2 min-h-12" /></Label>;
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  max,
+  min,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  max?: number;
+  min?: number;
+  required?: boolean;
+}) {
+  return (
+    <Label className="block text-sm font-medium">
+      {label}
+      <Input
+        required={required}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={max}
+        minLength={min}
+        autoComplete={type === "password" ? "new-password" : "off"}
+        className="mt-2 min-h-12"
+      />
+    </Label>
+  );
 }

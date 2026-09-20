@@ -637,7 +637,7 @@ export function QrCustomerPage({
   const languageToggle = (
     <Button
       onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
-      className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-[#0e5a4f] hover:bg-[#edf5f1]"
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-primary hover:bg-accent"
     >
       <Languages size={18} />
       {t.language}
@@ -646,13 +646,13 @@ export function QrCustomerPage({
 
   return (
     <main
-      className="min-h-screen bg-[#f5f6f2] text-[#17211f]"
+      className="min-h-screen bg-background text-foreground"
       dir={language === "ar" ? "rtl" : "ltr"}
     >
-      <header className="sticky top-0 z-10 border-b border-[#dfe5df] bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-xl bg-[#0e5a4f] font-bold text-white">
+            <span className="grid size-10 place-items-center rounded-xl bg-primary font-bold text-primary-foreground">
               O
             </span>
             <div>
@@ -663,7 +663,7 @@ export function QrCustomerPage({
                     : context.nameEn
                   : "OFC"}
               </p>
-              <p className="text-xs text-[#66736d]">
+              <p className="text-xs text-muted-foreground">
                 {context
                   ? language === "ar"
                     ? context.branchNameAr
@@ -678,7 +678,7 @@ export function QrCustomerPage({
 
       {state === "loading" && (
         <div className="grid min-h-[70vh] place-items-center">
-          <div className="flex items-center gap-3 text-[#000000]">
+          <div className="flex items-center gap-3 text-muted-foreground">
             <RefreshCw className="animate-spin" size={20} />
             {t.loading}
           </div>
@@ -687,7 +687,7 @@ export function QrCustomerPage({
       {state === "error" && (
         <div
           role="alert"
-          className="mx-auto max-w-md rounded-2xl border border-[#efc5c1] bg-[#fff5f4] p-6 mt-16 text-center text-[#9b2922]"
+          className="mx-auto max-w-md rounded-2xl border border-destructive/40 bg-destructive/10 p-6 mt-16 text-center text-destructive"
         >
           <p>{t.error}</p>
           <Button
@@ -702,17 +702,17 @@ export function QrCustomerPage({
       {state === "ready" && !result && (
         <div className="mx-auto max-w-6xl px-4 pb-28 sm:pb-10">
           {context && (
-            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#dfe5df] bg-white p-3 text-sm">
-              <span className="rounded-full bg-[#e6f1ec] px-3 py-1 text-xs font-semibold text-[#08483f]">
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3 text-sm">
+              <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-primary">
                 {language === "ar"
                   ? context.branchNameAr
                   : context.branchNameEn}
               </span>
-              <span className="text-[#66736d]">
+              <span className="text-muted-foreground">
                 {language === "ar" ? "طاولة" : "Table"} · {context.code}
               </span>
               {context.requiresApproval && (
-                <span className="rounded-full bg-[#f4f1e3] px-3 py-1 text-xs font-semibold text-[#8a6d1f]">
+                <span className="rounded-full bg-warning/15 px-3 py-1 text-xs font-semibold text-warning">
                   {t.pending}
                 </span>
               )}
@@ -724,7 +724,7 @@ export function QrCustomerPage({
               <Button
                 key={c.id}
                 onClick={() => setCategory(c.id)}
-                className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-medium ${category === c.id ? "bg-[#0e5a4f] text-white" : "bg-white text-[#000000] border border-[#dfe5df]"}`}
+                className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-medium ${category === c.id ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground border border-border"}`}
               >
                 {language === "ar" ? c.nameAr : c.nameEn}
               </Button>
@@ -732,8 +732,8 @@ export function QrCustomerPage({
           </nav>
 
           {shown.length === 0 ? (
-            <div className="mt-10 text-center text-[#000000]">
-              <ShoppingBag className="mx-auto mb-3 text-[#0e5a4f]" />
+            <div className="mt-10 text-center text-muted-foreground">
+              <ShoppingBag className="mx-auto mb-3 text-primary" />
               {t.empty}
             </div>
           ) : (
@@ -743,16 +743,16 @@ export function QrCustomerPage({
                   key={product.id}
                   disabled={product.isAvailable === false}
                   onClick={() => openProduct(product)}
-                  className="group relative flex flex-col rounded-2xl border border-[#dfe5df] bg-white p-3 text-start transition hover:border-[#0e5a4f]/40 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group relative flex flex-col rounded-2xl border border-border bg-card p-3 text-start transition hover:border-primary/40 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {product.isAvailable === false && (
-                    <span className="absolute inset-x-5 top-5 z-[1] rounded-full bg-[#17211f]/90 px-3 py-1.5 text-center text-xs font-bold text-white">
+                    <span className="absolute inset-x-5 top-5 z-[1] rounded-full bg-foreground/90 px-3 py-1.5 text-center text-xs font-bold text-primary-foreground">
                       {language === "ar"
                         ? "غير متوفر حاليًا"
                         : "Currently unavailable"}
                     </span>
                   )}
-                  <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-[#edf5f1] text-[#0e5a4f]">
+                  <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-accent text-primary">
                     {product.imageUrl ? (
                       <img
                         src={product.imageUrl}
@@ -768,12 +768,12 @@ export function QrCustomerPage({
                   <p className="mt-3 line-clamp-1 text-sm font-semibold">
                     {language === "ar" ? product.nameAr : product.nameEn}
                   </p>
-                  <p className="mt-1 text-sm font-bold text-[#0e5a4f]">
+                  <p className="mt-1 text-sm font-bold text-primary">
                     {new Intl.NumberFormat(language, {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 3,
                     }).format(product.listAmount)}{" "}
-                    <span className="text-xs font-medium text-[#66736d]">
+                    <span className="text-xs font-medium text-muted-foreground">
                       {t.currency}
                     </span>
                   </p>
@@ -786,17 +786,17 @@ export function QrCustomerPage({
 
       {state === "ready" && result && (
         <div className="mx-auto max-w-xl px-4 py-6 sm:py-10">
-          <section className="overflow-hidden rounded-[28px] border border-[#dfe5df] bg-white shadow-[0_18px_60px_rgba(14,90,79,0.10)]">
-            <div className="bg-[#0e5a4f] px-6 py-7 text-center text-white">
-              <p className="text-sm font-medium text-white/75">
+          <section className="overflow-hidden rounded-[28px] border border-border bg-card shadow-[0_18px_60px_rgba(14,90,79,0.10)]">
+            <div className="bg-primary px-6 py-7 text-center text-primary-foreground">
+              <p className="text-sm font-medium text-primary-foreground/75">
                 {language === "ar"
                   ? "نحن نجهّز طلبك"
                   : "We're preparing your order"}
               </p>
-              <div className="mx-auto mt-4 w-fit rounded-[22px] bg-[#f5b942] px-8 py-3 text-4xl font-black tracking-tight text-[#17332d] shadow-sm">
+              <div className="mx-auto mt-4 w-fit rounded-[22px] bg-warning px-8 py-3 text-4xl font-black tracking-tight text-foreground shadow-sm">
                 #{result.number || "—"}
               </div>
-              <p className="mt-4 text-sm text-white/80">
+              <p className="mt-4 text-sm text-primary-foreground/80">
                 {context
                   ? language === "ar"
                     ? context.branchNameAr
@@ -806,9 +806,9 @@ export function QrCustomerPage({
             </div>
 
             <div className="p-5 sm:p-7">
-              <div className="flex items-start gap-3 rounded-2xl bg-[#f5f8f5] p-4">
+              <div className="flex items-start gap-3 rounded-2xl bg-muted p-4">
                 <div
-                  className={`grid size-11 shrink-0 place-items-center rounded-full ${result.status === "Cancelled" || result.status === "Rejected" ? "bg-[#fbe4e2] text-[#b4322a]" : "bg-[#dff3e7] text-[#0e7550]"}`}
+                  className={`grid size-11 shrink-0 place-items-center rounded-full ${result.status === "Cancelled" || result.status === "Rejected" ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success"}`}
                 >
                   {result.status === "Cancelled" ||
                   result.status === "Rejected" ? (
@@ -818,10 +818,10 @@ export function QrCustomerPage({
                   )}
                 </div>
                 <div className="min-w-0 text-start">
-                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#73807a]">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
                     {t.status}
                   </p>
-                  <h1 className="mt-1 text-xl font-black text-[#17332d]">
+                  <h1 className="mt-1 text-xl font-black text-foreground">
                     {statusLabel(
                       language,
                       result.status,
@@ -837,7 +837,7 @@ export function QrCustomerPage({
                     return n ? (
                       <p
                         role="status"
-                        className="mt-1 text-sm leading-6 text-[#59655f]"
+                        className="mt-1 text-sm leading-6 text-muted-foreground"
                       >
                         {n.text}
                       </p>
@@ -853,9 +853,9 @@ export function QrCustomerPage({
               />
 
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-[#e2e8e3] p-4 text-start">
-                  <MapPin size={18} className="text-[#0e5a4f]" />
-                  <p className="mt-2 text-xs text-[#73807a]">
+                <div className="rounded-2xl border border-border p-4 text-start">
+                  <MapPin size={18} className="text-primary" />
+                  <p className="mt-2 text-xs text-muted-foreground">
                     {language === "ar" ? "مكان الطلب" : "Order location"}
                   </p>
                   <p className="mt-1 text-sm font-bold">
@@ -866,9 +866,9 @@ export function QrCustomerPage({
                       : code}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-[#e2e8e3] p-4 text-start">
-                  <ReceiptText size={18} className="text-[#0e5a4f]" />
-                  <p className="mt-2 text-xs text-[#73807a]">
+                <div className="rounded-2xl border border-border p-4 text-start">
+                  <ReceiptText size={18} className="text-primary" />
+                  <p className="mt-2 text-xs text-muted-foreground">
                     {language === "ar" ? "الإجمالي" : "Total"}
                   </p>
                   <p className="mt-1 text-sm font-bold">
@@ -879,7 +879,7 @@ export function QrCustomerPage({
 
               <Button
                 onClick={() => setDetailsOpen((open) => !open)}
-                className="mt-5 flex min-h-12 w-full items-center justify-between rounded-xl border border-[#cfd8d1] px-4 font-bold text-[#17332d]"
+                className="mt-5 flex min-h-12 w-full items-center justify-between rounded-xl border border-border px-4 font-bold text-foreground"
               >
                 <span>
                   {language === "ar" ? "تفاصيل الطلب" : "Order details"}
@@ -907,7 +907,7 @@ export function QrCustomerPage({
                     window.location.hash = `#/qr/${encodeURIComponent(code)}`;
                     setResult(null);
                   }}
-                  className="mt-4 min-h-12 w-full rounded-xl bg-[#0e5a4f] px-5 font-bold text-white"
+                  className="mt-4 min-h-12 w-full rounded-xl bg-primary px-5 font-bold text-primary-foreground"
                 >
                   {language === "ar" ? "طلب جديد" : "Start a new order"}
                 </Button>
@@ -918,10 +918,10 @@ export function QrCustomerPage({
       )}
 
       {state === "ready" && !result && cart.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#dfe5df] bg-white px-4 py-3 sm:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card px-4 py-3 sm:hidden">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
             <div>
-              <p className="text-xs text-[#66736d]">
+              <p className="text-xs text-muted-foreground">
                 {t.cart} · {cartCount}
               </p>
               <p className="text-lg font-bold">
@@ -934,7 +934,7 @@ export function QrCustomerPage({
             </div>
             <Button
               onClick={() => setCartOpen(true)}
-              className="min-h-11 rounded-lg bg-[#0e5a4f] px-5 font-semibold text-white"
+              className="min-h-11 rounded-lg bg-primary px-5 font-semibold text-primary-foreground"
             >
               {t.order} <ShoppingBag className="inline" size={16} />
             </Button>
@@ -948,7 +948,7 @@ export function QrCustomerPage({
           onClick={() => setEditing(null)}
         >
           <div
-            className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:p-5"
+            className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between">
@@ -959,12 +959,12 @@ export function QrCustomerPage({
               </h2>
               <Button
                 onClick={() => setEditing(null)}
-                className="min-h-10 rounded-lg p-1 text-[#66736d] hover:bg-[#f2f5f2]"
+                className="min-h-10 rounded-lg p-1 text-muted-foreground hover:bg-muted"
               >
                 <X size={20} />
               </Button>
             </div>
-            <p className="mt-1 text-sm text-[#0e5a4f] font-bold">
+            <p className="mt-1 text-sm text-primary font-bold">
               {new Intl.NumberFormat(language, {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 3,
@@ -979,7 +979,7 @@ export function QrCustomerPage({
                       {group.isRequired ? (
                         <span>
                           {language === "ar" ? group.nameAr : group.nameEn}{" "}
-                          <span className="text-[#b4322a]">*</span>
+                          <span className="text-destructive">*</span>
                         </span>
                       ) : (
                         <span>
@@ -987,7 +987,7 @@ export function QrCustomerPage({
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-[#66736d]">
+                    <p className="text-xs text-muted-foreground">
                       {group.maxSelections > 1
                         ? `${group.minSelections}-${group.maxSelections}`
                         : t.required}
@@ -1001,7 +1001,7 @@ export function QrCustomerPage({
                         <div
                           key={option.id}
                           onClick={() => toggleChoice(group, option.id)}
-                          className={`flex items-center justify-between rounded-xl border p-3 ${option.isAvailable === false ? "cursor-not-allowed border-[#e5e7e5] bg-[#f4f5f4] opacity-55" : "cursor-pointer"} ${qty > 0 ? "border-[#0e5a4f] bg-[#e6f1ec]" : "border-[#dfe5df] bg-white"}`}
+                          className={`flex items-center justify-between rounded-xl border p-3 ${option.isAvailable === false ? "cursor-not-allowed border-border bg-muted opacity-55" : "cursor-pointer"} ${qty > 0 ? "border-primary bg-accent" : "border-border bg-card"}`}
                         >
                           <span className="text-sm">
                             {language === "ar" ? option.nameAr : option.nameEn}
@@ -1011,13 +1011,13 @@ export function QrCustomerPage({
                                 : " — Currently unavailable"
                               : ""}{" "}
                             {option.priceAdjustment > 0 && (
-                              <span className="text-[#0e5a4f] font-semibold">
+                              <span className="text-primary font-semibold">
                                 +{option.priceAdjustment}
                               </span>
                             )}
                           </span>
                           <span
-                            className={`grid size-6 place-items-center rounded-full text-xs font-bold ${qty > 0 ? "bg-[#0e5a4f] text-white" : "border border-[#dfe5df] text-[#66736d]"}`}
+                            className={`grid size-6 place-items-center rounded-full text-xs font-bold ${qty > 0 ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}
                           >
                             {qty > 0 ? qty : ""}
                           </span>
@@ -1029,11 +1029,11 @@ export function QrCustomerPage({
               ))}
             </div>
             <div className="mt-5 flex items-center justify-between">
-              <p className="text-sm text-[#66736d]">{t.quantity}</p>
+              <p className="text-sm text-muted-foreground">{t.quantity}</p>
               <div className="flex items-center gap-3">
                 <Button
                   onClick={() => setSelectedCopies((v) => Math.max(1, v - 1))}
-                  className="grid size-9 place-items-center rounded-lg border border-[#dfe5df] text-[#0e5a4f]"
+                  className="grid size-9 place-items-center rounded-lg border border-border text-primary"
                 >
                   <Minus size={16} />
                 </Button>
@@ -1042,7 +1042,7 @@ export function QrCustomerPage({
                 </span>
                 <Button
                   onClick={() => setSelectedCopies((v) => Math.min(99, v + 1))}
-                  className="grid size-9 place-items-center rounded-lg border border-[#dfe5df] text-[#0e5a4f]"
+                  className="grid size-9 place-items-center rounded-lg border border-border text-primary"
                 >
                   <Plus size={16} />
                 </Button>
@@ -1053,7 +1053,7 @@ export function QrCustomerPage({
               onClick={() =>
                 addLine(editing.product, selectedCopies, editing.choices)
               }
-              className="mt-5 min-h-12 w-full rounded-lg bg-[#0e5a4f] font-semibold text-white disabled:opacity-40"
+              className="mt-5 min-h-12 w-full rounded-lg bg-primary font-semibold text-primary-foreground disabled:opacity-40"
             >
               {t.confirm} ·{" "}
               {new Intl.NumberFormat(language, {
@@ -1075,26 +1075,28 @@ export function QrCustomerPage({
           onClick={() => setCartOpen(false)}
         >
           <div
-            className="max-h-[100dvh] min-w-0 w-full max-w-lg overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:p-5"
+            className="max-h-[100dvh] min-w-0 w-full max-w-lg overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">{t.cart}</h2>
               <Button
                 onClick={() => setCartOpen(false)}
-                className="min-h-10 rounded-lg p-1 text-[#66736d] hover:bg-[#f2f5f2]"
+                className="min-h-10 rounded-lg p-1 text-muted-foreground hover:bg-muted"
               >
                 <X size={20} />
               </Button>
             </div>
             {cart.length === 0 ? (
-              <p className="mt-10 text-center text-[#000000]">{t.emptyCart}</p>
+              <p className="mt-10 text-center text-muted-foreground">
+                {t.emptyCart}
+              </p>
             ) : (
               <ul className="mt-4 space-y-3">
                 {cart.map((line) => (
                   <li
                     key={line.key}
-                    className="rounded-xl border border-[#e8ece8] p-3"
+                    className="rounded-xl border border-border p-3"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -1104,7 +1106,7 @@ export function QrCustomerPage({
                             : line.product.nameEn}
                         </p>
                         {line.selections.length > 0 && (
-                          <p className="mt-1 text-xs text-[#66736d]">
+                          <p className="mt-1 text-xs text-muted-foreground">
                             {line.selections
                               .map((s) =>
                                 s.choices
@@ -1133,14 +1135,14 @@ export function QrCustomerPage({
                             setLineNote(line.key, e.target.value)
                           }
                           placeholder={t.note}
-                          className="mt-2 w-full min-h-10 rounded-lg border border-[#cdd7d0] px-3 text-sm"
+                          className="mt-2 w-full min-h-10 rounded-lg border border-border px-3 text-sm"
                         />
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <div className="flex items-center gap-2">
                           <Button
                             onClick={() => bump(line.key, -1)}
-                            className="grid size-8 place-items-center rounded-lg border border-[#dfe5df] text-[#0e5a4f]"
+                            className="grid size-8 place-items-center rounded-lg border border-border text-primary"
                           >
                             <Minus size={14} />
                           </Button>
@@ -1149,14 +1151,14 @@ export function QrCustomerPage({
                           </span>
                           <Button
                             onClick={() => bump(line.key, 1)}
-                            className="grid size-8 place-items-center rounded-lg border border-[#dfe5df] text-[#0e5a4f]"
+                            className="grid size-8 place-items-center rounded-lg border border-border text-primary"
                           >
                             <Plus size={14} />
                           </Button>
                         </div>
                         <Button
                           onClick={() => removeLine(line.key)}
-                          className="text-[#b4322a]"
+                          className="text-destructive"
                         >
                           <Trash2 size={16} />
                         </Button>
@@ -1173,14 +1175,14 @@ export function QrCustomerPage({
                 ))}
               </ul>
             )}
-            <div className="mt-5 rounded-xl bg-[#f7faf7] p-4">
+            <div className="mt-5 rounded-xl bg-muted p-4">
               <label className="block text-sm font-medium">
                 {t.note}
                 <textarea
                   value={orderNote}
                   onChange={(e) => setOrderNote(e.target.value)}
                   maxLength={500}
-                  className="mt-2 min-h-16 w-full rounded-lg border border-[#cdd7d0] px-3 py-2 text-sm outline-none focus:border-[#0e5a4f]"
+                  className="mt-2 min-h-16 w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-primary"
                 />
               </label>
               <label className="mt-4 block text-sm font-medium">
@@ -1189,11 +1191,11 @@ export function QrCustomerPage({
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   maxLength={30}
-                  className="mt-2 min-h-11 w-full rounded-lg border border-[#cdd7d0] px-3 text-sm outline-none focus:border-[#0e5a4f]"
+                  className="mt-2 min-h-11 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary"
                 />
               </label>
               <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm text-[#66736d]">{t.total}</span>
+                <span className="text-sm text-muted-foreground">{t.total}</span>
                 <span className="text-xl font-bold">
                   {new Intl.NumberFormat(language, {
                     minimumFractionDigits: 0,
@@ -1205,7 +1207,7 @@ export function QrCustomerPage({
               {message && (
                 <p
                   role={message.error ? "alert" : "status"}
-                  className={`mt-3 text-sm ${message.error ? "text-[#b4322a]" : "text-[#137347]"}`}
+                  className={`mt-3 text-sm ${message.error ? "text-destructive" : "text-success"}`}
                 >
                   {message.text}
                 </p>
@@ -1213,7 +1215,7 @@ export function QrCustomerPage({
               <Button
                 disabled={submitting || cart.length === 0}
                 onClick={() => void submitOrder()}
-                className="mt-4 min-h-12 w-full rounded-lg bg-[#0e5a4f] font-semibold text-white disabled:opacity-50"
+                className="mt-4 min-h-12 w-full rounded-lg bg-primary font-semibold text-primary-foreground disabled:opacity-50"
               >
                 {submitting ? t.submitting : t.submit}
               </Button>
@@ -1230,7 +1232,7 @@ export function QrCustomerPage({
             <div
               key={toast.id}
               role={toast.error ? "alert" : "status"}
-              className={`pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${toast.error ? "border-[#e8b6b0] bg-[#fff5f4] text-[#9b2922]" : "border-[#bcd8c9] bg-[#e3f4ea] text-[#0e5a4f]"}`}
+              className={`pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-medium shadow-lg ${toast.error ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-success/40 bg-success/15 text-primary"}`}
             >
               <span>{toast.text}</span>
               <Button
@@ -1288,11 +1290,11 @@ function OrderProgress({
           >
             {index > 0 && (
               <span
-                className={`absolute end-1/2 top-3 h-1 w-full ${!failed && current >= index ? "bg-[#18a77e]" : "bg-[#dfe5df]"}`}
+                className={`absolute end-1/2 top-3 h-1 w-full ${!failed && current >= index ? "bg-success" : "bg-border"}`}
               />
             )}
             <span
-              className={`relative z-[1] grid size-7 place-items-center rounded-full border-2 text-xs font-black ${!failed && current >= index ? "border-[#18a77e] bg-[#18a77e] text-white" : "border-[#cfd8d1] bg-white text-[#8a9690]"}`}
+              className={`relative z-[1] grid size-7 place-items-center rounded-full border-2 text-xs font-black ${!failed && current >= index ? "border-success bg-success text-primary-foreground" : "border-border bg-card text-muted-foreground"}`}
             >
               {!failed && current > index ? (
                 <Check size={14} strokeWidth={3} />
@@ -1301,7 +1303,7 @@ function OrderProgress({
               )}
             </span>
             <span
-              className={`mt-2 text-[11px] font-bold sm:text-xs ${!failed && current >= index ? "text-[#0e5a4f]" : "text-[#8a9690]"}`}
+              className={`mt-2 text-[11px] font-bold sm:text-xs ${!failed && current >= index ? "text-primary" : "text-muted-foreground"}`}
             >
               {label}
             </span>
@@ -1322,12 +1324,12 @@ function OrderDetails({
   currency: string;
 }) {
   return (
-    <div className="mt-3 rounded-2xl bg-[#f7f9f7] p-4 text-start">
+    <div className="mt-3 rounded-2xl bg-muted p-4 text-start">
       <ul className="space-y-4">
         {result.lines.map((line) => (
           <li
             key={line.id}
-            className="border-b border-[#dde4de] pb-4 last:border-0 last:pb-0"
+            className="border-b border-border pb-4 last:border-0 last:pb-0"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1336,7 +1338,9 @@ function OrderDetails({
                   {language === "ar" ? line.productNameAr : line.productNameEn}
                 </p>
                 {line.note && (
-                  <p className="mt-1 text-xs text-[#66736d]">{line.note}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {line.note}
+                  </p>
                 )}
               </div>
               <p className="shrink-0 font-bold">
@@ -1347,14 +1351,14 @@ function OrderDetails({
           </li>
         ))}
       </ul>
-      <div className="mt-5 space-y-2 border-t border-[#cfd8d1] pt-4 text-sm">
-        <div className="flex justify-between text-[#66736d]">
+      <div className="mt-5 space-y-2 border-t border-border pt-4 text-sm">
+        <div className="flex justify-between text-muted-foreground">
           <span>{language === "ar" ? "المبلغ قبل الضريبة" : "Subtotal"}</span>
           <span>
             {money(language, result.netAmount)} {currency}
           </span>
         </div>
-        <div className="flex justify-between text-[#66736d]">
+        <div className="flex justify-between text-muted-foreground">
           <span>{language === "ar" ? "الضريبة" : "Tax"}</span>
           <span>
             {money(language, result.taxAmount)} {currency}

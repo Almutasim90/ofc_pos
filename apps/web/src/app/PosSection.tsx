@@ -644,7 +644,7 @@ export function PosSection({
         <div
           key={toast.id}
           role="status"
-          className="pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border border-[#bcd8c9] bg-[#e3f4ea] px-4 py-3 text-sm font-medium text-[#0e5a4f] shadow-lg"
+          className="pointer-events-auto flex w-full max-w-md items-start justify-between gap-3 rounded-xl border border-success/40 bg-success/15 px-4 py-3 text-sm font-medium text-primary shadow-lg"
         >
           <span>{toast.text}</span>
           <Button
@@ -663,21 +663,21 @@ export function PosSection({
   // or reject right here instead of navigating to the separate QR admin screen.
   const pendingQr = qrPending.filter((o) => o.approval?.status === "Pending");
   const qrPendingBanner = pendingQr.length > 0 && (
-    <div className="border-b border-[#f4e1b8] bg-[#fdf6e3] px-3 py-3 sm:px-4">
-      <p className="text-xs font-semibold text-[#8a6d1f]">
+    <div className="border-b border-warning/40 bg-warning/15 px-3 py-3 sm:px-4">
+      <p className="text-xs font-semibold text-warning">
         {t.qrReviewTitle} ({pendingQr.length})
       </p>
       <ul className="mt-2 space-y-2">
         {pendingQr.map((o) => (
           <li
             key={o.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2.5 text-sm shadow-sm"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-card p-2.5 text-sm shadow-sm"
           >
             <div className="min-w-0">
               <p className="font-medium">
                 {o.clientRequestId.slice(0, 8)} · OMR {o.grossAmount.toFixed(3)}
               </p>
-              <p className="mt-0.5 truncate text-xs text-[#000000]">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {o.lines
                   .map(
                     (l) =>
@@ -690,14 +690,14 @@ export function PosSection({
               <Button
                 disabled={qrReviewing === o.approval!.id}
                 onClick={() => void reviewQr(o.approval!.id, "approve")}
-                className="min-h-9 rounded-lg bg-[#0e5a4f] px-3 text-xs font-semibold text-white disabled:opacity-60"
+                className="min-h-9 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
               >
                 {t.qrApprove}
               </Button>
               <Button
                 disabled={qrReviewing === o.approval!.id}
                 onClick={() => void reviewQr(o.approval!.id, "reject")}
-                className="min-h-9 rounded-lg border border-[#b4322a] px-3 text-xs font-semibold text-[#b4322a] disabled:opacity-60"
+                className="min-h-9 rounded-lg border border-destructive px-3 text-xs font-semibold text-destructive disabled:opacity-60"
               >
                 {t.qrReject}
               </Button>
@@ -1039,17 +1039,27 @@ export function PosSection({
     const table = order.table
       ? `${order.table.code} ${order.table.nameAr} ${order.table.nameEn}`
       : "";
-    return `${orderRef(order.id)} ${table}`.toLowerCase().includes(query);
+    const searchable = [
+      orderRef(order.id),
+      table,
+      order.note ?? "",
+      order.status,
+      statusLabels[order.status] ?? "",
+      order.grossAmount.toFixed(3),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return searchable.includes(query);
   });
   const orderDetailView = detailOrderId && (
     <>
-      <div className="flex items-center gap-2">
+      <div className="sticky top-0 z-20 -mx-3 -mt-3 flex items-center gap-2 border-b border-border bg-card/95 px-3 py-3 backdrop-blur sm:-mx-5 sm:-mt-5 sm:px-5">
         <Button
           onClick={() => {
             setDetailOrderId(null);
             setOrderDetail(null);
           }}
-          className="grid size-9 place-items-center rounded-lg bg-[#f4f7f4]"
+          className="grid size-9 place-items-center rounded-lg bg-muted"
         >
           {language === "ar" ? "→" : "←"}
         </Button>
@@ -1058,12 +1068,15 @@ export function PosSection({
         </h2>
       </div>
       {!orderDetail ? (
-        <p role="status" className="mt-6 text-center text-sm text-[#000000]">
+        <p
+          role="status"
+          className="mt-6 text-center text-sm text-muted-foreground"
+        >
           {t.loadingOrder}
         </p>
       ) : (
         <div className="mt-4 space-y-4">
-          <p className="text-sm text-[#000000]">
+          <p className="text-sm text-muted-foreground">
             {statusLabels[orderDetail.status] ?? orderDetail.status} ·{" "}
             {new Date(orderDetail.createdAt).toLocaleString(language)}
             {orderDetail.note ? ` · ${orderDetail.note}` : ""}
@@ -1072,7 +1085,7 @@ export function PosSection({
             <p className="text-sm font-semibold">{t.orderItems}</p>
             <ul className="mt-2 space-y-2">
               {orderDetail.lines.map((line) => (
-                <li key={line.id} className="rounded-xl bg-[#f4f7f4] p-3">
+                <li key={line.id} className="rounded-xl bg-muted p-3">
                   <div className="flex justify-between gap-3">
                     <span>
                       {line.quantity} ×{" "}
@@ -1085,18 +1098,20 @@ export function PosSection({
                     </span>
                   </div>
                   {line.note && (
-                    <p className="mt-1 text-xs text-[#000000]">{line.note}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {line.note}
+                    </p>
                   )}
                 </li>
               ))}
             </ul>
           </div>
-          <div className="space-y-1 border-t border-[#dfe5df] pt-3 text-sm">
-            <div className="flex justify-between text-[#000000]">
+          <div className="space-y-1 border-t border-border pt-3 text-sm">
+            <div className="flex justify-between text-muted-foreground">
               <span>{t.orderNet}</span>
               <span>OMR {orderDetail.netAmount.toFixed(3)}</span>
             </div>
-            <div className="flex justify-between text-[#000000]">
+            <div className="flex justify-between text-muted-foreground">
               <span>{t.orderTax}</span>
               <span>OMR {orderDetail.taxAmount.toFixed(3)}</span>
             </div>
@@ -1110,12 +1125,12 @@ export function PosSection({
     </>
   );
   const heldOrdersModal = heldOpen && (
-    <div className="fixed inset-0 z-50 grid min-w-0 place-items-end bg-black/35 sm:place-items-center sm:p-5">
+    <div className="fixed inset-0 z-[100] grid min-w-0 place-items-end bg-black/35 sm:place-items-center sm:p-5">
       <section
         role="dialog"
         aria-modal="true"
         aria-label={t.heldOrders}
-        className="flex max-h-[100dvh] min-w-0 w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl"
+        className="flex max-h-[100dvh] min-w-0 w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl"
       >
         {detailOrderId ? (
           <div className="min-w-0 overscroll-contain overflow-x-hidden overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
@@ -1123,11 +1138,12 @@ export function PosSection({
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between gap-3 border-b border-[#dfe5df] p-5">
+            <div className="sticky top-0 z-20 border-b border-border bg-card/95 px-3 py-3 backdrop-blur sm:px-5 sm:py-4">
+              <div className="flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold">
                 {t.heldOrders}
                 {heldOrders.length > 0 && (
-                  <span className="ms-2 font-normal text-[#66736d]">
+                  <span className="ms-2 font-normal text-muted-foreground">
                     ({heldOrders.length})
                   </span>
                 )}
@@ -1135,85 +1151,144 @@ export function PosSection({
               <Button
                 onClick={closeHeldOrders}
                 aria-label={language === "ar" ? "إغلاق" : "Close"}
-                className="grid size-9 place-items-center rounded-lg bg-[#f4f7f4]"
+                className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted"
               >
                 ×
               </Button>
-            </div>
-            <div className="border-b border-[#dfe5df] p-4">
-              <label className="flex min-h-11 items-center gap-2 rounded-xl border border-[#cdd7d0] bg-white px-3">
-                <Search size={16} aria-hidden="true" />
+              </div>
+              <label className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+                <Search size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
                 <Input
+                  type="search"
                   aria-label={t.heldSearch}
                   value={heldSearch}
                   onChange={(e) => setHeldSearch(e.target.value)}
                   placeholder={t.heldSearch}
-                  className="w-full bg-transparent text-sm outline-none"
+                  autoComplete="off"
+                  className="min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none outline-none focus-visible:ring-0"
                 />
               </label>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               {heldOrders.length === 0 ? (
-                <p className="p-8 text-center text-sm text-[#000000]">
+                <p className="p-8 text-center text-sm text-muted-foreground">
                   {t.noHeld}
                 </p>
               ) : matchingHeldOrders.length === 0 ? (
-                <p className="p-8 text-center text-sm text-[#000000]">
+                <p className="p-8 text-center text-sm text-muted-foreground">
                   {t.heldNoMatch}
                 </p>
               ) : (
-                <Table className="w-full min-w-[640px] text-sm">
-                  <TableHeader className="sticky top-0 bg-[#f6f7f4]">
+                <>
+                  <div className="space-y-3 p-3 lg:hidden">
+                    {matchingHeldOrders.map((order) => (
+                      <article
+                        key={order.id}
+                        className="rounded-2xl border border-border bg-card p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <Button
+                              type="button"
+                              onClick={() => void openOrderDetail(order.id)}
+                              className="min-h-11 max-w-full justify-start truncate px-0 text-base font-bold text-primary hover:underline"
+                            >
+                              {orderRef(order.id)}
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                              {order.table ? order.table.code : "—"} ·{" "}
+                              {new Date(order.createdAt).toLocaleTimeString(
+                                language,
+                              )}
+                            </p>
+                          </div>
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${order.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                          >
+                            {statusLabels[order.status] ?? order.status}
+                          </span>
+                        </div>
+                        {order.note && (
+                          <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
+                            {order.note}
+                          </p>
+                        )}
+                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">
+                          <strong>OMR {order.grossAmount.toFixed(3)}</strong>
+                          <div className="flex gap-2">
+                            <Button
+                              disabled={busy}
+                              onClick={() => void resumeHeld(order, true)}
+                              className="min-h-11 rounded-xl border border-border px-3 text-xs font-semibold"
+                            >
+                              {language === "ar" ? "مطبخ" : "Kitchen"}
+                            </Button>
+                            {order.status !== "Paid" && (
+                              <Button
+                                disabled={busy}
+                                onClick={() => void resumeHeld(order)}
+                                className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground"
+                              >
+                                {t.send}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <Table className="hidden w-full min-w-[760px] text-sm lg:table">
+                  <TableHeader className="sticky top-0 bg-muted">
                     <TableRow>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-[#000000]">
+                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
                         {t.orderRef}
                       </TableHead>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-[#000000]">
+                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
                         {t.table}
                       </TableHead>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-[#000000]">
+                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
                         {language === "ar" ? "الحالة" : "Status"}
                       </TableHead>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-[#000000]">
+                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
                         {language === "ar" ? "الوقت" : "Time"}
                       </TableHead>
-                      <TableHead className="px-4 py-3 text-end font-semibold text-[#000000]">
+                      <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground">
                         {t.total}
                       </TableHead>
-                      <TableHead className="px-4 py-3 text-end font-semibold text-[#000000]"></TableHead>
+                      <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground"></TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody className="divide-y divide-[#eef1ee]">
+                  <TableBody className="divide-y divide-border">
                     {matchingHeldOrders.map((order) => (
-                      <TableRow key={order.id} className="hover:bg-[#fafbfa]">
+                      <TableRow key={order.id} className="hover:bg-muted">
                         <TableCell className="px-4 py-3">
                           <Button
                             type="button"
                             onClick={() => void openOrderDetail(order.id)}
-                            className="font-semibold text-[#0e5a4f] hover:underline"
+                            className="font-semibold text-primary hover:underline"
                           >
                             {orderRef(order.id)}
                           </Button>
                           {order.note && (
                             <p
-                              className="mt-0.5 max-w-[16ch] truncate text-xs text-[#000000]"
+                              className="mt-0.5 max-w-[16ch] truncate text-xs text-muted-foreground"
                               title={order.note}
                             >
                               {order.note}
                             </p>
                           )}
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-[#000000]">
+                        <TableCell className="px-4 py-3 text-muted-foreground">
                           {order.table ? order.table.code : "—"}
                         </TableCell>
                         <TableCell className="px-4 py-3">
                           <span
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Paid" ? "bg-[#e3f4ea] text-[#137347]" : "bg-[#f4f1e3] text-[#8a6d1f]"}`}
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
                           >
                             {statusLabels[order.status] ?? order.status}
                           </span>
                         </TableCell>
-                        <TableCell className="px-4 py-3 text-[#000000]">
+                        <TableCell className="px-4 py-3 text-muted-foreground">
                           {new Date(order.createdAt).toLocaleTimeString(
                             language,
                           )}
@@ -1231,7 +1306,7 @@ export function PosSection({
                                   ? "إرسال للمطبخ"
                                   : "Send to kitchen"
                               }
-                              className="min-h-9 rounded-lg border border-[#cdd7d0] px-2.5 text-xs font-semibold text-[#000000]"
+                              className="min-h-9 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
                             >
                               {language === "ar" ? "مطبخ" : "Kitchen"}
                             </Button>
@@ -1239,7 +1314,7 @@ export function PosSection({
                               <Button
                                 disabled={busy}
                                 onClick={() => void resumeHeld(order)}
-                                className="min-h-9 rounded-lg bg-[#0e5a4f] px-2.5 text-xs font-semibold text-white"
+                                className="min-h-9 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground"
                               >
                                 {t.send}
                               </Button>
@@ -1249,7 +1324,8 @@ export function PosSection({
                       </TableRow>
                     ))}
                   </TableBody>
-                </Table>
+                  </Table>
+                </>
               )}
             </div>
           </>
@@ -1263,16 +1339,16 @@ export function PosSection({
         role="dialog"
         aria-modal="true"
         aria-label={t.offlinePayTitle}
-        className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl sm:p-6"
+        className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl sm:p-6"
       >
         <h2 className="text-lg font-bold">{t.offlinePayTitle}</h2>
-        <p className="mt-1 text-2xl font-bold text-[#0e5a4f]">
+        <p className="mt-1 text-2xl font-bold text-primary">
           OMR {total.toFixed(3)}
         </p>
         {selectableOfflineMethods.length === 0 ? (
           <p
             role="alert"
-            className="mt-5 rounded-xl bg-[#fff5f4] p-4 text-sm text-[#9b2922]"
+            className="mt-5 rounded-xl bg-destructive/10 p-4 text-sm text-destructive"
           >
             {t.offlineNoMethods}
           </p>
@@ -1314,7 +1390,7 @@ export function PosSection({
           <Button
             disabled={selectableOfflineMethods.length === 0}
             onClick={confirmOfflinePayment}
-            className="min-h-12 rounded-lg bg-[#0e5a4f] font-semibold text-white disabled:opacity-60"
+            className="min-h-12 rounded-lg bg-primary font-semibold text-primary-foreground disabled:opacity-60"
           >
             {t.offlinePayConfirm}
           </Button>
@@ -1324,10 +1400,11 @@ export function PosSection({
   );
   const cartPanel = (
     <>
-      <aside className="flex h-full min-h-0 flex-col bg-white">
-        <div className="flex items-center justify-between border-b border-[#dfe5df] p-4">
+      <aside className="flex h-full min-h-0 flex-col bg-card">
+        <div className="flex items-center justify-between border-b border-border p-4">
           <h2 className="font-semibold">
-            {t.cart} <span className="text-[#66736d]">{cart.length}</span>
+            {t.cart}{" "}
+            <span className="text-muted-foreground">{cart.length}</span>
           </h2>
           <Button className="lg:hidden" onClick={() => setCartOpen(false)}>
             ×
@@ -1335,12 +1412,12 @@ export function PosSection({
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           {cart.length === 0 ? (
-            <p className="py-10 text-center text-sm text-[#000000]">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               {t.empty}
             </p>
           ) : (
             cart.map((line) => (
-              <div key={line.key} className="rounded-xl bg-[#f4f7f4] p-3">
+              <div key={line.key} className="rounded-xl bg-muted p-3">
                 <div className="flex justify-between gap-3">
                   <strong>{name(line.product)}</strong>
                   <span>
@@ -1357,7 +1434,7 @@ export function PosSection({
                     <Button
                       aria-label="Decrease"
                       onClick={() => quantity(line.key, -1)}
-                      className="grid size-11 place-items-center rounded-lg bg-white"
+                      className="grid size-11 place-items-center rounded-lg bg-card"
                     >
                       <Minus size={16} />
                     </Button>
@@ -1365,7 +1442,7 @@ export function PosSection({
                     <Button
                       aria-label="Increase"
                       onClick={() => quantity(line.key, 1)}
-                      className="grid size-9 place-items-center rounded-lg bg-white"
+                      className="grid size-9 place-items-center rounded-lg bg-card"
                     >
                       <Plus size={16} />
                     </Button>
@@ -1383,14 +1460,14 @@ export function PosSection({
                       )
                     }
                     placeholder={t.notes}
-                    className="w-24 border-b border-[#cdd7d0] bg-transparent text-sm outline-none"
+                    className="w-24 border-b border-border bg-transparent text-sm outline-none"
                   />
                 </div>
               </div>
             ))
           )}
         </div>
-        <div className="border-t border-[#dfe5df] p-4">
+        <div className="border-t border-border p-4">
           <div className="flex justify-between text-lg font-bold">
             <span>{t.total}</span>
             <span>OMR {total.toFixed(3)}</span>
@@ -1399,14 +1476,14 @@ export function PosSection({
             <Button
               disabled={busy || !cart.length}
               onClick={() => void submit("Draft")}
-              className="min-h-12 rounded-lg border border-[#0e5a4f] font-semibold text-[#0e5a4f]"
+              className="min-h-12 rounded-lg border border-primary font-semibold text-primary"
             >
               {t.hold}
             </Button>
             <Button
               disabled={busy || !cart.length}
               onClick={() => void submit("Pending")}
-              className="min-h-12 rounded-lg bg-[#0e5a4f] font-semibold text-white"
+              className="min-h-12 rounded-lg bg-primary font-semibold text-primary-foreground"
             >
               {isExternallyPaidChannel
                 ? language === "ar"
@@ -1421,11 +1498,11 @@ export function PosSection({
   );
   return (
     <div className="min-w-0 pb-20 lg:pb-0">
-      <header className="flex flex-wrap items-center gap-2 border-b border-[#dfe5df] bg-white p-3">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card p-3">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           <strong className="shrink-0 text-lg sm:text-xl">{t.title}</strong>
           {salesSummary && (
-            <span className="shrink-0 rounded-full bg-[#eef3ee] px-3 py-1.5 text-xs font-semibold text-[#0e5a4f]">
+            <span className="shrink-0 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-primary">
               {t.dailySales}: OMR {salesSummary.gross.toFixed(3)} ·{" "}
               {salesSummary.count} {t.dailySalesOrders}
             </span>
@@ -1463,7 +1540,7 @@ export function PosSection({
                     aria-checked={selected}
                     disabled={cart.length > 0 || busy || !!payment}
                     onClick={() => setChannelId(x.id)}
-                    className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${selected ? "bg-[#0e5a4f] text-white" : "bg-white"}`}
+                    className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${selected ? "bg-primary text-primary-foreground" : "bg-card"}`}
                   >
                     <Icon size={16} />
                     {name(x)}
@@ -1485,7 +1562,7 @@ export function PosSection({
                     )?.id ?? externalChannels[0].id,
                   )
                 }
-                className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${isExternallyPaidChannel ? "bg-[#0e5a4f] text-white" : "bg-white"}`}
+                className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${isExternallyPaidChannel ? "bg-primary text-primary-foreground" : "bg-card"}`}
               >
                 <ShoppingBag size={16} />
                 {language === "ar" ? "إلكتروني" : "Electronic"}
@@ -1494,7 +1571,7 @@ export function PosSection({
           </div>
           <Button
             onClick={() => setHeldOpen(true)}
-            className="min-h-9 shrink-0 rounded-full border border-[#0e5a4f] px-3 text-xs font-semibold text-[#0e5a4f]"
+            className="min-h-9 shrink-0 rounded-full border border-primary px-3 text-xs font-semibold text-primary"
           >
             {t.heldOrders} ({heldOrders.length})
           </Button>
@@ -1520,12 +1597,12 @@ export function PosSection({
                   setChannelId(channel.id);
                   store.set("pos-electronic-channel", channel.id);
                 }}
-                className={`min-h-10 shrink-0 rounded-lg border px-4 text-sm font-semibold ${channel.id === channelId ? "border-[#0e5a4f] bg-[#e6f1ec] text-[#0e5a4f]" : "border-[#dfe5df] bg-white"}`}
+                className={`min-h-10 shrink-0 rounded-lg border px-4 text-sm font-semibold ${channel.id === channelId ? "border-primary bg-accent text-primary" : "border-border bg-card"}`}
               >
                 {name(channel)}
               </Button>
             ))}
-            <span className="self-center whitespace-nowrap text-xs text-[#66736d]">
+            <span className="self-center whitespace-nowrap text-xs text-muted-foreground">
               {language === "ar"
                 ? "مدفوع خارجيًا · تُطبق قائمة أسعار الشركة"
                 : "Externally paid · company price list applied"}
@@ -1533,7 +1610,7 @@ export function PosSection({
           </div>
         )}
         <span
-          className={`flex shrink-0 items-center gap-1 text-xs ${online ? "text-[#137347]" : "text-[#b4322a]"}`}
+          className={`flex shrink-0 items-center gap-1 text-xs ${online ? "text-success" : "text-destructive"}`}
         >
           {online ? (
             t.online
@@ -1552,7 +1629,7 @@ export function PosSection({
         <>
           <section className="flex min-w-0 flex-col overflow-hidden">
             <div className="shrink-0 p-3 pb-0 sm:p-4 sm:pb-0">
-              <label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#cdd7d0] bg-white px-3">
+              <label className="flex min-h-12 items-center gap-2 rounded-xl border border-border bg-card px-3">
                 <Search size={18} />
                 <Input
                   aria-label={t.search}
@@ -1578,7 +1655,7 @@ export function PosSection({
               <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
                 <Button
                   onClick={() => setCategory("")}
-                  className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${!category ? "bg-[#0e5a4f] text-white" : "bg-white"}`}
+                  className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${!category ? "bg-primary text-primary-foreground" : "bg-card"}`}
                 >
                   {t.all}
                 </Button>
@@ -1586,13 +1663,13 @@ export function PosSection({
                   <Button
                     key={x.id}
                     onClick={() => setCategory(x.id)}
-                    className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${category === x.id ? "bg-[#0e5a4f] text-white" : "bg-white"}`}
+                    className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${category === x.id ? "bg-primary text-primary-foreground" : "bg-card"}`}
                   >
                     {name(x)}
                   </Button>
                 ))}
               </div>
-              <p className="mt-3 pb-3 text-xs text-[#000000]">
+              <p className="mt-3 pb-3 text-xs text-muted-foreground">
                 {language === "ar"
                   ? "١ اختر الأصناف · ٢ ادفع مرة واحدة · يُرسل الطلب تلقائيًا للمطبخ"
                   : "1 Choose items · 2 Pay once · The order is sent to the kitchen automatically"}
@@ -1605,7 +1682,7 @@ export function PosSection({
                 </p>
               )}
               {!catalogLoading && visible.length === 0 && (
-                <p className="mt-4 rounded-xl bg-white p-6 text-sm">
+                <p className="mt-4 rounded-xl bg-card p-6 text-sm">
                   {language === "ar"
                     ? "لا توجد منتجات مطابقة. جرّب بحثًا آخر، أو تحقق من تفعيل المنتجات وتوفرها في الفرع."
                     : "No matching products. Try another search or check product availability at this branch."}
@@ -1617,7 +1694,7 @@ export function PosSection({
                     key={product.id}
                     disabled={busy}
                     onClick={() => add(product)}
-                    className="min-h-36 rounded-xl border border-[#dfe5df] bg-white p-3 text-start shadow-sm transition hover:border-[#0e5a4f] hover:shadow"
+                    className="min-h-36 rounded-xl border border-border bg-card p-3 text-start shadow-sm transition hover:border-primary hover:shadow"
                   >
                     <ProductPhoto
                       src={product.imageUrl}
@@ -1627,7 +1704,7 @@ export function PosSection({
                     <strong className="mt-3 block text-sm">
                       {name(product)}
                     </strong>
-                    <span className="mt-1 block text-sm text-[#0e5a4f]">
+                    <span className="mt-1 block text-sm text-primary">
                       OMR{" "}
                       {resolveOfflinePricing(product.pricing, 0).gross.toFixed(
                         3,
@@ -1638,14 +1715,14 @@ export function PosSection({
               </div>
             </div>
           </section>
-          <div className="hidden h-full min-h-0 overflow-hidden rounded-2xl border border-[#dfe5df] shadow-sm lg:sticky lg:top-4 lg:block">
+          <div className="hidden h-full min-h-0 overflow-hidden rounded-2xl border border-border shadow-sm lg:sticky lg:top-4 lg:block">
             {cartPanel}
           </div>
         </>
       </div>
       <Button
         onClick={() => setCartOpen(true)}
-        className="fixed bottom-4 start-4 end-4 z-20 min-h-12 rounded-full bg-[#0e5a4f] px-5 font-semibold text-white shadow-lg lg:hidden"
+        className="fixed bottom-4 start-4 end-4 z-20 min-h-12 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-lg lg:hidden"
       >
         {t.viewCart} ({cart.reduce((sum, line) => sum + line.quantity, 0)}) ·
         OMR {total.toFixed(3)}
@@ -1659,9 +1736,9 @@ export function PosSection({
       )}
       {customizing && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-black/35 sm:place-items-center">
-          <section className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:max-w-lg sm:rounded-2xl">
+          <section className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 sm:max-w-lg sm:rounded-2xl">
             <h2 className="text-lg font-bold">{name(customizing)}</h2>
-            <p className="mt-1 text-sm text-[#000000]">{t.selections}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t.selections}</p>
             {customizing.selectionGroups.map((group) => (
               <fieldset key={group.id} className="mt-5">
                 <legend className="font-semibold">
@@ -1671,7 +1748,7 @@ export function PosSection({
                   {group.options.map((option) => (
                     <label
                       key={option.id}
-                      className="flex min-h-11 items-center justify-between rounded-lg bg-[#f4f7f4] px-3"
+                      className="flex min-h-11 items-center justify-between rounded-lg bg-muted px-3"
                     >
                       <span>
                         <Input
@@ -1719,7 +1796,7 @@ export function PosSection({
               </Button>
               <Button
                 onClick={confirm}
-                className="min-h-12 flex-1 rounded-lg bg-[#0e5a4f] font-semibold text-white"
+                className="min-h-12 flex-1 rounded-lg bg-primary font-semibold text-primary-foreground"
               >
                 {t.confirm}
               </Button>
@@ -1745,7 +1822,7 @@ export function PosSection({
       {message && (
         <p
           role="status"
-          className="fixed bottom-20 left-1/2 z-50 w-[min(90vw,560px)] -translate-x-1/2 rounded-xl bg-[#17211f] px-4 py-3 text-sm text-white"
+          className="fixed bottom-20 left-1/2 z-50 w-[min(90vw,560px)] -translate-x-1/2 rounded-xl bg-foreground px-4 py-3 text-sm text-primary-foreground"
         >
           {message}
         </p>

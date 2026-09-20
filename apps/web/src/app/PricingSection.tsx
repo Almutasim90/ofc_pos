@@ -181,9 +181,9 @@ export function PricingSection({ language }: { language: Language }) {
   }
   return (
     <div>
-      <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
+      <p className="text-sm font-semibold text-primary">{t.title}</p>
       <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">{t.title}</h1>
-      <p className="mt-2 max-w-3xl text-[#59655f]">{t.intro}</p>
+      <p className="mt-2 max-w-3xl text-muted-foreground">{t.intro}</p>
       <div className="mt-6 flex gap-2 overflow-x-auto border-b">
         {(["prices", "channels", "taxes", "promos"] as Tab[]).map((key) => (
           <Button
@@ -192,7 +192,7 @@ export function PricingSection({ language }: { language: Language }) {
               setTab(key);
               setDialog(null);
             }}
-            className={`min-h-11 shrink-0 border-b-2 px-4 font-semibold ${tab === key ? "border-[#0e5a4f] text-[#0e5a4f]" : "border-transparent"}`}
+            className={`min-h-11 shrink-0 border-b-2 px-4 font-semibold ${tab === key ? "border-primary text-primary" : "border-transparent"}`}
           >
             {t[key]}
           </Button>
@@ -202,7 +202,7 @@ export function PricingSection({ language }: { language: Language }) {
         {tab === "prices" && (
           <Button
             onClick={() => setDialog("copy")}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0e5a4f] px-4 font-semibold text-white"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 font-semibold text-primary-foreground"
           >
             <Copy size={17} />
             {t.copy}
@@ -210,7 +210,7 @@ export function PricingSection({ language }: { language: Language }) {
         )}
         <Button
           onClick={() => setDialog("single")}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#0e5a4f] px-4 font-semibold text-[#0e5a4f]"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary px-4 font-semibold text-primary"
         >
           <Plus size={17} />
           {tab === "prices" ? t.individual : t.add}
@@ -328,7 +328,7 @@ function Field({
         className="mt-2 min-h-11"
       />
       {hint && (
-        <span className="mt-1 block text-xs text-[#66736d]">{hint}</span>
+        <span className="mt-1 block text-xs text-muted-foreground">{hint}</span>
       )}
     </label>
   );
@@ -359,7 +359,7 @@ function Select({
 }
 function Submit({ t }: { t: any }) {
   return (
-    <Button className="mt-5 min-h-11 rounded-lg bg-[#0e5a4f] px-5 font-semibold text-white">
+    <Button className="mt-5 min-h-11 rounded-lg bg-primary px-5 font-semibold text-primary-foreground">
       {t.save}
     </Button>
   );
@@ -716,9 +716,9 @@ function ItemList({
         : "General";
   };
   return (
-    <section className="mt-6 overflow-hidden rounded-xl border bg-white">
+    <section className="mt-6 overflow-hidden rounded-xl border bg-card">
       {items.length === 0 ? (
-        <p className="p-8 text-center text-sm text-[#66736d]">{empty}</p>
+        <p className="p-8 text-center text-sm text-muted-foreground">{empty}</p>
       ) : (
         <div className="divide-y">
           {items.map((item) => (
@@ -735,7 +735,7 @@ function ItemList({
                     ? label(products, item.productId)
                     : (item.code ?? item.rate ?? item.discountValue)}
               </strong>
-              <span className="text-[#59655f]">
+              <span className="text-muted-foreground">
                 {tab === "prices"
                   ? `${label(branches, item.branchId)} · ${label(channels, item.salesChannelId)} · ${Number(item.price).toFixed(3)} OMR`
                   : (item.code ?? item.nameAr)}

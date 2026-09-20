@@ -46,9 +46,9 @@ const blank = {
   imageUrl: "",
 };
 const input =
-  "mt-1 min-h-11 min-w-0 w-full rounded-lg border border-[#cdd7d0] bg-white px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0e5a4f] focus-visible:ring-offset-1";
+  "mt-1 min-h-11 min-w-0 w-full rounded-lg border border-border bg-card px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1";
 const button =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#cdd7d0] px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0e5a4f] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function ProductPhoto({
   src,
@@ -63,7 +63,7 @@ export function ProductPhoto({
   useEffect(() => setFailed(false), [src]);
   return (
     <div
-      className={`${className} shrink-0 overflow-hidden rounded-xl bg-[#edf5f1] text-[#0e5a4f]`}
+      className={`${className} shrink-0 overflow-hidden rounded-xl bg-accent text-primary`}
     >
       {src && !failed ? (
         <img
@@ -149,9 +149,11 @@ export function CatalogScreen({
       setCategories(await responses[0].json());
       if (isProduct) {
         setProducts(await responses[1].json());
-        const branchList = await responses[2].json() as Named[];
+        const branchList = (await responses[2].json()) as Named[];
         setBranches(branchList);
-        setAvailabilityBranchId((current) => current || branchList[0]?.id || "");
+        setAvailabilityBranchId(
+          (current) => current || branchList[0]?.id || "",
+        );
         if (responses[3].ok) setStations(await responses[3].json());
         if (responses[4].ok) setGroups(await responses[4].json());
       }
@@ -299,16 +301,43 @@ export function CatalogScreen({
   }
   async function toggleAvailability(product: Product) {
     if (!availabilityBranchId || saving) return;
-    setSaving(true); setMessage("");
-    const current = product.availability.find((item) => item.branchId === availabilityBranchId)?.isAvailable ?? false;
-    const availability = branches.map((branch) => ({ branchId: branch.id, isAvailable: branch.id === availabilityBranchId ? !current : product.availability.find((item) => item.branchId === branch.id)?.isAvailable ?? false }));
+    setSaving(true);
+    setMessage("");
+    const current =
+      product.availability.find(
+        (item) => item.branchId === availabilityBranchId,
+      )?.isAvailable ?? false;
+    const availability = branches.map((branch) => ({
+      branchId: branch.id,
+      isAvailable:
+        branch.id === availabilityBranchId
+          ? !current
+          : (product.availability.find((item) => item.branchId === branch.id)
+              ?.isAvailable ?? false),
+    }));
     try {
-      const response = await auth(`/products/${product.id}/availability`, { method: "PUT", body: JSON.stringify(availability) });
+      const response = await auth(`/products/${product.id}/availability`, {
+        method: "PUT",
+        body: JSON.stringify(availability),
+      });
       if (!response.ok) throw new Error();
       await load();
-      setMessage(!current ? tr("تم توفير الصنف في الفرع.", "Item is now available at the branch.") : tr("تم إيقاف الصنف مؤقتًا في الفرع وسيظهر غير متوفر في QR.", "Item is temporarily unavailable and will be marked unavailable in QR."));
-    } catch { setMessage(failure); }
-    finally { setSaving(false); }
+      setMessage(
+        !current
+          ? tr(
+              "تم توفير الصنف في الفرع.",
+              "Item is now available at the branch.",
+            )
+          : tr(
+              "تم إيقاف الصنف مؤقتًا في الفرع وسيظهر غير متوفر في QR.",
+              "Item is temporarily unavailable and will be marked unavailable in QR.",
+            ),
+      );
+    } catch {
+      setMessage(failure);
+    } finally {
+      setSaving(false);
+    }
   }
   const field = (
     key: keyof typeof blank,
@@ -333,7 +362,7 @@ export function CatalogScreen({
         onChange={(e) => setForm({ ...form, [key]: e.target.value })}
       />
       {hint && (
-        <span className="mt-1 block text-xs font-normal text-[#000000]">
+        <span className="mt-1 block text-xs font-normal text-muted-foreground">
           {hint}
         </span>
       )}
@@ -354,7 +383,7 @@ export function CatalogScreen({
               ? tr("قائمة المنتجات", "Products")
               : tr("تصنيفات القائمة", "Menu categories")}
           </h1>
-          <p className="mt-2 text-sm text-[#000000]">
+          <p className="mt-2 text-sm text-muted-foreground">
             {tr(
               "ابحث عن السجل واضغط تعديل. الحقول ذات النجمة مطلوبة.",
               "Find a record and choose Edit. Fields marked * are required.",
@@ -362,7 +391,7 @@ export function CatalogScreen({
           </p>
         </div>
         <Button
-          className={`${button} bg-[#0e5a4f] text-white`}
+          className={`${button} bg-primary text-primary-foreground`}
           onClick={() => open()}
         >
           <Plus size={18} />
@@ -370,13 +399,13 @@ export function CatalogScreen({
         </Button>
       </div>
       {message && (
-        <p role="status" className="rounded-xl border bg-white p-4 text-sm">
+        <p role="status" className="rounded-xl border bg-card p-4 text-sm">
           {message}
         </p>
       )}
       <label
         htmlFor="catalog-search"
-        className="flex items-center gap-2 rounded-xl border border-[#cdd7d0] bg-white px-3 focus-within:ring-2 focus-within:ring-[#0e5a4f] focus-within:ring-offset-1"
+        className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1"
       >
         <Search size={18} aria-hidden="true" />
         <Input
@@ -388,13 +417,38 @@ export function CatalogScreen({
           className="min-h-12 min-w-0 flex-1 bg-transparent outline-none"
         />
       </label>
-    <p id="catalog-search-hint" className="sr-only">
+      <p id="catalog-search-hint" className="sr-only">
         {tr(
           "اكتب للتصفية حسب الاسم أو الرمز",
           "Type to filter by name or code",
         )}
-    </p>
-    {isProduct && branches.length > 0 && <div className="flex flex-wrap items-end gap-3 rounded-xl border border-[#dfe5df] bg-[#f7f9f7] p-4"><div className="w-full max-w-xs"><SearchableSelect label={tr("الفرع للتحكم السريع بالتوفر", "Branch for quick availability")} value={availabilityBranchId} onChange={setAvailabilityBranchId}>{branches.map((branch) => <option key={branch.id} value={branch.id}>{name(branch)}</option>)}</SearchableSelect></div><p className="pb-2 text-xs text-[#66736d]">{tr("أوقف الصنف أو أعد توفيره مباشرة دون فتح شاشة التعديل.", "Mark an item sold out or available without opening its edit form.")}</p></div>}
+      </p>
+      {isProduct && branches.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-muted p-4">
+          <div className="w-full max-w-xs">
+            <SearchableSelect
+              label={tr(
+                "الفرع للتحكم السريع بالتوفر",
+                "Branch for quick availability",
+              )}
+              value={availabilityBranchId}
+              onChange={setAvailabilityBranchId}
+            >
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {name(branch)}
+                </option>
+              ))}
+            </SearchableSelect>
+          </div>
+          <p className="pb-2 text-xs text-muted-foreground">
+            {tr(
+              "أوقف الصنف أو أعد توفيره مباشرة دون فتح شاشة التعديل.",
+              "Mark an item sold out or available without opening its edit form.",
+            )}
+          </p>
+        </div>
+      )}
       {loading ? (
         <ul
           aria-busy="true"
@@ -405,18 +459,18 @@ export function CatalogScreen({
           {Array.from({ length: 6 }).map((_, i) => (
             <li
               key={i}
-              className="flex h-24 animate-pulse items-center gap-3 rounded-xl border bg-white p-4"
+              className="flex h-24 animate-pulse items-center gap-3 rounded-xl border bg-card p-4"
             >
-              <div className="h-16 w-16 shrink-0 rounded-xl bg-[#edf5f1]" />
+              <div className="h-16 w-16 shrink-0 rounded-xl bg-accent" />
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-4 w-2/3 rounded bg-[#edf5f1]" />
-                <div className="h-3 w-1/3 rounded bg-[#edf5f1]" />
+                <div className="h-4 w-2/3 rounded bg-accent" />
+                <div className="h-3 w-1/3 rounded bg-accent" />
               </div>
             </li>
           ))}
         </ul>
       ) : rows.length === 0 ? (
-        <p className="rounded-xl border bg-white p-8 text-center">
+        <p className="rounded-xl border bg-card p-8 text-center">
           {tr(
             "لا توجد نتائج. أضف سجلًا أو غيّر البحث.",
             "No results. Add a record or change your search.",
@@ -428,7 +482,7 @@ export function CatalogScreen({
             {pageRows.map((item) => (
               <li
                 key={item.id}
-                className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border bg-white p-4 transition-colors hover:border-[#0e5a4f]/40"
+                className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40"
               >
                 <ProductPhoto
                   src={"images" in item ? item.images[0]?.url : item.imageUrl}
@@ -436,7 +490,7 @@ export function CatalogScreen({
                 />
                 <div className="min-w-0 flex-1">
                   <h2 className="font-semibold break-words">{name(item)}</h2>
-                  <p className="mt-1 text-sm text-[#000000]">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {"sku" in item
                       ? `${item.sku} · ${item.basePrice?.toFixed(3) ?? "—"} OMR`
                       : tr("تصنيف القائمة", "Menu category")}
@@ -455,10 +509,14 @@ export function CatalogScreen({
                   {"sku" in item && (
                     <Button
                       disabled={!availabilityBranchId || saving}
-                      className={`${button} ${item.availability.find((entry) => entry.branchId === availabilityBranchId)?.isAvailable ? "border-[#b4322a] text-[#b4322a]" : "border-[#137347] text-[#137347]"}`}
+                      className={`${button} ${item.availability.find((entry) => entry.branchId === availabilityBranchId)?.isAvailable ? "border-destructive text-destructive" : "border-success text-success"}`}
                       onClick={() => void toggleAvailability(item)}
                     >
-                      {item.availability.find((entry) => entry.branchId === availabilityBranchId)?.isAvailable ? tr("غير متوفر مؤقتًا", "Mark sold out") : tr("إعادة التوفير", "Make available")}
+                      {item.availability.find(
+                        (entry) => entry.branchId === availabilityBranchId,
+                      )?.isAvailable
+                        ? tr("غير متوفر مؤقتًا", "Mark sold out")
+                        : tr("إعادة التوفير", "Make available")}
                     </Button>
                   )}
                   {"sku" in item && (
@@ -466,7 +524,9 @@ export function CatalogScreen({
                       className={button}
                       onClick={() => void openGroups(item)}
                     >
-                      {item.type === "Combo" ? tr("تكوين الوجبة", "Build meal") : tr("الإضافات", "Modifiers")}
+                      {item.type === "Combo"
+                        ? tr("تكوين الوجبة", "Build meal")
+                        : tr("الإضافات", "Modifiers")}
                     </Button>
                   )}
                 </div>
@@ -487,7 +547,7 @@ export function CatalogScreen({
       </Button>
       {isProduct && (
         <Button
-          className={`${button} bg-[#0e5a4f] text-white`}
+          className={`${button} bg-primary text-primary-foreground`}
           onClick={() => setStationDialogOpen(true)}
         >
           <Plus size={18} />
@@ -560,7 +620,7 @@ export function CatalogScreen({
                   <legend className="font-medium">
                     {tr("صور المنتج (اختياري)", "Product photos (optional)")}
                   </legend>
-                  <p className="mt-1 text-xs text-[#000000]">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {tr(
                       "ضع رابط الصورة أو اختر صورة من قائمة المطعم. الصورة الأولى تظهر للكاشير والعميل.",
                       "Paste an image link or choose a menu photo. The first image appears to cashiers and customers.",
@@ -637,7 +697,7 @@ export function CatalogScreen({
                       </option>
                     ))}
                   </SearchableSelect>
-                  <span className="mt-1 block text-xs font-normal text-[#000000]">
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">
                     {tr(
                       "مثال: البرجر إلى الشواية، والعصير إلى المشروبات. إن لم تحدد مكانًا يظهر المنتج في قائمة المطبخ العامة.",
                       "For example: burgers go to the grill, juice to drinks. Leave blank for the general kitchen queue.",
@@ -753,7 +813,7 @@ export function CatalogScreen({
             </label>
             <Button
               disabled={saving}
-              className={`${button} w-full bg-[#0e5a4f] text-white sm:w-auto`}
+              className={`${button} w-full bg-primary text-primary-foreground sm:w-auto`}
             >
               {saving ? tr("جارٍ الحفظ…", "Saving…") : tr("حفظ", "Save")}
             </Button>
@@ -818,7 +878,17 @@ export function CatalogScreen({
           closeLabel={tr("إغلاق", "Close")}
           onClose={() => setGroupsFor(null)}
         >
-          <p className="mb-4 rounded-xl bg-[#f4f7f4] p-3 text-sm text-[#59655f]">{groupsFor.type === "Combo" ? tr("اختر مجموعات الوجبة القابلة لإعادة الاستخدام، مثل المشروبات والبطاطس. تظهر للعميل كوجبة واحدة مرتبة.", "Choose reusable meal groups such as drinks and sides. Customers see one organized meal.") : tr("اختر مجموعات الإضافات التي تنطبق على هذا الصنف.", "Choose the modifier groups that apply to this product.")}</p>
+          <p className="mb-4 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
+            {groupsFor.type === "Combo"
+              ? tr(
+                  "اختر مجموعات الوجبة القابلة لإعادة الاستخدام، مثل المشروبات والبطاطس. تظهر للعميل كوجبة واحدة مرتبة.",
+                  "Choose reusable meal groups such as drinks and sides. Customers see one organized meal.",
+                )
+              : tr(
+                  "اختر مجموعات الإضافات التي تنطبق على هذا الصنف.",
+                  "Choose the modifier groups that apply to this product.",
+                )}
+          </p>
           {groups.map((g) => (
             <label key={g.id} className="flex min-h-11 items-center gap-2">
               <Input
@@ -840,7 +910,9 @@ export function CatalogScreen({
             disabled={saving}
             onClick={() => void saveGroups()}
           >
-            {groupsFor.type === "Combo" ? tr("حفظ تكوين الوجبة", "Save meal") : tr("حفظ الإضافات", "Save modifiers")}
+            {groupsFor.type === "Combo"
+              ? tr("حفظ تكوين الوجبة", "Save meal")
+              : tr("حفظ الإضافات", "Save modifiers")}
           </Button>
         </FormDialog>
       )}

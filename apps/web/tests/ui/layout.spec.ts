@@ -24,6 +24,7 @@ async function setup(page: Page, language: string, theme: string) {
     else if (p.endsWith('/users')) data = Array.from({length:12},(_,i)=>({id:`u${i}`,username:`suwaiq${i}`,displayName:i===0?'مدير مطعم السويق Restaurant Manager':`User ${i}`, email:'manager.long.email@example.com',roles:['Restaurant manager'],branchIds:['b1'],isActive:true}));
     else if (p.endsWith('/orders/history')) data = {total:0,items:[]};
     else if (p.endsWith('/payment-methods')) data = [{id:'cash',code:'CASH',nameAr:'نقد',nameEn:'Cash',kind:'Cash'},{id:'card',code:'CARD',nameAr:'بطاقة',nameEn:'Card',kind:'Card'},{id:'external',code:'EXTERNAL',nameAr:'دفع خارجي',nameEn:'External payment',kind:'External'}];
+    else if (p.endsWith('/orders') && route.request().method()==='GET') data = Array.from({length:8},(_,i)=>({id:`order-${i+1}`,status:i%3===0?'Paid':'Pending',grossAmount:2.5+i,note:i===2?'Pickup customer Ahmed':'',createdAt:new Date(Date.now()-i*60000).toISOString(),table:i%2===0?{code:`T${i+1}`,nameAr:`طاولة ${i+1}`,nameEn:`Table ${i+1}`}:null}));
     else if (p.endsWith('/orders') && route.request().method()==='POST') data = {id:'o1',grossAmount:2.5};
     else if (p.endsWith('/orders/o1/status')) data = {id:'o1',grossAmount:2.5};
     else if (p.endsWith('/orders/o1/payments')) data = {payments:[]};
@@ -60,6 +61,39 @@ test('electronic company order skips payment and dispatches once', async ({page}
 async function noOverflow(page: Page) {
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
 }
+
+test('system theme follows the operating-system preference without reloading', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await setup(page, 'en', 'system');
+  await page.goto('/#/users');
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme-mode', 'system');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+for (const width of [375, 768, 1366, 1920]) for (const theme of ['light', 'dark']) {
+  test(`current orders responsive ${width} ${theme}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 700 });
+    await setup(page, 'en', theme);
+    await page.goto('/#/pos');
+    await page.getByRole('button', { name: /Current orders/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Current orders' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('searchbox')).toBeVisible();
+    await page.screenshot({ path: info.outputPath('current-orders-full.png') });
+    await dialog.getByRole('searchbox').fill('Ahmed');
+    await expect(dialog.getByText('Pickup customer Ahmed').filter({ visible: true })).toBeVisible();
+    await expect(dialog.getByText('order-1', { exact: false })).toHaveCount(0);
+    await expect(dialog.locator('div.sticky').first()).toHaveCSS('position', 'sticky');
+    await noOverflow(page);
+    await page.screenshot({ path: info.outputPath('current-orders.png') });
+  });
+}
+
 for (const width of [375,768,1366,1920]) for (const language of ['ar','en']) for (const theme of ['light','dark']) {
   test(`users ${width} ${language} ${theme}`, async ({page}, info) => {
     await page.setViewportSize({width,height:900}); await setup(page,language,theme);

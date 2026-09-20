@@ -69,7 +69,11 @@ export function lastSyncedAt(): string | null {
   return store.get<string>(LastSyncedAt);
 }
 
-export function enqueue(operation: Omit<OutboxOperation, "idempotencyKey"> & { idempotencyKey?: string }): OutboxOperation {
+export function enqueue(
+  operation: Omit<OutboxOperation, "idempotencyKey"> & {
+    idempotencyKey?: string;
+  },
+): OutboxOperation {
   const full: OutboxOperation = {
     ...operation,
     idempotencyKey: operation.idempotencyKey ?? createId(),
@@ -90,7 +94,10 @@ export function pendingCount(): number {
 }
 
 export function remove(key: string): void {
-  store.set(Outbox, pending().filter((item) => item.idempotencyKey !== key));
+  store.set(
+    Outbox,
+    pending().filter((item) => item.idempotencyKey !== key),
+  );
 }
 
 export function clearPending(): void {
@@ -106,7 +113,10 @@ export function conflictCount(): number {
 }
 
 export function storeConflicts(items: SyncConflict[]): void {
-  const merged = conflicts().filter((existing) => !items.some((item) => item.idempotencyKey === existing.idempotencyKey));
+  const merged = conflicts().filter(
+    (existing) =>
+      !items.some((item) => item.idempotencyKey === existing.idempotencyKey),
+  );
   store.set(Conflicts, [...merged, ...items]);
 }
 
@@ -115,7 +125,10 @@ export function storeConflicts(items: SyncConflict[]): void {
 // still queued and will be resent on the next flush; an already-*applied*-but-flagged operation
 // (stale-pricing/negative-stock) has nothing left in the outbox to touch either way.
 export function dismissConflicts(keys: string[]): void {
-  store.set(Conflicts, conflicts().filter((item) => !keys.includes(item.idempotencyKey)));
+  store.set(
+    Conflicts,
+    conflicts().filter((item) => !keys.includes(item.idempotencyKey)),
+  );
 }
 
 // Abandons an operation entirely: clears the banner AND removes it from the outbox so it stops being
@@ -123,7 +136,10 @@ export function dismissConflicts(keys: string[]): void {
 // that can't resolve itself) — dismissConflicts alone would leave it silently retrying forever.
 export function cancelPending(keys: string[]): void {
   dismissConflicts(keys);
-  store.set(Outbox, pending().filter((item) => !keys.includes(item.idempotencyKey)));
+  store.set(
+    Outbox,
+    pending().filter((item) => !keys.includes(item.idempotencyKey)),
+  );
 }
 
 // The original payload was never lost (see dismissConflicts) — retrying just needs to clear the
@@ -137,7 +153,13 @@ export function retryConflict(key: string): void {
 
 export function flush(token: string): Promise<SyncBatchResponse> {
   const queue = pending();
-  if (queue.length === 0) return Promise.resolve({ serverVersion: lastSyncVersion(), currentCatalogVersion: 0, pendingConflicts: conflictCount(), results: [] });
+  if (queue.length === 0)
+    return Promise.resolve({
+      serverVersion: lastSyncVersion(),
+      currentCatalogVersion: 0,
+      pendingConflicts: conflictCount(),
+      results: [],
+    });
   const batch = {
     branchId: getBranchId(),
     deviceId: getDeviceId(),
@@ -155,7 +177,10 @@ export function flush(token: string): Promise<SyncBatchResponse> {
 
   return fetch("/api/v1/sync", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(batch),
   }).then(async (response) => {
     if (!response.ok) throw new Error("Sync failed");
@@ -165,17 +190,25 @@ export function flush(token: string): Promise<SyncBatchResponse> {
   });
 }
 
-export function applyResults(queue: OutboxOperation[], data: SyncBatchResponse): void {
+export function applyResults(
+  queue: OutboxOperation[],
+  data: SyncBatchResponse,
+): void {
   const settled: string[] = [];
   const pendingFlagged = conflicts();
   for (const result of data.results) {
     if (result.status === "applied") {
       settled.push(result.idempotencyKey);
-      if (result.flags.includes("stale-pricing") || result.flags.includes("negative-stock")) {
+      if (
+        result.flags.includes("stale-pricing") ||
+        result.flags.includes("negative-stock")
+      ) {
         pendingFlagged.push({
           idempotencyKey: result.idempotencyKey,
           operationType: result.operationType ?? "unknown",
-          conflictReason: result.flags.includes("stale-pricing") ? "stale-pricing" : "negative-stock",
+          conflictReason: result.flags.includes("stale-pricing")
+            ? "stale-pricing"
+            : "negative-stock",
           error: result.error,
           result: result.result,
           occurredAt: new Date().toISOString(),
@@ -202,7 +235,9 @@ export function applyResults(queue: OutboxOperation[], data: SyncBatchResponse):
       });
     }
   }
-  const remaining = queue.filter((operation) => !settled.includes(operation.idempotencyKey));
+  const remaining = queue.filter(
+    (operation) => !settled.includes(operation.idempotencyKey),
+  );
   store.set(Outbox, remaining);
   store.set(Conflicts, pendingFlagged);
   store.set(LastVersion, data.serverVersion);

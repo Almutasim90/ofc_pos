@@ -108,7 +108,9 @@ export function PaymentDialog({
   );
 
   const cashMethod = methods.find((m) => m.kind === "Cash");
-  const cardMethod = methods.find((m) => m.kind !== "Cash" && m.kind !== "External");
+  const cardMethod = methods.find(
+    (m) => m.kind !== "Cash" && m.kind !== "External",
+  );
 
   // Cash stays the canonical split value (either field updates it); the edited field keeps the user's
   // raw text so fractions/decimal points can be typed freely, and the other field shows the remainder.
@@ -272,7 +274,7 @@ export function PaymentDialog({
       type="button"
       onClick={() => chooseMethod(m)}
       disabled={!enabled}
-      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40 ${method === m ? "border-[#0e5a4f] bg-[#0e5a4f] text-white" : "border-[#cdd7d0] bg-white text-[#000000] hover:bg-[#f2f5f2]"}`}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold disabled:opacity-40 ${method === m ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}
     >
       {Icon && <Icon size={17} />}
       {label}
@@ -286,8 +288,8 @@ export function PaymentDialog({
     Icon: typeof Banknote,
   ) => (
     <label className="block text-sm font-medium">
-      <span className="flex items-center gap-2 text-[#000000]">
-        <Icon size={17} className="text-[#0e5a4f]" />
+      <span className="flex items-center gap-2 text-muted-foreground">
+        <Icon size={17} className="text-primary" />
         {label}
       </span>
       <Input
@@ -296,7 +298,7 @@ export function PaymentDialog({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="0.000"
-        className="mt-2 min-h-14 w-full rounded-xl border border-[#cdd7d0] bg-white px-4 text-lg font-semibold outline-none focus:border-[#0e5a4f]"
+        className="mt-2 min-h-14 w-full rounded-xl border border-border bg-card px-4 text-lg font-semibold outline-none focus:border-primary"
       />
     </label>
   );
@@ -307,17 +309,17 @@ export function PaymentDialog({
         role="dialog"
         aria-modal="true"
         aria-label={t.title}
-        className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-[#f5f6f2] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl sm:p-6"
+        className="max-h-[100dvh] min-w-0 w-full max-w-md overscroll-contain overflow-x-hidden overflow-y-auto rounded-t-2xl bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:rounded-2xl sm:p-6"
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-[#0e5a4f]">{t.title}</p>
+            <p className="text-sm font-semibold text-primary">{t.title}</p>
             <h2 className="text-2xl font-bold">OMR {total.toFixed(3)}</h2>
           </div>
           <Button
             aria-label={t.close}
             onClick={onClose}
-            className="grid size-11 place-items-center rounded-lg bg-white"
+            className="grid size-11 place-items-center rounded-lg bg-card"
           >
             <X size={19} />
           </Button>
@@ -325,7 +327,7 @@ export function PaymentDialog({
         {!methodsLoaded ? null : methods.length === 0 ? (
           <p
             role="alert"
-            className="mt-6 rounded-xl bg-[#fff5f4] p-4 text-sm text-[#9b2922]"
+            className="mt-6 rounded-xl bg-destructive/10 p-4 text-sm text-destructive"
           >
             {t.none}
           </p>
@@ -346,7 +348,7 @@ export function PaymentDialog({
             {message && (
               <p
                 role={isError ? "alert" : "status"}
-                className={`mt-4 text-sm ${isError ? "text-[#b4322a]" : "text-[#137347]"}`}
+                className={`mt-4 text-sm ${isError ? "text-destructive" : "text-success"}`}
               >
                 {message}
               </p>
@@ -354,7 +356,7 @@ export function PaymentDialog({
             <Button
               disabled={saving || paid}
               onClick={() => void pay()}
-              className="mt-5 flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#0e5a4f] font-semibold text-white disabled:opacity-60"
+              className="mt-5 flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground disabled:opacity-60"
             >
               <CreditCard size={18} />
               {saving ? "..." : t.pay}
