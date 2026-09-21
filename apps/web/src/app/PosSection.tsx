@@ -1780,7 +1780,7 @@ export function PosSection({
                       setPayCard("");
                     }}
                     placeholder={discountType === "Percentage" ? "0" : "0.000"}
-                    className="mt-2 min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                    className="mt-2 min-h-11 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
                   />
                   {discountEstimate > 0 && (
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -1836,7 +1836,7 @@ export function PosSection({
                     value={payCash}
                     onChange={(e) => setPayCashAmount(e.target.value)}
                     placeholder="0.000"
-                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
                   />
                   <Input
                     aria-label={t.card}
@@ -1845,7 +1845,7 @@ export function PosSection({
                     value={payCard}
                     onChange={(e) => setPayCardAmount(e.target.value)}
                     placeholder="0.000"
-                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
                   />
                 </div>
               )}
