@@ -356,36 +356,37 @@ export function CancellationSection({ language }: { language: Language }) {
 
   return (
     <div>
-      <p className="text-sm font-semibold text-primary">{t.title}</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {t.title}
       </h1>
-      <div className="mt-5 max-w-md">
-        <SearchableSelect
-          label={t.branch}
-          value={branchId}
-          onChange={setBranchId}
-        >
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {name(branch)}
-            </option>
-          ))}
-        </SearchableSelect>
-      </div>
-      <div className="mt-5 flex gap-2">
-        <Button
-          onClick={() => setTab("manage")}
-          className={`min-h-10 rounded-lg px-4 text-sm font-semibold ${tab === "manage" ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}
-        >
-          {t.manageTab}
-        </Button>
-        <Button
-          onClick={() => setTab("reports")}
-          className={`min-h-10 rounded-lg px-4 text-sm font-semibold ${tab === "reports" ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}
-        >
-          {t.reportsTab}
-        </Button>
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="w-full max-w-md">
+          <SearchableSelect
+            label={t.branch}
+            value={branchId}
+            onChange={setBranchId}
+          >
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {name(branch)}
+              </option>
+            ))}
+          </SearchableSelect>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => setTab("manage")}
+            className={`min-h-10 rounded-lg px-4 text-sm font-semibold ${tab === "manage" ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}
+          >
+            {t.manageTab}
+          </Button>
+          <Button
+            onClick={() => setTab("reports")}
+            className={`min-h-10 rounded-lg px-4 text-sm font-semibold ${tab === "reports" ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}
+          >
+            {t.reportsTab}
+          </Button>
+        </div>
       </div>
 
       {tab === "reports" && (

@@ -496,8 +496,10 @@ export function KitchenSection({ language }: { language: Language }) {
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-primary">{t.title}</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            {t.title}
+          </h1>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${live ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}
           >
@@ -505,9 +507,6 @@ export function KitchenSection({ language }: { language: Language }) {
             {live ? t.kdsOn : t.kdsOff}
           </span>
         </div>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-          {t.title}
-        </h1>
         <p className="mt-3 max-w-3xl text-muted-foreground">{t.intro}</p>
       </div>
 

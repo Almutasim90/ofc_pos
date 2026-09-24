@@ -435,8 +435,7 @@ export function ReportsSection({ language }: { language: Language }) {
 
   return (
     <div>
-      <p className="text-sm font-semibold text-primary">{t.title}</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {t.title}
       </h1>
       <p className="mt-3 max-w-3xl text-muted-foreground">{t.intro}</p>

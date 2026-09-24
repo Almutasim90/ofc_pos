@@ -2,8 +2,35 @@
 
 @custom-variant dark (&:is([data-theme="dark"] *));
 
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Regular.woff2")
+    format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Medium.woff2") format("woff2");
+  font-weight: 500 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Bold.woff2") format("woff2");
+  font-weight: 700 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+}
+
 @theme {
-  --font-sans: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-sans:
+    "Thmanyah Sans", "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
 }
 
 @theme inline {
@@ -56,6 +83,15 @@
     font: inherit;
   }
 
+  /* Tailwind v4 defaults a bare `border` to currentColor, which painted black
+     outlines on cards and empty states. Borders use the theme token instead. */
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--border);
+  }
+
   img,
   svg {
     shape-rendering: geometricPrecision;
@@ -66,40 +102,44 @@
   }
 }
 
+/* Identity: warm restaurant palette. Orange drives primary actions (pay, send to
+   kitchen), green marks success, yellow marks pending work. Light mode uses an
+   off-white canvas with white cards; dark mode avoids pure black. */
 :root {
   color-scheme: light;
-  --login-accent: #17483f;
-  --login-accent-bright: #23695d;
-  --login-accent-soft: #e7f0ed;
-  --login-bg: #f3f4f1;
+  --login-accent: #d9480f;
+  --login-accent-bright: #f76707;
+  --login-accent-soft: #fff0e6;
+  --login-bg: #f4f5f7;
   --login-surface: #ffffff;
-  --login-text: #18211f;
-  --login-muted: #63706c;
-  --login-border: #d9dfdc;
-  --app-primary: #17483f;
-  --app-primary-hover: #103a33;
-  --app-primary-soft: #e7f0ed;
-  --app-success: #15803d;
-  --app-success-hover: #166534;
-  --app-success-soft: #dcfce7;
-  --app-danger: #dc2626;
-  --app-danger-hover: #b91c1c;
-  --app-danger-soft: #fee2e2;
-  --app-warning: #a16207;
-  --app-warning-soft: #fef3c7;
-  --app-bg: #f4f5f2;
+  --login-text: #1a1a1a;
+  --login-muted: #626a72;
+  --login-border: #ced4da;
+  --app-primary: #d9480f;
+  --app-primary-hover: #b83d0c;
+  --app-primary-soft: #fff0e6;
+  --app-brand-2: #e03131;
+  --app-success: #2b8a3e;
+  --app-success-hover: #237032;
+  --app-success-soft: #e6f6ea;
+  --app-danger: #c92a2a;
+  --app-danger-hover: #a61e1e;
+  --app-danger-soft: #ffe3e3;
+  --app-warning: #b25e00;
+  --app-warning-soft: #fff3bf;
+  --app-bg: #f4f5f7;
   --app-surface: #ffffff;
   --app-surface-raised: #ffffff;
-  --app-text: #18211f;
-  --app-black: #090d12;
-  --app-muted: #66736f;
-  --app-border: #dce1de;
-  --app-hover: #eef1ef;
-  --app-shadow: rgba(25, 42, 37, 0.12);
+  --app-text: #1a1a1a;
+  --app-black: #111111;
+  --app-muted: #626a72;
+  --app-border: #ced4da;
+  --app-hover: #eef0f3;
+  --app-shadow: rgba(20, 20, 30, 0.08);
   --app-radius-sm: 10px;
   --app-radius-md: 14px;
-  --app-radius-lg: 18px;
-  --app-radius-xl: 24px;
+  --app-radius-lg: 16px;
+  --app-radius-xl: 22px;
   --background: var(--app-bg);
   --foreground: var(--app-text);
   --card: var(--app-surface);
@@ -126,91 +166,42 @@
   --radius: 10px;
 }
 
-:root[data-accent="teal"] {
-  --login-accent: #17483f;
-  --login-accent-bright: #23695d;
-  --login-accent-soft: #e7f0ed;
-  --app-primary: #17483f;
-  --app-primary-hover: #103a33;
-  --app-primary-soft: #e7f0ed;
-}
-:root[data-accent="violet"] {
-  --login-accent: #7c3aed;
-  --login-accent-bright: #a78bfa;
-  --login-accent-soft: #ede9fe;
-  --app-primary: #7c3aed;
-  --app-primary-hover: #6d28d9;
-  --app-primary-soft: #ede9fe;
-}
-:root[data-accent="orange"] {
-  --login-accent: #c2410c;
-  --login-accent-bright: #fb923c;
-  --login-accent-soft: #ffedd5;
-  --app-primary: #c2410c;
-  --app-primary-hover: #9a3412;
-  --app-primary-soft: #ffedd5;
-}
-:root[data-accent="tomato"] {
-  --login-accent: #b91c1c;
-  --login-accent-bright: #f87171;
-  --login-accent-soft: #fee2e2;
-  --app-primary: #b91c1c;
-  --app-primary-hover: #991b1b;
-  --app-primary-soft: #fee2e2;
-}
-:root[data-accent="gold"] {
-  --login-accent: #a16207;
-  --login-accent-bright: #fbbf24;
-  --login-accent-soft: #fef3c7;
-  --app-primary: #a16207;
-  --app-primary-hover: #854d0e;
-  --app-primary-soft: #fef3c7;
-}
-:root[data-accent="olive"] {
-  --login-accent: #4d7c0f;
-  --login-accent-bright: #a3e635;
-  --login-accent-soft: #ecfccb;
-  --app-primary: #4d7c0f;
-  --app-primary-hover: #3f6212;
-  --app-primary-soft: #ecfccb;
-}
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --login-bg: #111827;
-  --login-surface: rgba(23, 32, 46, 0.96);
-  --login-text: #e5e7eb;
-  --login-muted: #a8b2c1;
-  --login-border: rgba(255, 255, 255, 0.12);
-  --login-accent: #eab308;
-  --login-accent-bright: #fbbf24;
-  --login-accent-soft: rgba(251, 191, 36, 0.16);
-  --app-bg: #101722;
-  --app-surface: #17202e;
-  --app-surface-raised: #1e2938;
-  --app-text: #e5e9ef;
-  --app-black: #eef1f5;
-  --app-muted: #aab3c0;
-  --app-border: #344154;
-  --app-hover: #222e3e;
-  --app-primary: #d4a72c;
-  --app-primary-hover: #e0b94b;
-  --app-primary-soft: rgba(212, 167, 44, 0.15);
-  --primary-foreground: #1d180b;
-  --app-success: #62c98a;
-  --app-success-hover: #79d69d;
-  --app-success-soft: rgba(34, 197, 94, 0.15);
-  --app-danger: #f28b82;
-  --app-danger-hover: #f5a39c;
-  --app-danger-soft: rgba(239, 68, 68, 0.15);
-  --app-warning: #e8bd5b;
-  --app-warning-soft: rgba(245, 158, 11, 0.15);
-  --app-shadow: rgba(0, 0, 0, 0.68);
-  --destructive-foreground: #2b1111;
-  --success-foreground: #0b2817;
-  --warning-foreground: #2b2108;
+  --login-bg: #141417;
+  --login-surface: #1e1e24;
+  --login-text: #e4e6eb;
+  --login-muted: #a0a0a0;
+  --login-border: #2d2d34;
+  --login-accent: #ff8a3d;
+  --login-accent-bright: #ffa94d;
+  --login-accent-soft: #3a2519;
+  --app-bg: #141417;
+  --app-surface: #1e1e24;
+  --app-surface-raised: #26262e;
+  --app-text: #e4e6eb;
+  --app-black: #f5f5f5;
+  --app-muted: #a0a0a0;
+  --app-border: #2d2d34;
+  --app-hover: #26262d;
+  --app-primary: #ff8a3d;
+  --app-primary-hover: #ffa94d;
+  --app-primary-soft: #3a2519;
+  --app-brand-2: #ff6b6b;
+  --primary-foreground: #1a1a1e;
+  --app-success: #51cf66;
+  --app-success-hover: #69db7c;
+  --app-success-soft: rgba(81, 207, 102, 0.15);
+  --app-danger: #ff6b6b;
+  --app-danger-hover: #ff8787;
+  --app-danger-soft: rgba(255, 107, 107, 0.15);
+  --app-warning: #fcc419;
+  --app-warning-soft: rgba(252, 196, 25, 0.15);
+  --app-shadow: rgba(0, 0, 0, 0.35);
+  --destructive-foreground: #2b0d0d;
+  --success-foreground: #06251a;
+  --warning-foreground: #2b1d05;
 }
-/* Dark mode always carries the gold/yellow brand accent above, regardless of
-   which light-mode accent is selected, so these no longer vary --app-primary-soft. */
 
 .login-shell {
   position: relative;
@@ -501,7 +492,7 @@
   border-radius: 12px;
   padding: 11px 13px;
   background: rgba(239, 68, 68, 0.08);
-  color: #dc2626;
+  color: var(--app-danger);
   font-size: 13px;
 }
 .login-submit {
@@ -2008,7 +1999,7 @@
     [data-slot="select-content"]
   )
   button[class~="bg-[#137347]"] {
-  color: #052e16 !important;
+  color: var(--success-foreground) !important;
 }
 :root[data-theme="dark"]
   :where(
@@ -2030,7 +2021,7 @@
     [data-slot="select-content"]
   )
   button[class~="bg-[#08483f]"] {
-  color: #201705 !important;
+  color: var(--primary-foreground) !important;
 }
 :where(
     .app-shell,
@@ -2078,7 +2069,7 @@
     [data-slot="select-content"]
   )
   button[class~="bg-[#8a6d1f]"] {
-  color: #201705 !important;
+  color: var(--warning-foreground) !important;
 }
 
 :where(
@@ -2365,7 +2356,13 @@
   backdrop-filter: none;
 }
 .login-showcase {
-  background: #123f37;
+  background:
+    radial-gradient(
+      circle at 85% 12%,
+      color-mix(in srgb, var(--app-brand-2) 55%, transparent),
+      transparent 55%
+    ),
+    linear-gradient(150deg, #e8590c, #b02a0a 70%, #6e1a06);
 }
 .login-showcase::after {
   width: 220px;
@@ -2578,8 +2575,8 @@
     position: sticky;
     z-index: 35;
     inset-block-start: 64px;
-    margin: -24px -24px 0;
-    padding: 20px 24px 14px;
+    margin: 0 -24px;
+    padding: 4px 24px 16px;
     border-block-end: 1px solid
       color-mix(in srgb, var(--app-border) 75%, transparent);
     background: var(--app-bg);
@@ -2789,4 +2786,240 @@
 
 [dir="rtl"] .drawer-in {
   animation: ofc-drawer-in-rtl 0.22s ease-out;
+}
+
+/* Shared application identity: header, navigation, dialogs and register use these tokens. */
+:root {
+  --app-checkout: #d9480f;
+  --app-checkout-hover: #b83d0c;
+  --app-checkout-text: #ffffff;
+  --app-header-h: 64px;
+  --app-gutter: 24px;
+}
+:root[data-theme="dark"] {
+  --app-checkout: #ff8a3d;
+  --app-checkout-hover: #ffa94d;
+  --app-checkout-text: #1a1a1e;
+}
+
+/* Header: clean surface with a thin brand ribbon on its top edge. */
+:root .app-shell > .app-header {
+  position: sticky;
+  z-index: 80;
+  inset-block-start: 0;
+  gap: 12px;
+  padding-inline: 16px;
+  background: var(--app-surface) !important;
+  background-image: linear-gradient(
+    90deg,
+    var(--app-primary),
+    var(--app-brand-2)
+  ) !important;
+  background-size: 100% 3px !important;
+  background-repeat: no-repeat !important;
+  border-color: var(--app-border) !important;
+  box-shadow:
+    0 1px 0 var(--app-border),
+    0 6px 18px -12px var(--app-shadow);
+  backdrop-filter: none;
+}
+.app-shell .app-header-actions {
+  gap: 6px;
+}
+.app-shell .app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--app-radius-sm);
+}
+.app-shell .app-brand > span:first-child {
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  height: 40px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--app-primary), var(--app-brand-2));
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  box-shadow: 0 6px 16px -6px
+    color-mix(in srgb, var(--app-primary) 70%, transparent);
+}
+.app-shell .app-brand-label {
+  font-size: 15px;
+  color: var(--app-text);
+  font-weight: 700;
+}
+.app-shell .app-header-actions > button,
+.app-shell .theme-fab {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+.app-shell .app-header-actions > button:hover,
+.app-shell .theme-fab:hover {
+  transform: none;
+  border-color: color-mix(in srgb, var(--app-primary) 45%, var(--app-border));
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
+/* Sidebar: grouped links with a clear active state. */
+.app-sidebar {
+  padding: 12px 10px 24px;
+}
+.app-sidebar-toggle {
+  display: grid;
+  margin-block-end: 8px;
+  color: var(--app-muted);
+}
+.app-nav-group + .app-nav-group {
+  margin-block-start: 14px;
+  padding-block-start: 10px;
+  border-block-start: 1px solid var(--app-border);
+}
+.app-nav-group-label {
+  padding: 4px 12px 6px;
+  color: var(--app-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.app-shell .app-nav-item {
+  position: relative;
+  margin-block: 2px;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  font-weight: 500;
+}
+.app-shell .app-nav-item:hover {
+  background: var(--app-hover);
+  color: var(--app-text);
+}
+.app-shell .app-nav-item[aria-current="page"] {
+  box-shadow: none !important;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+  font-weight: 700;
+}
+.app-shell .app-nav-item[aria-current="page"]::before {
+  position: absolute;
+  inset-block: 10px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--app-primary);
+  content: "";
+}
+[dir="rtl"] .app-shell .app-nav-item[aria-current="page"]::before {
+  border-radius: 3px 0 0 3px;
+}
+
+/* Breadcrumb */
+.app-breadcrumb {
+  margin-block-end: 20px;
+}
+.app-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 13.5px;
+  color: var(--app-muted);
+}
+.app-breadcrumb li {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.app-shell .app-breadcrumb-link {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: -8px;
+  border-radius: 8px;
+  padding-inline: 8px;
+  color: var(--app-primary);
+  font-weight: 600;
+}
+.app-shell .app-breadcrumb-link:hover {
+  background: var(--app-primary-soft);
+}
+.app-breadcrumb-sep {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.app-breadcrumb-current {
+  overflow: hidden;
+  color: var(--app-text);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Surfaces: white cards lift off the tinted canvas in light mode. */
+.app-shell main :is(.rounded-xl, .rounded-2xl).border.bg-card {
+  box-shadow: 0 1px 2px var(--app-shadow);
+}
+
+@media (max-width: 639px) {
+  .app-shell .app-brand-label {
+    display: none;
+  }
+  .app-shell .app-header-brand {
+    gap: 6px;
+  }
+  .app-shell .app-brand {
+    min-width: 0;
+  }
+  :root .app-shell > .app-header {
+    gap: 6px;
+    padding-inline: 10px;
+  }
+  .app-shell .app-header-actions {
+    gap: 4px;
+  }
+  .app-breadcrumb {
+    margin-block-end: 14px;
+  }
+}
+
+/* Search boxes are a bordered <label> wrapping an input: only the wrapper draws
+   the frame, so the field no longer shows a box inside a box. */
+.app-shell label.border > input[data-slot="input"],
+.app-shell label.border > input[data-slot="input"]:focus-visible {
+  border-color: transparent !important;
+  background: transparent;
+  box-shadow: none !important;
+  padding-inline: 0;
+}
+
+/* A disabled checkout stays legible instead of fading to a pale green. */
+.pos-register .pos-checkout:disabled {
+  border-color: var(--app-border);
+  background: var(--app-hover);
+  color: var(--app-muted);
+  filter: none;
+  opacity: 1;
+}
+
+/* Compact page header: breadcrumb, title and first controls fit above the fold. */
+.app-shell > .grid > main:not(.pos-main) {
+  padding-block-start: 16px;
+}
+.app-shell main h1 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+.app-breadcrumb {
+  margin-block-end: 12px;
+}
+@media (min-width: 1024px) {
+  .admin-page-heading {
+    padding-block: 0 12px;
+  }
 }

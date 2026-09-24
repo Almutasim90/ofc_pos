@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Banknote,
   CreditCard,
@@ -10,17 +10,22 @@ import {
   Store,
   UtensilsCrossed,
   WifiOff,
+  ScanBarcode,
+  ReceiptText,
+  X,
 } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
 import { normalizeMoneyInput, type PaymentMethod } from "@/lib/payment";
 import { paymentMethodName } from "@/lib/payment-method";
 import { enqueue, setBranchId as persistBranch } from "@/lib/sync-outbox";
-import { exitKiosk } from "@/lib/fullscreen-kiosk";
 import {
   useQrOrdersLive,
   type QrOrderReceivedEvent,
   type QrOrderReviewedEvent,
 } from "@/lib/orders-realtime";
+import { useBarcodeScanner } from "@/lib/use-barcode-scanner";
+import { VirtualTicketList } from "@/app/VirtualTicketList";
+import "@/app/pos-register.css";
 import { ProductPhoto } from "@/app/CatalogScreen";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
@@ -196,6 +201,8 @@ const words = {
     subtotal: "المجموع الفرعي",
     discountTooHigh: "لا يمكن أن يتجاوز الخصم الحد الأقصى المسموح.",
     discountFailed: "تعذر تطبيق الخصم على هذا الطلب.",
+    channelLocked:
+      "أفرغ السلة أولاً لتغيير قناة البيع أو شركة الطلب الإلكتروني — كل قناة لها قائمة أسعار مختلفة.",
   },
   en: {
     title: "Point of sale",
@@ -269,6 +276,8 @@ const words = {
     subtotal: "Subtotal",
     discountTooHigh: "The discount cannot exceed the maximum allowed.",
     discountFailed: "Unable to apply the discount to this order.",
+    channelLocked:
+      "Empty the cart first to change the sales channel or electronic order company — each channel has its own price list.",
   },
 } as const;
 type HeldOrder = {
@@ -335,12 +344,10 @@ function channelLogo(code: string) {
 export function PosSection({
   language,
   kiosk,
-  onKioskChange,
   permissions,
 }: {
   language: Language;
   kiosk: boolean;
-  onKioskChange: (value: boolean) => void;
   permissions: string[] | null;
 }) {
   const t = words[language];
@@ -404,6 +411,30 @@ export function PosSection({
   } | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const salesGridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const grid = salesGridRef.current;
+    if (!grid) return;
+    // Account for the actual toolbar height, wrapping and display scaling so checkout
+    // stays inside the viewport instead of relying on a fixed header-height estimate.
+    const resize = () => {
+      const rect = grid.getBoundingClientRect();
+      const scale = grid.offsetWidth ? rect.width / grid.offsetWidth : 1;
+      const height = Math.max(240, (window.innerHeight - rect.top) / scale);
+      grid.style.setProperty("--pos-height", `${height}px`);
+    };
+    const observer = new ResizeObserver(resize);
+    if (grid.parentElement) observer.observe(grid.parentElement);
+    const header = document.querySelector("header");
+    if (header) observer.observe(header);
+    window.addEventListener("resize", resize);
+    resize();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", resize);
+    };
+  }, [kiosk]);
   const requestRef = useRef({ snapshot: "", id: "" });
   const [qrToasts, setQrToasts] = useState<QrToast[]>([]);
   const qrToastId = useRef(0);
@@ -436,37 +467,6 @@ export function PosSection({
       removeEventListener("offline", update);
     };
   }, []);
-  // When kiosk is left (toggle, navigation, or the browser exiting fullscreen), clean up fullscreen,
-  // cursor and the blocked shortcuts.
-  useEffect(() => {
-    if (kiosk) return;
-    exitKiosk();
-  }, [kiosk]);
-  useEffect(() => {
-    if (!kiosk) return;
-    const onFsChange = () => {
-      if (
-        !document.fullscreenElement &&
-        !(document as unknown as { webkitFullscreenElement?: Element | null })
-          .webkitFullscreenElement
-      ) {
-        exitKiosk();
-        onKioskChange(false);
-      }
-    };
-    document.addEventListener("fullscreenchange", onFsChange);
-    document.addEventListener(
-      "webkitfullscreenchange",
-      onFsChange as EventListener,
-    );
-    return () => {
-      document.removeEventListener("fullscreenchange", onFsChange);
-      document.removeEventListener(
-        "webkitfullscreenchange",
-        onFsChange as EventListener,
-      );
-    };
-  }, [kiosk, onKioskChange]);
   useEffect(() => {
     void (async () => {
       try {
@@ -761,14 +761,14 @@ export function PosSection({
               <Button
                 disabled={qrReviewing === o.approval!.id}
                 onClick={() => void reviewQr(o.approval!.id, "approve")}
-                className="min-h-9 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                className="min-h-12 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
               >
                 {t.qrApprove}
               </Button>
               <Button
                 disabled={qrReviewing === o.approval!.id}
                 onClick={() => void reviewQr(o.approval!.id, "reject")}
-                className="min-h-9 rounded-lg border border-destructive px-3 text-xs font-semibold text-destructive disabled:opacity-60"
+                className="min-h-12 rounded-lg border border-destructive px-3 text-xs font-semibold text-destructive disabled:opacity-60"
               >
                 {t.qrReject}
               </Button>
@@ -825,18 +825,30 @@ export function PosSection({
       setBusy(false);
     }
   }
-  const categories = Array.from(
-    new Map(
-      products.map((p) => [
-        p.categoryId,
-        {
-          id: p.categoryId,
-          nameAr: p.categoryNameAr,
-          nameEn: p.categoryNameEn,
-        },
-      ]),
-    ).values(),
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          products.map((p) => [
+            p.categoryId,
+            {
+              id: p.categoryId,
+              nameAr: p.categoryNameAr,
+              nameEn: p.categoryNameEn,
+            },
+          ]),
+        ).values(),
+      ),
+    [products],
   );
+  const productIndex = useMemo(() => {
+    const index = new Map<string, Product>();
+    for (const product of products) {
+      index.set(product.sku, product);
+      if (product.barcode) index.set(product.barcode, product);
+    }
+    return index;
+  }, [products]);
   const activeChannel = context?.channels.find(
     (channel) => channel.id === channelId,
   );
@@ -861,32 +873,35 @@ export function PosSection({
       ? method.kind === "External"
       : method.kind !== "External",
   );
-  const visible = products.filter(
-    (p) =>
-      (!category || p.categoryId === category) &&
-      `${p.nameAr} ${p.nameEn} ${p.sku} ${p.barcode ?? ""}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return products.filter(
+      (p) =>
+        (!category || p.categoryId === category) &&
+        [p.nameAr, p.nameEn, p.sku, p.barcode ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+    );
+  }, [products, category, search]);
+  const amounts = useMemo(
+    () =>
+      cart.reduce(
+        (sum, line) => {
+          const price = resolveOfflinePricing(
+            line.product.pricing,
+            lineAdjustment(line),
+          );
+          sum.gross += price.gross * line.quantity;
+          sum.net += price.net * line.quantity;
+          sum.quantity += line.quantity;
+          return sum;
+        },
+        { gross: 0, net: 0, quantity: 0 },
+      ),
+    [cart],
   );
-  function lineAdjustment(line: CartLine) {
-    return Object.entries(line.selections)
-      .flatMap(([group, ids]) =>
-        ids.map(
-          (id) =>
-            line.product.selectionGroups
-              .find((x) => x.id === group)
-              ?.options.find((x) => x.id === id)?.priceAdjustment ?? 0,
-        ),
-      )
-      .reduce((a, b) => a + b, 0);
-  }
-  const total = cart.reduce(
-    (sum, line) =>
-      sum +
-      resolveOfflinePricing(line.product.pricing, lineAdjustment(line)).gross *
-        line.quantity,
-    0,
-  );
+  const total = roundMoney(amounts.gross);
   const payCashMethod = offlineMethods.find((m) => m.kind === "Cash");
   const payCardMethod = offlineMethods.find(
     (m) => m.kind !== "Cash" && m.kind !== "External",
@@ -912,6 +927,11 @@ export function PosSection({
     discountRawValue > 0 &&
     discountRequestedAmount > discountMaxAmount;
   const payableTotal = roundMoney(Math.max(0, total - discountEstimate));
+  // Mirrors OrderingEngine's proportional invoice discount; server remains authoritative.
+  const netTotal = roundMoney(
+    roundMoney(amounts.net) * (total ? payableTotal / total : 0),
+  );
+  const taxTotal = roundMoney(payableTotal - netTotal);
   // Falls back to whichever tender the branch actually has configured, so a branch with only one of
   // cash/card (payMethod still defaulting to "Cash") doesn't silently build a payment for a tender
   // that isn't available there.
@@ -957,7 +977,9 @@ export function PosSection({
       return;
     }
     setPayCard(
-      normalized === "" ? payableTotal.toFixed(3) : (payableTotal - value).toFixed(3),
+      normalized === ""
+        ? payableTotal.toFixed(3)
+        : (payableTotal - value).toFixed(3),
     );
   }
   function setPayCardAmount(raw: string) {
@@ -972,7 +994,9 @@ export function PosSection({
       return;
     }
     setPayCash(
-      normalized === "" ? payableTotal.toFixed(3) : (payableTotal - value).toFixed(3),
+      normalized === ""
+        ? payableTotal.toFixed(3)
+        : (payableTotal - value).toFixed(3),
     );
   }
   function applyDiscount() {
@@ -987,12 +1011,16 @@ export function PosSection({
     setPayCard("");
     setPayMessage("");
   }
-  function add(product: Product) {
+  const add = useCallback((product: Product) => {
     if (!product.selectionGroups.length) {
-      setCart([
-        ...cart,
-        { key: createId(), product, quantity: 1, note: "", selections: {} },
-      ]);
+      const line = {
+        key: createId(),
+        product,
+        quantity: 1,
+        note: "",
+        selections: {},
+      };
+      setCart((current) => [...current, line]);
       return;
     }
     setCustomizing(product);
@@ -1008,7 +1036,37 @@ export function PosSection({
         ]),
       ),
     );
-  }
+  }, []);
+  useBarcodeScanner(
+    (code) => {
+      const product = productIndex.get(code);
+      if (!product) return false;
+      add(product);
+      return true;
+    },
+    !busy &&
+      !catalogLoading &&
+      !customizing &&
+      !heldOpen &&
+      !payment &&
+      !offlinePay,
+  );
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if (
+        event.key !== "F2" ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        document.querySelector('[role="dialog"]')
+      )
+        return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
   function confirm() {
     if (!customizing) return;
     if (
@@ -1018,8 +1076,8 @@ export function PosSection({
       })
     )
       return;
-    setCart([
-      ...cart,
+    setCart((current) => [
+      ...current,
       {
         key: createId(),
         product: customizing,
@@ -1030,9 +1088,9 @@ export function PosSection({
     ]);
     setCustomizing(null);
   }
-  function quantity(key: string, delta: number) {
-    setCart(
-      cart.flatMap((line) =>
+  const quantity = useCallback((key: string, delta: number) => {
+    setCart((current) =>
+      current.flatMap((line) =>
         line.key !== key
           ? [line]
           : line.quantity + delta < 1
@@ -1040,10 +1098,15 @@ export function PosSection({
             : [{ ...line, quantity: line.quantity + delta }],
       ),
     );
-  }
+  }, []);
+  const updateNote = useCallback((key: string, note: string) => {
+    setCart((current) =>
+      current.map((line) => (line.key === key ? { ...line, note } : line)),
+    );
+  }, []);
   // Every order the cashier places is sent to the kitchen immediately — the cashier is trusted
   // staff, so there is no separate manual "send to kitchen" confirmation step for a normal order.
-  // "Draft" (Hold) still skips opening the payment dialog; "Pending" (Pay) opens it right away.
+  // Hold saves a draft; Pay captures the selected inline tender before kitchen dispatch.
   async function submit(status: "Draft" | "Pending") {
     if (!cart.length || !branchId || !channelId || busy) return;
     if (!online) {
@@ -1115,9 +1178,7 @@ export function PosSection({
       if (handleAuthFailure(response)) return;
       if (!response.ok) {
         const problem = await response.json().catch(() => null);
-        throw new Error(
-          problem?.errors?.discount?.[0] ?? t.unavailable,
-        );
+        throw new Error(problem?.errors?.discount?.[0] ?? t.unavailable);
       }
       const order = (await response.json()) as {
         id: string;
@@ -1394,24 +1455,28 @@ export function PosSection({
           <>
             <div className="sticky top-0 z-20 border-b border-border bg-card/95 px-3 py-3 backdrop-blur sm:px-5 sm:py-4">
               <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold">
-                {t.heldOrders}
-                {heldOrders.length > 0 && (
-                  <span className="ms-2 font-normal text-muted-foreground">
-                    ({heldOrders.length})
-                  </span>
-                )}
-              </h2>
-              <Button
-                onClick={closeHeldOrders}
-                aria-label={language === "ar" ? "إغلاق" : "Close"}
-                className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted"
-              >
-                ×
-              </Button>
+                <h2 className="text-lg font-bold">
+                  {t.heldOrders}
+                  {heldOrders.length > 0 && (
+                    <span className="ms-2 font-normal text-muted-foreground">
+                      ({heldOrders.length})
+                    </span>
+                  )}
+                </h2>
+                <Button
+                  onClick={closeHeldOrders}
+                  aria-label={language === "ar" ? "إغلاق" : "Close"}
+                  className="grid size-11 shrink-0 place-items-center rounded-xl bg-muted"
+                >
+                  ×
+                </Button>
               </div>
-              <label className="mt-3 flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
-                <Search size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+              <label className="mt-3 flex min-h-12 items-center gap-2 rounded-xl border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+                <Search
+                  size={18}
+                  className="shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <Input
                   type="search"
                   aria-label={t.heldSearch}
@@ -1445,7 +1510,7 @@ export function PosSection({
                             <Button
                               type="button"
                               onClick={() => void openOrderDetail(order.id)}
-                              className="min-h-11 max-w-full justify-start truncate px-0 text-base font-bold text-primary hover:underline"
+                              className="min-h-12 max-w-full justify-start truncate px-0 text-base font-bold text-primary hover:underline"
                             >
                               {orderRef(order.id)}
                             </Button>
@@ -1473,7 +1538,7 @@ export function PosSection({
                             <Button
                               disabled={busy}
                               onClick={() => void resumeHeld(order, true)}
-                              className="min-h-11 rounded-xl border border-border px-3 text-xs font-semibold"
+                              className="min-h-12 rounded-xl border border-border px-3 text-xs font-semibold"
                             >
                               {language === "ar" ? "مطبخ" : "Kitchen"}
                             </Button>
@@ -1481,7 +1546,7 @@ export function PosSection({
                               <Button
                                 disabled={busy}
                                 onClick={() => void resumeHeld(order)}
-                                className="min-h-11 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground"
+                                className="min-h-12 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground"
                               >
                                 {t.send}
                               </Button>
@@ -1492,92 +1557,92 @@ export function PosSection({
                     ))}
                   </div>
                   <Table className="hidden w-full min-w-[760px] text-sm lg:table">
-                  <TableHeader className="sticky top-0 bg-muted">
-                    <TableRow>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                        {t.orderRef}
-                      </TableHead>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                        {t.table}
-                      </TableHead>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                        {language === "ar" ? "الحالة" : "Status"}
-                      </TableHead>
-                      <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                        {language === "ar" ? "الوقت" : "Time"}
-                      </TableHead>
-                      <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground">
-                        {t.total}
-                      </TableHead>
-                      <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-border">
-                    {matchingHeldOrders.map((order) => (
-                      <TableRow key={order.id} className="hover:bg-muted">
-                        <TableCell className="px-4 py-3">
-                          <Button
-                            type="button"
-                            onClick={() => void openOrderDetail(order.id)}
-                            className="font-semibold text-primary hover:underline"
-                          >
-                            {orderRef(order.id)}
-                          </Button>
-                          {order.note && (
-                            <p
-                              className="mt-0.5 max-w-[16ch] truncate text-xs text-muted-foreground"
-                              title={order.note}
-                            >
-                              {order.note}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-muted-foreground">
-                          {order.table ? order.table.code : "—"}
-                        </TableCell>
-                        <TableCell className="px-4 py-3">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
-                          >
-                            {statusLabels[order.status] ?? order.status}
-                          </span>
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-muted-foreground">
-                          {new Date(order.createdAt).toLocaleTimeString(
-                            language,
-                          )}
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-end font-medium">
-                          OMR {order.grossAmount.toFixed(3)}
-                        </TableCell>
-                        <TableCell className="px-4 py-3 text-end">
-                          <div className="flex justify-end gap-1.5">
+                    <TableHeader className="sticky top-0 bg-muted">
+                      <TableRow>
+                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
+                          {t.orderRef}
+                        </TableHead>
+                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
+                          {t.table}
+                        </TableHead>
+                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
+                          {language === "ar" ? "الحالة" : "Status"}
+                        </TableHead>
+                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
+                          {language === "ar" ? "الوقت" : "Time"}
+                        </TableHead>
+                        <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground">
+                          {t.total}
+                        </TableHead>
+                        <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-border">
+                      {matchingHeldOrders.map((order) => (
+                        <TableRow key={order.id} className="hover:bg-muted">
+                          <TableCell className="px-4 py-3">
                             <Button
-                              disabled={busy}
-                              onClick={() => void resumeHeld(order, true)}
-                              title={
-                                language === "ar"
-                                  ? "إرسال للمطبخ"
-                                  : "Send to kitchen"
-                              }
-                              className="min-h-9 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
+                              type="button"
+                              onClick={() => void openOrderDetail(order.id)}
+                              className="font-semibold text-primary hover:underline"
                             >
-                              {language === "ar" ? "مطبخ" : "Kitchen"}
+                              {orderRef(order.id)}
                             </Button>
-                            {order.status !== "Paid" && (
+                            {order.note && (
+                              <p
+                                className="mt-0.5 max-w-[16ch] truncate text-xs text-muted-foreground"
+                                title={order.note}
+                              >
+                                {order.note}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-muted-foreground">
+                            {order.table ? order.table.code : "—"}
+                          </TableCell>
+                          <TableCell className="px-4 py-3">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                            >
+                              {statusLabels[order.status] ?? order.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-muted-foreground">
+                            {new Date(order.createdAt).toLocaleTimeString(
+                              language,
+                            )}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-end font-medium">
+                            OMR {order.grossAmount.toFixed(3)}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 text-end">
+                            <div className="flex justify-end gap-1.5">
                               <Button
                                 disabled={busy}
-                                onClick={() => void resumeHeld(order)}
-                                className="min-h-9 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground"
+                                onClick={() => void resumeHeld(order, true)}
+                                title={
+                                  language === "ar"
+                                    ? "إرسال للمطبخ"
+                                    : "Send to kitchen"
+                                }
+                                className="min-h-12 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
                               >
-                                {t.send}
+                                {language === "ar" ? "مطبخ" : "Kitchen"}
                               </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
+                              {order.status !== "Paid" && (
+                                <Button
+                                  disabled={busy}
+                                  onClick={() => void resumeHeld(order)}
+                                  className="min-h-12 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground"
+                                >
+                                  {t.send}
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
                   </Table>
                 </>
               )}
@@ -1629,7 +1694,7 @@ export function PosSection({
                 onChange={(e) =>
                   setOfflinePay({ ...offlinePay, tendered: e.target.value })
                 }
-                className="mt-1 min-h-11 w-full rounded-lg border px-3"
+                className="mt-1 min-h-12 w-full rounded-lg border px-3"
               />
             </label>
           </>
@@ -1637,7 +1702,7 @@ export function PosSection({
         <div className="mt-5 grid grid-cols-2 gap-3">
           <Button
             onClick={() => setOfflinePay(null)}
-            className="min-h-12 rounded-lg border"
+            className="pos-cancel min-h-12 rounded-lg border"
           >
             {t.offlinePayCancel}
           </Button>
@@ -1654,81 +1719,48 @@ export function PosSection({
   );
   const cartPanel = (
     <>
-      <aside className="flex h-full min-h-0 flex-col bg-card">
-        <div className="flex items-center justify-between border-b border-border p-4">
-          <h2 className="font-semibold">
-            {t.cart}{" "}
-            <span className="text-muted-foreground">{cart.length}</span>
+      <aside
+        className="pos-ticket"
+        aria-label={language === "ar" ? "الفاتورة الحالية" : "Current ticket"}
+      >
+        <div className="pos-ticket-heading">
+          <ReceiptText size={20} aria-hidden="true" />
+          <h2>
+            {t.cart} <span className="pos-count">{cart.length}</span>
           </h2>
-          <Button className="lg:hidden" onClick={() => setCartOpen(false)}>
-            ×
+          <span className="pos-ticket-channel">
+            {activeChannel && name(activeChannel)}
+          </span>
+          <Button
+            className="lg:hidden"
+            aria-label={language === "ar" ? "إغلاق السلة" : "Close cart"}
+            onClick={() => setCartOpen(false)}
+          >
+            <X size={20} />
           </Button>
         </div>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-          {cart.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              {t.empty}
-            </p>
-          ) : (
-            cart.map((line) => (
-              <div key={line.key} className="rounded-xl bg-muted p-3">
-                <div className="flex justify-between gap-3">
-                  <strong>{name(line.product)}</strong>
-                  <span>
-                    {(
-                      resolveOfflinePricing(
-                        line.product.pricing,
-                        lineAdjustment(line),
-                      ).gross * line.quantity
-                    ).toFixed(3)}
-                  </span>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      aria-label="Decrease"
-                      onClick={() => quantity(line.key, -1)}
-                      className="grid size-11 place-items-center rounded-lg bg-card"
-                    >
-                      <Minus size={16} />
-                    </Button>
-                    <span className="min-w-5 text-center">{line.quantity}</span>
-                    <Button
-                      aria-label="Increase"
-                      onClick={() => quantity(line.key, 1)}
-                      className="grid size-9 place-items-center rounded-lg bg-card"
-                    >
-                      <Plus size={16} />
-                    </Button>
-                  </div>
-                  <Input
-                    aria-label={t.notes}
-                    value={line.note}
-                    onChange={(e) =>
-                      setCart(
-                        cart.map((x) =>
-                          x.key === line.key
-                            ? { ...x, note: e.target.value }
-                            : x,
-                        ),
-                      )
-                    }
-                    placeholder={t.notes}
-                    className="w-24 border-b border-border bg-transparent text-sm outline-none"
-                  />
-                </div>
-              </div>
-            ))
+        <VirtualTicketList
+          lines={cart}
+          label={t.cart}
+          empty={t.empty}
+          renderLine={(line) => (
+            <TicketLine
+              line={line}
+              language={language}
+              onQuantity={quantity}
+              onNote={updateNote}
+              disabled={busy}
+            />
           )}
-        </div>
-        <div className="border-t border-border p-4">
+        />
+        <div className="pos-ticket-options">
           {canDiscount && online && cart.length > 0 && (
             <div className="mb-4">
               {!discountOpen ? (
                 <Button
                   type="button"
                   onClick={() => setDiscountOpen(true)}
-                  className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
+                  className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
                 >
                   <Plus size={15} />
                   {t.addDiscount}
@@ -1752,7 +1784,7 @@ export function PosSection({
                         setDiscountType("Percentage");
                         applyDiscount();
                       }}
-                      className={`min-h-10 rounded-lg border text-sm font-semibold ${discountType === "Percentage" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                      className={`min-h-12 rounded-lg border text-sm font-semibold ${discountType === "Percentage" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                     >
                       {t.discountPercentage}
                     </Button>
@@ -1762,7 +1794,7 @@ export function PosSection({
                         setDiscountType("Amount");
                         applyDiscount();
                       }}
-                      className={`min-h-10 rounded-lg border text-sm font-semibold ${discountType === "Amount" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                      className={`min-h-12 rounded-lg border text-sm font-semibold ${discountType === "Amount" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                     >
                       {t.discountAmount}
                     </Button>
@@ -1780,7 +1812,7 @@ export function PosSection({
                       setPayCard("");
                     }}
                     placeholder={discountType === "Percentage" ? "0" : "0.000"}
-                    className="mt-2 min-h-11 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
+                    className="mt-2 min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
                   />
                   {discountEstimate > 0 && (
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -1804,7 +1836,7 @@ export function PosSection({
                   type="button"
                   disabled={!payCashMethod}
                   onClick={() => choosePayMethod("Cash")}
-                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                 >
                   <Banknote size={16} />
                   {t.cash}
@@ -1813,7 +1845,7 @@ export function PosSection({
                   type="button"
                   disabled={!payCardMethod}
                   onClick={() => choosePayMethod("Card")}
-                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                 >
                   <CreditCard size={16} />
                   {t.card}
@@ -1822,7 +1854,7 @@ export function PosSection({
                   type="button"
                   disabled={!payCashMethod || !payCardMethod}
                   onClick={() => choosePayMethod("Mixed")}
-                  className={`flex min-h-11 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  className={`flex min-h-12 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                 >
                   {t.mixed}
                 </Button>
@@ -1836,7 +1868,7 @@ export function PosSection({
                     value={payCash}
                     onChange={(e) => setPayCashAmount(e.target.value)}
                     placeholder="0.000"
-                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
+                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
                   />
                   <Input
                     aria-label={t.card}
@@ -1845,7 +1877,7 @@ export function PosSection({
                     value={payCard}
                     onChange={(e) => setPayCardAmount(e.target.value)}
                     placeholder="0.000"
-                    className="min-h-11 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
+                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
                   />
                 </div>
               )}
@@ -1856,27 +1888,42 @@ export function PosSection({
               )}
             </div>
           )}
-          {discountEstimate > 0 && (
-            <>
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>{t.subtotal}</span>
-                <span>OMR {total.toFixed(3)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-destructive">
-                <span>{t.discountLabel}</span>
-                <span>-OMR {discountEstimate.toFixed(3)}</span>
-              </div>
-            </>
-          )}
-          <div className="flex justify-between text-lg font-bold">
-            <span>{t.total}</span>
-            <span>OMR {payableTotal.toFixed(3)}</span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
+        </div>
+        <footer className="pos-ticket-footer">
+          <dl
+            className="pos-totals"
+            aria-label={language === "ar" ? "ملخص المبلغ" : "Order totals"}
+          >
+            <div>
+              <dt>{t.subtotal}</dt>
+              <dd data-testid="ticket-subtotal">OMR {total.toFixed(3)}</dd>
+            </div>
+            <div>
+              <dt>{t.discountLabel}</dt>
+              <dd data-testid="ticket-discount">
+                − OMR {discountEstimate.toFixed(3)}
+              </dd>
+            </div>
+            <div>
+              <dt>
+                {language === "ar"
+                  ? "الضريبة ضمن الإجمالي"
+                  : "Tax included in total"}
+              </dt>
+              <dd data-testid="ticket-tax">OMR {taxTotal.toFixed(3)}</dd>
+            </div>
+            <div className="pos-grand-total">
+              <dt>{t.total}</dt>
+              <dd data-testid="ticket-total">
+                <small>OMR</small> {payableTotal.toFixed(3)}
+              </dd>
+            </div>
+          </dl>
+          <div className="pos-checkout-actions">
             <Button
               disabled={busy || !cart.length || discountExceedsMax}
               onClick={() => void submit("Draft")}
-              className="min-h-12 rounded-lg border border-primary font-semibold text-primary"
+              className="pos-hold"
             >
               {t.hold}
             </Button>
@@ -1889,7 +1936,7 @@ export function PosSection({
                   (!payValid || offlineMethods.length === 0))
               }
               onClick={() => void submit("Pending")}
-              className="min-h-12 rounded-lg bg-primary font-semibold text-primary-foreground"
+              className="pos-checkout"
             >
               {isExternallyPaidChannel
                 ? language === "ar"
@@ -1898,15 +1945,15 @@ export function PosSection({
                 : t.send}
             </Button>
           </div>
-        </div>
+        </footer>
       </aside>
     </>
   );
   return (
-    <div className="min-w-0 pb-20 lg:pb-0">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card p-3">
+    <div className="pos-register">
+      <header className="pos-toolbar">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <strong className="shrink-0 text-lg sm:text-xl">{t.title}</strong>
+          <strong className="pos-title">{t.title}</strong>
           {salesSummary && (
             <span className="shrink-0 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-primary">
               {t.dailySales}: OMR {salesSummary.gross.toFixed(3)} ·{" "}
@@ -1946,7 +1993,7 @@ export function PosSection({
                     aria-checked={selected}
                     disabled={cart.length > 0 || busy || !!payment}
                     onClick={() => setChannelId(x.id)}
-                    className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${selected ? "bg-primary text-primary-foreground" : "bg-card"}`}
+                    className={`flex min-h-12 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${selected ? "bg-primary text-primary-foreground" : "bg-card"}`}
                   >
                     <Icon size={16} />
                     {name(x)}
@@ -1968,7 +2015,7 @@ export function PosSection({
                     )?.id ?? externalChannels[0].id,
                   )
                 }
-                className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${isExternallyPaidChannel ? "bg-primary text-primary-foreground" : "bg-card"}`}
+                className={`flex min-h-12 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold disabled:opacity-50 ${isExternallyPaidChannel ? "bg-primary text-primary-foreground" : "bg-card"}`}
               >
                 <ShoppingBag size={16} />
                 {language === "ar" ? "إلكتروني" : "Electronic"}
@@ -1977,14 +2024,14 @@ export function PosSection({
           </div>
           <Button
             onClick={() => setHeldOpen(true)}
-            className="min-h-9 shrink-0 rounded-full border border-primary px-3 text-xs font-semibold text-primary"
+            className="min-h-12 shrink-0 rounded-full border border-primary px-3 text-xs font-semibold text-primary"
           >
             {t.heldOrders} ({heldOrders.length})
           </Button>
         </div>
         {isExternallyPaidChannel && (
           <div
-            className="order-3 flex w-full gap-2 overflow-x-auto pt-1"
+            className="pos-electronic-channels"
             role="radiogroup"
             aria-label={
               language === "ar"
@@ -2005,7 +2052,7 @@ export function PosSection({
                     setChannelId(channel.id);
                     store.set("pos-electronic-channel", channel.id);
                   }}
-                  className={`flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-4 text-sm font-semibold ${channel.id === channelId ? "border-primary bg-accent text-primary" : "border-border bg-card"}`}
+                  className={`flex min-h-12 shrink-0 items-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:opacity-50 ${channel.id === channelId ? "border-primary bg-accent text-primary" : "border-border bg-card"}`}
                 >
                   {logo ? (
                     <img
@@ -2020,10 +2067,14 @@ export function PosSection({
                 </Button>
               );
             })}
-            <span className="self-center whitespace-nowrap text-xs text-muted-foreground">
-              {language === "ar"
-                ? "مدفوع خارجيًا · تُطبق قائمة أسعار الشركة"
-                : "Externally paid · company price list applied"}
+            <span
+              className={`pos-channel-hint ${cart.length > 0 ? "text-warning" : "text-muted-foreground"}`}
+            >
+              {cart.length > 0
+                ? t.channelLocked
+                : language === "ar"
+                  ? "مدفوع خارجيًا · تُطبق قائمة أسعار الشركة"
+                  : "Externally paid · company price list applied"}
             </span>
           </div>
         )}
@@ -2041,23 +2092,24 @@ export function PosSection({
         </span>
       </header>
       {qrPendingBanner}
-      <div
-        className={`grid min-h-[360px] lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-4 xl:grid-cols-[minmax(0,1fr)_360px] ${kiosk ? "lg:h-[calc(100dvh-190px)]" : "lg:h-[calc(100dvh-260px)]"}`}
-      >
+      <div ref={salesGridRef} className="pos-workspace">
         <>
-          <section className="flex min-w-0 flex-col overflow-hidden">
-            <div className="shrink-0 p-3 pb-0 sm:p-4 sm:pb-0">
-              <label className="flex min-h-12 items-center gap-2 rounded-xl border border-border bg-card px-3">
+          <section className="pos-catalog" aria-label={t.search}>
+            <div className="pos-catalog-tools">
+              <label className="pos-search">
                 <Search size={18} />
                 <Input
+                  ref={searchRef}
                   aria-label={t.search}
+                  aria-keyshortcuts="F2"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const product = products.find(
-                        (p) =>
-                          p.barcode === search.trim() ||
-                          p.sku === search.trim(),
-                      );
+                    if (
+                      e.key === "Enter" &&
+                      !e.nativeEvent.isComposing &&
+                      !busy &&
+                      !catalogLoading
+                    ) {
+                      const product = productIndex.get(search.trim());
                       if (product) {
                         add(product);
                         setSearch("");
@@ -2069,11 +2121,17 @@ export function PosSection({
                   placeholder={t.search}
                   className="w-full bg-transparent outline-none"
                 />
+                <ScanBarcode size={20} aria-hidden="true" />
+                <kbd>F2</kbd>
               </label>
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              <div
+                className="pos-categories"
+                aria-label={language === "ar" ? "الفئات" : "Categories"}
+              >
                 <Button
                   onClick={() => setCategory("")}
-                  className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${!category ? "bg-primary text-primary-foreground" : "bg-card"}`}
+                  aria-pressed={!category}
+                  className={`min-h-12 shrink-0 rounded-full px-4 text-sm font-semibold ${!category ? "bg-primary text-primary-foreground" : "bg-card"}`}
                 >
                   {t.all}
                 </Button>
@@ -2081,19 +2139,15 @@ export function PosSection({
                   <Button
                     key={x.id}
                     onClick={() => setCategory(x.id)}
-                    className={`min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold ${category === x.id ? "bg-primary text-primary-foreground" : "bg-card"}`}
+                    aria-pressed={category === x.id}
+                    className={`min-h-12 shrink-0 rounded-full px-4 text-sm font-semibold ${category === x.id ? "bg-primary text-primary-foreground" : "bg-card"}`}
                   >
                     {name(x)}
                   </Button>
                 ))}
               </div>
-              <p className="mt-3 pb-3 text-xs text-muted-foreground">
-                {language === "ar"
-                  ? "١ اختر الأصناف · ٢ ادفع مرة واحدة · يُرسل الطلب تلقائيًا للمطبخ"
-                  : "1 Choose items · 2 Pay once · The order is sent to the kitchen automatically"}
-              </p>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 pt-0 sm:p-4 sm:pt-0">
+            <div className="pos-products-scroll">
               {catalogLoading && (
                 <p role="status" className="mt-4">
                   {language === "ar" ? "جارٍ تحميل القائمة…" : "Loading menu…"}
@@ -2106,55 +2160,36 @@ export function PosSection({
                     : "No matching products. Try another search or check product availability at this branch."}
                 </p>
               )}
-              <div className="mt-1 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {visible.map((product) => (
-                  <Button
-                    key={product.id}
-                    disabled={busy}
-                    onClick={() => add(product)}
-                    className="min-h-36 rounded-xl border border-border bg-card p-3 text-start shadow-sm transition hover:border-primary hover:shadow"
-                  >
-                    <ProductPhoto
-                      src={product.imageUrl}
-                      name={name(product)}
-                      className="aspect-square w-full"
-                    />
-                    <strong className="mt-3 block text-sm">
-                      {name(product)}
-                    </strong>
-                    <span className="mt-1 block text-sm text-primary">
-                      OMR{" "}
-                      {resolveOfflinePricing(product.pricing, 0).gross.toFixed(
-                        3,
-                      )}
-                    </span>
-                  </Button>
-                ))}
-              </div>
+              <ProductGrid
+                products={visible}
+                language={language}
+                busy={busy || catalogLoading}
+                onAdd={add}
+              />
             </div>
           </section>
-          <div className="hidden h-full min-h-0 overflow-hidden rounded-2xl border border-border shadow-sm lg:sticky lg:top-4 lg:block">
-            {cartPanel}
-          </div>
+          <div className="pos-ticket-desktop">{cartPanel}</div>
         </>
       </div>
       <Button
         onClick={() => setCartOpen(true)}
-        className="fixed bottom-4 start-4 end-4 z-20 min-h-12 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-lg lg:hidden"
+        className="pos-cart-toggle lg:hidden"
       >
-        {t.viewCart} ({cart.reduce((sum, line) => sum + line.quantity, 0)}) ·
-        OMR {total.toFixed(3)}
+        {t.viewCart} ({amounts.quantity}) · OMR {payableTotal.toFixed(3)}
       </Button>
       {cartOpen && (
         <div className="fixed inset-0 z-30 bg-black/35 lg:hidden">
-          <div className="absolute inset-x-0 bottom-0 h-[82vh] rounded-t-2xl">
-            {cartPanel}
-          </div>
+          <div className="pos-mobile-ticket">{cartPanel}</div>
         </div>
       )}
       {customizing && (
         <div className="fixed inset-0 z-40 grid place-items-end bg-black/35 sm:place-items-center">
-          <section className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 sm:max-w-lg sm:rounded-2xl">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label={name(customizing)}
+            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl bg-card p-5 sm:max-w-lg sm:rounded-2xl"
+          >
             <h2 className="text-lg font-bold">{name(customizing)}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{t.selections}</p>
             {customizing.selectionGroups.map((group) => (
@@ -2166,7 +2201,7 @@ export function PosSection({
                   {group.options.map((option) => (
                     <label
                       key={option.id}
-                      className="flex min-h-11 items-center justify-between rounded-lg bg-muted px-3"
+                      className="flex min-h-12 items-center justify-between rounded-lg bg-muted px-3"
                     >
                       <span>
                         <Input
@@ -2208,9 +2243,9 @@ export function PosSection({
             <div className="mt-6 flex gap-3">
               <Button
                 onClick={() => setCustomizing(null)}
-                className="min-h-12 flex-1 rounded-lg border"
+                className="pos-cancel min-h-12 flex-1 rounded-lg border"
               >
-                ×
+                {t.offlinePayCancel}
               </Button>
               <Button
                 onClick={confirm}
@@ -2238,15 +2273,121 @@ export function PosSection({
       {offlinePayModal}
       {heldOrdersModal}
       {message && (
-        <p
-          role="status"
-          className="fixed bottom-20 left-1/2 z-50 w-[min(90vw,560px)] -translate-x-1/2 rounded-xl bg-foreground px-4 py-3 text-sm text-primary-foreground"
-        >
+        <p role="status" className="pos-message">
           {message}
         </p>
       )}
     </div>
   );
+}
+
+const ProductGrid = memo(function ProductGrid({
+  products,
+  language,
+  busy,
+  onAdd,
+}: {
+  products: Product[];
+  language: Language;
+  busy: boolean;
+  onAdd: (product: Product) => void;
+}) {
+  return (
+    <div className="pos-product-grid">
+      {products.map((product) => {
+        const title = language === "ar" ? product.nameAr : product.nameEn;
+        return (
+          <Button
+            key={product.id}
+            disabled={busy}
+            onClick={() => onAdd(product)}
+            className="pos-product"
+          >
+            <ProductPhoto
+              src={product.imageUrl}
+              name=""
+              className="pos-product-photo"
+            />
+            <strong>{title}</strong>
+            <span className="pos-product-price">
+              OMR {resolveOfflinePricing(product.pricing, 0).gross.toFixed(3)}
+            </span>
+          </Button>
+        );
+      })}
+    </div>
+  );
+});
+
+const TicketLine = memo(function TicketLine({
+  line,
+  language,
+  onQuantity,
+  onNote,
+  disabled,
+}: {
+  line: CartLine;
+  language: Language;
+  onQuantity: (key: string, delta: number) => void;
+  onNote: (key: string, note: string) => void;
+  disabled: boolean;
+}) {
+  const title = language === "ar" ? line.product.nameAr : line.product.nameEn;
+  return (
+    <div className="pos-ticket-line">
+      <strong title={title}>{title}</strong>
+      <span className="pos-line-amount">
+        {(
+          resolveOfflinePricing(line.product.pricing, lineAdjustment(line))
+            .gross * line.quantity
+        ).toFixed(3)}
+      </span>
+      <div className="pos-quantity">
+        <Button
+          disabled={disabled}
+          aria-label={language === "ar" ? "تقليل الكمية" : "Decrease"}
+          className={line.quantity === 1 ? "pos-remove" : ""}
+          onClick={() => onQuantity(line.key, -1)}
+        >
+          <Minus size={18} />
+        </Button>
+        <span>{line.quantity}</span>
+        <Button
+          disabled={disabled}
+          aria-label={language === "ar" ? "زيادة الكمية" : "Increase"}
+          onClick={() => onQuantity(line.key, 1)}
+        >
+          <Plus size={18} />
+        </Button>
+      </div>
+      <Input
+        disabled={disabled}
+        aria-label={`${words[language].notes}: ${title}`}
+        value={line.note}
+        onChange={(event) => onNote(line.key, event.target.value)}
+        placeholder={words[language].notes}
+        className="pos-line-note"
+      />
+    </div>
+  );
+});
+
+function lineAdjustment(line: CartLine) {
+  return Object.entries(line.selections).reduce((sum, [groupId, ids]) => {
+    const group = line.product.selectionGroups.find(
+      (group) => group.id === groupId,
+    );
+    return (
+      sum +
+      ids.reduce(
+        (value, id) =>
+          value +
+          (group?.options.find((option) => option.id === id)?.priceAdjustment ??
+            0),
+        0,
+      )
+    );
+  }, 0);
 }
 
 // Mirrors backend PricingRules.Resolve exactly (3-decimal money, away-from-zero) so an offline sale

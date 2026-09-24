@@ -181,8 +181,7 @@ export function PricingSection({ language }: { language: Language }) {
   }
   return (
     <div>
-      <p className="text-sm font-semibold text-primary">{t.title}</p>
-      <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">{t.title}</h1>
+      <h1 className="text-2xl font-semibold sm:text-3xl">{t.title}</h1>
       <p className="mt-2 max-w-3xl text-muted-foreground">{t.intro}</p>
       <div className="mt-6 flex gap-2 overflow-x-auto border-b">
         {(["prices", "channels", "taxes", "promos"] as Tab[]).map((key) => (

@@ -386,11 +386,8 @@ export function IntegrationsSection({ language }: { language: Language }) {
 
   return (
     <div>
-      <p className="text-sm font-semibold text-primary">
-        <Plug className="inline" size={16} /> {t.title}
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-        {t.title}
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+        <Plug className="text-primary" size={22} aria-hidden="true" /> {t.title}
       </h1>
       <p className="mt-3 max-w-3xl text-muted-foreground">{t.intro}</p>
 

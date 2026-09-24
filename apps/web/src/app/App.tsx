@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Building2,
   FolderTree,
@@ -27,6 +27,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  ChevronRight,
 } from "lucide-react";
 
 import { store } from "@/lib/local-store";
@@ -246,6 +247,9 @@ export function App() {
   function firstAllowedView() {
     return navigation.find(([key]) => canView(key))?.[0] ?? null;
   }
+  // "Home" is the register when the role can use it, otherwise the first page the role may open.
+  const homeView: View | null = canView("pos") ? "pos" : firstAllowedView();
+  const sidebarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -262,10 +266,6 @@ export function App() {
     return () => media.removeEventListener("change", update);
   }, [theme]);
   useEffect(() => {
-    document.documentElement.dataset.accent = "teal";
-    store.set("accent", "teal");
-  }, []);
-  useEffect(() => {
     store.set("sidebar-collapsed", sidebarCollapsed);
   }, [sidebarCollapsed]);
   useEffect(() => {
@@ -274,20 +274,30 @@ export function App() {
     return () => window.removeEventListener("hashchange", update);
   }, []);
   useEffect(() => {
-    if (permissions === null) return;
+    if (permissions === null || hash.startsWith("#/qr/")) return;
     const target = hash.slice(2);
     // Select known forbidden routes so the guard renders Access Denied without mounting their page.
     if (navigation.some(([key]) => key === target)) {
       setView(target as View);
       return;
     }
-    const fallback = firstAllowedView();
+    const fallback = homeView;
     if (fallback) {
       setView(fallback);
-      if (!hash || hash === "#/")
-        window.history.replaceState(null, "", `#/${fallback}`);
+      // Unknown or empty routes are rewritten so the address bar, Back and the breadcrumb agree.
+      window.history.replaceState(null, "", `#/${fallback}`);
     }
   }, [hash, permissions]);
+  // Each page starts at the top, carries its own tab title, and the sidebar keeps the active entry visible.
+  useEffect(() => {
+    if (permissions === null) return;
+    window.scrollTo({ top: 0 });
+    const label = navigation.find(([key]) => key === view)?.[1];
+    document.title = label ? `${label} · OFC` : "OFC";
+    sidebarRef.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [view, permissions, language]);
   // While the mobile drawer is open, keep the page from scrolling behind it and close on Escape.
   useEffect(() => {
     if (!menuOpen) return;
@@ -308,12 +318,38 @@ export function App() {
     setView(next);
     setMenuOpen(false);
   }
+  // Kiosk mode works the same on every page now, not just POS: leaving it (toggle, or the
+  // browser exiting fullscreen on its own, e.g. Escape) cleans up fullscreen, the hidden
+  // cursor and the blocked shortcuts, and keeps this state in sync with reality.
   useEffect(() => {
-    if (view !== "pos" && kiosk) {
-      exitKiosk();
-      setKiosk(false);
-    }
-  }, [view, kiosk]);
+    if (kiosk) return;
+    exitKiosk();
+  }, [kiosk]);
+  useEffect(() => {
+    if (!kiosk) return;
+    const onFsChange = () => {
+      if (
+        !document.fullscreenElement &&
+        !(document as unknown as { webkitFullscreenElement?: Element | null })
+          .webkitFullscreenElement
+      ) {
+        exitKiosk();
+        setKiosk(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener(
+      "webkitfullscreenchange",
+      onFsChange as EventListener,
+    );
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        onFsChange as EventListener,
+      );
+    };
+  }, [kiosk]);
   useEffect(() => {
     if (!token) {
       setCheckingSession(false);
@@ -438,14 +474,13 @@ export function App() {
     .filter((group) => group.keys.length > 0);
   const allowed = canView(view);
   const current = navigation.find(([key]) => key === view)?.[1];
+  const currentGroup = allGroups.find((group) =>
+    group.keys.includes(view),
+  )?.label;
   function renderMenu(collapsed: boolean) {
     return groups.map((group) => (
-      <div key={group.label} className="mb-4">
-        {!collapsed && (
-          <p className="px-3 py-2 text-xs font-semibold text-muted-foreground">
-            {group.label}
-          </p>
-        )}
+      <div key={group.label} className="app-nav-group">
+        {!collapsed && <p className="app-nav-group-label">{group.label}</p>}
         {group.keys.map((key) => {
           const entry = navigation.find(([k]) => k === key)!;
           const Icon = entry[2];
@@ -455,7 +490,7 @@ export function App() {
               aria-current={view === key ? "page" : undefined}
               title={collapsed ? entry[1] : undefined}
               onClick={() => navigate(key)}
-              className={`flex min-h-11 w-full items-center gap-3 rounded-lg text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"} ${view === key ? "bg-accent font-semibold text-primary" : "text-muted-foreground hover:bg-muted"}`}
+              className={`app-nav-item flex min-h-11 w-full items-center gap-3 text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"}`}
             >
               <Icon size={18} />
               {!collapsed && entry[1]}
@@ -475,7 +510,9 @@ export function App() {
         </main>
       }
     >
-      <div className="app-shell min-h-screen bg-background text-foreground">
+      <div
+        className={`app-shell min-h-screen bg-background text-foreground ${view === "pos" ? "pos-shell" : ""}`}
+      >
         <header
           className={`app-header flex items-center justify-between gap-2 border-b bg-card px-4 ${kiosk ? "kiosk-header min-h-12" : "min-h-16"}`}
         >
@@ -490,9 +527,9 @@ export function App() {
               {!kiosk && menuOpen ? <X /> : <Menu />}
             </Button>
             {!kiosk &&
-              (canView("pos") ? (
+              (homeView ? (
                 <Button
-                  onClick={() => navigate("pos")}
+                  onClick={() => navigate(homeView)}
                   className="app-brand min-h-11 whitespace-nowrap font-bold text-primary"
                 >
                   <span>OFC</span>
@@ -512,8 +549,7 @@ export function App() {
               ))}
           </div>
           <div className="app-header-actions flex shrink-0 items-center gap-1">
-            {view === "pos" &&
-              allowed &&
+            {allowed &&
               (kiosk ? (
                 <Button
                   aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")}
@@ -580,9 +616,9 @@ export function App() {
               className="drawer-in absolute inset-y-0 start-0 flex w-72 max-w-[85vw] flex-col bg-card p-3 shadow-2xl"
             >
               <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-3">
-                {canView("pos") ? (
+                {homeView ? (
                   <Button
-                    onClick={() => navigate("pos")}
+                    onClick={() => navigate(homeView)}
                     className="min-h-11 font-bold text-primary"
                   >
                     OFC · {tr("إدارة المطعم", "Restaurant")}
@@ -607,12 +643,13 @@ export function App() {
           </div>
         )}
         <div
-          className={`grid ${kiosk ? "w-full" : sidebarCollapsed ? "mx-auto max-w-[1920px] lg:grid-cols-[64px_minmax(0,1fr)]" : "mx-auto max-w-[1920px] lg:grid-cols-[210px_minmax(0,1fr)]"}`}
+          className={`grid ${view === "pos" ? "pos-shell-workspace" : ""} ${kiosk ? "w-full" : sidebarCollapsed ? "mx-auto max-w-[1920px] lg:grid-cols-[72px_minmax(0,1fr)]" : "mx-auto max-w-[1920px] lg:grid-cols-[210px_minmax(0,1fr)]"}`}
         >
           {!kiosk && (
             <nav
+              ref={sidebarRef}
               aria-label={tr("القائمة الرئيسية", "Main menu")}
-              className="hidden border-e bg-card p-3 lg:sticky lg:top-0 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto"
+              className="app-sidebar hidden border-e bg-card lg:sticky lg:top-16 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto"
             >
               <Button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -626,39 +663,61 @@ export function App() {
                     ? tr("توسيع القائمة", "Expand sidebar")
                     : tr("طي القائمة", "Collapse sidebar")
                 }
-                className={`mb-3 grid size-9 place-items-center rounded-lg border border-border hover:bg-muted ${sidebarCollapsed ? "mx-auto" : ""}`}
+                className={`app-sidebar-toggle grid size-9 place-items-center rounded-lg border border-border hover:bg-muted ${sidebarCollapsed ? "mx-auto" : "ms-auto"}`}
               >
                 {sidebarCollapsed ? (
-                  <PanelLeftOpen size={18} />
+                  <PanelLeftOpen size={18} className="rtl:-scale-x-100" />
                 ) : (
-                  <PanelLeftClose size={18} />
+                  <PanelLeftClose size={18} className="rtl:-scale-x-100" />
                 )}
               </Button>
               {desktopMenuContent}
             </nav>
           )}
-          <main className={`min-w-0 ${kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}>
+          <main
+            className={`min-w-0 ${view === "pos" ? "pos-main" : kiosk ? "p-2 sm:p-3" : "p-4 sm:p-6"}`}
+          >
             {view !== "pos" && (
               <nav
                 aria-label={tr("مسار التنقل", "Breadcrumb")}
-                className="mb-5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+                className="app-breadcrumb"
               >
-                <Button
-                  onClick={() => navigate("pos")}
-                  className="inline-flex min-h-9 items-center gap-1 text-primary"
-                >
-                  <Home size={15} />
-                  {tr("الرئيسية", "Home")}
-                </Button>
-                <span aria-hidden="true">/</span>
-                <span>{groups.find((g) => g.keys.includes(view))?.label}</span>
-                <span aria-hidden="true">/</span>
-                <span
-                  aria-current="page"
-                  className="font-medium text-foreground"
-                >
-                  {current}
-                </span>
+                <ol>
+                  {homeView && homeView !== view && (
+                    <li>
+                      <Button
+                        onClick={() => navigate(homeView)}
+                        className="app-breadcrumb-link"
+                      >
+                        <Home size={15} aria-hidden="true" />
+                        {tr("الرئيسية", "Home")}
+                      </Button>
+                      <ChevronRight
+                        size={14}
+                        aria-hidden="true"
+                        className="app-breadcrumb-sep rtl:-scale-x-100"
+                      />
+                    </li>
+                  )}
+                  {currentGroup && (
+                    <li>
+                      <span>{currentGroup}</span>
+                      <ChevronRight
+                        size={14}
+                        aria-hidden="true"
+                        className="app-breadcrumb-sep rtl:-scale-x-100"
+                      />
+                    </li>
+                  )}
+                  <li>
+                    <span
+                      aria-current="page"
+                      className="app-breadcrumb-current"
+                    >
+                      {current}
+                    </span>
+                  </li>
+                </ol>
               </nav>
             )}
             {!allowed ? (
@@ -675,7 +734,6 @@ export function App() {
               <PosSection
                 language={language}
                 kiosk={kiosk}
-                onKioskChange={setKiosk}
                 permissions={permissions}
               />
             ) : view === "kitchen" ? (

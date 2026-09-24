@@ -38,12 +38,29 @@ test('cash payment dispatches once only after payment', async ({page}) => {
   const kitchen: string[] = []; page.on('request', request => { if(request.method()==='POST' && new URL(request.url()).pathname.endsWith('/kitchen/tickets')) kitchen.push(request.url()); });
   await page.goto('/#/pos');
   await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
-  await page.getByRole('button',{name:'Pay',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Payment'})).toBeVisible();
   expect(kitchen).toHaveLength(0);
   await page.getByRole('button',{name:'Cash',exact:true}).click();
-  await page.getByRole('button',{name:'Complete payment',exact:true}).click();
+  await page.route('**/orders/o1/payments', async route => {
+    expect(kitchen).toHaveLength(0);
+    expect(route.request().postDataJSON().payments[0].paymentMethodId).toBe('cash');
+    await route.fulfill({json:{payments:[]}});
+  });
+  await page.getByRole('button',{name:'Pay',exact:true}).click();
   await expect.poll(()=>kitchen.length).toBe(1);
+});
+
+test('electronic checkout remains visible on a short Arabic desktop', async ({page}) => {
+  await page.setViewportSize({width:1920,height:850});
+  await setup(page,'ar','light');
+  await page.goto('/#/pos');
+  await page.locator('html').evaluate(element => { element.style.zoom = '1.4'; });
+  await page.getByRole('radio',{name:'إلكتروني',exact:true}).click();
+  await page.getByRole('button',{name:/وجبة الدجاج المقرمش 1 OMR/}).first().click();
+  const checkout = page.getByRole('button',{name:'تأكيد وإرسال للمطبخ',exact:true});
+  await expect(checkout).toBeEnabled();
+  await expect(checkout).toBeInViewport({ratio:1});
+  await checkout.click();
+  await expect(page.getByText('السلة 0', {exact:false})).toBeVisible();
 });
 
 test('electronic company order skips payment and dispatches once', async ({page}) => {
@@ -61,6 +78,130 @@ test('electronic company order skips payment and dispatches once', async ({page}
 async function noOverflow(page: Page) {
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
 }
+
+test('register bounds a 500-line receipt and keeps totals pinned at 1080p', async ({page}, info) => {
+  await page.setViewportSize({width:1920,height:1080});
+  await setup(page,'en','light');
+  await page.addInitScript(() => {
+    const product = {id:'p0',sku:'SKU0',barcode:null,categoryId:'cat1',nameAr:'وجبة',nameEn:'Crispy chicken family meal 1',imageUrl:null,pricing:{listPrice:2.5,discountRate:0,taxRate:0,taxCalculationMode:'Inclusive'},selectionGroups:[]};
+    localStorage.setItem('ofc:pos-cart',JSON.stringify(Array.from({length:500},(_,i)=>({key:`line-${i}`,product,quantity:1,note:'',selections:{}}))));
+  });
+  await page.goto('/#/pos');
+  const ticket = page.locator('.pos-ticket-desktop');
+  await expect(ticket.getByTestId('ticket-total')).toContainText('1250.000');
+  expect(await ticket.getByRole('listitem').count()).toBeLessThan(20);
+  const footer = ticket.locator('.pos-ticket-footer');
+  await expect(footer).toBeInViewport({ratio:1});
+  const before = await footer.boundingBox();
+  await ticket.locator('.pos-ticket-scroll').evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(ticket.getByRole('listitem').last()).toHaveAttribute('aria-posinset','500');
+  expect(await footer.boundingBox()).toEqual(before);
+  await ticket.getByRole('button',{name:'Increase',exact:true}).last().click();
+  await expect(ticket.getByTestId('ticket-total')).toContainText('1252.500');
+  await expect(ticket.getByTestId('ticket-tax')).toBeInViewport({ratio:1});
+  await expect(ticket.getByTestId('ticket-discount')).toBeInViewport({ratio:1});
+  const smallTargets = await page.locator('.pos-shell button:visible').evaluateAll(buttons => buttons.filter(button => {
+    const rect = button.getBoundingClientRect();
+    return rect.width < 48 || rect.height < 48;
+  }).map(button => button.getAttribute('aria-label') || button.textContent));
+  expect(smallTargets).toEqual([]);
+  await noOverflow(page);
+  await page.screenshot({path:info.outputPath('register-1080p-large-ticket.png')});
+});
+
+test('register scanner bursts append once without stealing notes or keyboard events', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900});
+  await setup(page,'en','dark');
+  await page.goto('/#/pos');
+  const product = page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first();
+  await product.click();
+  await product.focus();
+  await page.keyboard.type('SKU0',{delay:5});
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.pos-ticket-desktop').getByTestId('ticket-total')).toContainText('5.000');
+  await page.evaluate(() => {
+    (window as any).__scanEvents = 0;
+    window.addEventListener('keydown',() => (window as any).__scanEvents++);
+    for (let i=0;i<10;i++) for (const key of ['S','K','U','0','Enter']) {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+    }
+  });
+  await expect(page.locator('.pos-ticket-desktop').getByTestId('ticket-total')).toContainText('30.000');
+  expect(await page.evaluate(() => (window as any).__scanEvents)).toBe(50);
+  const note = page.locator('.pos-ticket-desktop input').first();
+  await note.fill('SKU0');
+  await note.press('Enter');
+  await expect(page.locator('.pos-ticket-desktop').getByTestId('ticket-total')).toContainText('30.000');
+  await page.keyboard.press('F2');
+  await expect(page.getByRole('textbox',{name:'Search products',exact:true})).toBeFocused();
+  await page.getByRole('textbox',{name:'Search products',exact:true}).fill('SKU0');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.pos-ticket-desktop').getByTestId('ticket-total')).toContainText('32.500');
+});
+
+test('register keeps discounted tax and checkout visible while editing a discount', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900});
+  await setup(page,'en','dark');
+  await page.route('**/auth/me',route => route.fulfill({json:{permissions:[...permissions,'orders.discount']}}));
+  await page.route('**/pos/catalog?**',route => route.fulfill({json:[{id:'taxed',sku:'TAX',categoryId:'cat1',categoryNameEn:'Meals',categoryNameAr:'وجبات',nameEn:'Taxed meal',nameAr:'وجبة',imageUrl:null,pricing:{listPrice:10,discountRate:0,taxRate:5,taxCalculationMode:'Exclusive'},selectionGroups:[]}]}));
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:'Taxed meal OMR 10.500',exact:true}).click();
+  await page.getByRole('button',{name:'Add discount',exact:true}).click();
+  await page.getByRole('textbox',{name:'Add discount',exact:true}).fill('10');
+  await expect(page.getByTestId('ticket-total')).toContainText('9.450');
+  await expect(page.getByTestId('ticket-tax')).toContainText('0.450');
+  await expect(page.getByTestId('ticket-discount')).toContainText('1.050');
+  await expect(page.getByRole('button',{name:'Pay',exact:true})).toBeInViewport({ratio:1});
+});
+
+for (const theme of ['light','dark']) for (const language of ['ar','en']) test(`register full-screen ${language} ${theme} with real menu photos`, async ({page}, info) => {
+  await page.setViewportSize({width:1920,height:1080});
+  await setup(page,language,theme);
+  await page.route('**/pos/catalog?**',route => route.fulfill({json:Array.from({length:24},(_,index) => {
+    const meals = [
+      ['Big Bucket · 21 pieces','دلو الدجاج الكبير · ٢١ قطعة','Big_Bucket_Crispy_21pcs.jpg',9.5],
+      ['Grilled Bucket · 21 pieces','دلو الدجاج المشوي · ٢١ قطعة','Big_Bucket_Grilled_21pcs.jpg',9.5],
+      ['Crispy Family Box','وجبة العائلة المقرمشة','Crispy_Family_Box_15pcs.jpg',7.25],
+      ['Grilled Family Box','وجبة العائلة المشوية','Grilled_Family_Box_15pcs.jpg',7.25],
+    ] as const;
+    const meal = meals[index % meals.length];
+    return {id:`p${index}`,sku:`SKU${index}`,categoryId:'cat1',categoryNameEn:'Family meals',categoryNameAr:'الوجبات العائلية',nameEn:meal[0],nameAr:meal[1],imageUrl:`/menu/01_Family_Meals_Page2/${meal[2]}`,pricing:{listPrice:meal[3],discountRate:0,taxRate:5,taxCalculationMode:'Inclusive'},selectionGroups:[]};
+  })}));
+  await page.goto('/#/pos');
+  await page.locator('.pos-product').first().click();
+  await page.locator('.pos-product').nth(1).click();
+  await page.locator('.pos-product').nth(2).click();
+  await expect(page.locator('.pos-ticket-footer')).toBeInViewport({ratio:1});
+  await expect(page.locator('.pos-product img').first()).toBeVisible();
+  await page.locator('.pos-product img').first().evaluate((image: HTMLImageElement) => image.decode());
+  await page.screenshot({path:info.outputPath(`register-${language}-${theme}-1080p.png`)});
+});
+
+test('register shares the application theme with header, receipt and portaled controls', async ({page}) => {
+  await page.setViewportSize({width:1920,height:1080});
+  await setup(page,'en','light');
+  await page.goto('/#/pos');
+  await expect(page.locator('.pos-product').first()).toBeVisible();
+  const surface = () => page.locator('.pos-ticket').evaluate(element => getComputedStyle(element).backgroundColor);
+  const light = await surface();
+  expect(await page.locator('.app-header').evaluate(element => getComputedStyle(element).backgroundColor)).toBe(light);
+  await expect(page.locator('.pos-register')).not.toHaveAttribute('data-theme','dark');
+  await page.getByRole('button',{name:'Change appearance',exact:true}).click();
+  await page.getByRole('button',{name:'Dark',exact:true}).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect.poll(surface).not.toBe(light);
+  const dark = await surface();
+  expect(await page.locator('.app-header').evaluate(element => getComputedStyle(element).backgroundColor)).toBe(dark);
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('.pos-toolbar').getByRole('combobox').click();
+  const portal = page.locator('[data-slot="popover-content"]');
+  await expect(portal).toBeVisible();
+  expect(await portal.evaluate(element => getComputedStyle(element).getPropertyValue('--app-primary').trim())).toBe(await page.locator('.pos-register').evaluate(element => getComputedStyle(element).getPropertyValue('--app-primary').trim()));
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Change appearance',exact:true}).click();
+  await page.getByRole('button',{name:'Light',exact:true}).click();
+  await expect.poll(surface).toBe(light);
+});
 
 test('system theme follows the operating-system preference without reloading', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' });
