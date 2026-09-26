@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 // Fixed row geometry keeps layout work bounded even for several hundred ticket lines.
-const ROW_HEIGHT = 96;
+const ROW_HEIGHT = 100;
 const OVERSCAN = 3;
 
 export function VirtualTicketList<T extends { key: string }>({

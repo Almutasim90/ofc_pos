@@ -2574,7 +2574,7 @@
   .admin-page-heading {
     position: sticky;
     z-index: 35;
-    inset-block-start: 64px;
+    inset-block-start: 56px;
     margin: 0 -24px;
     padding: 4px 24px 16px;
     border-block-end: 1px solid
@@ -3022,4 +3022,33 @@
   .admin-page-heading {
     padding-block: 0 12px;
   }
+}
+
+/* Compact header and sidebar controls across the app. */
+.app-shell .app-header-actions > button,
+.app-shell .theme-fab {
+  min-height: 40px;
+  height: 40px;
+  min-width: 40px;
+}
+.app-shell .theme-fab {
+  width: 40px;
+}
+.app-shell .app-header-actions svg.lucide,
+.app-shell .app-nav-item svg.lucide {
+  width: 17px;
+  height: 17px;
+}
+.app-shell .app-nav-item {
+  min-height: 40px;
+}
+.app-shell .app-sidebar-toggle {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+}
+.app-shell .app-brand > span:first-child {
+  min-width: 44px;
+  height: 36px;
+  font-size: 15px;
 }

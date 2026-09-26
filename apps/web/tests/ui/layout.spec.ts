@@ -39,13 +39,17 @@ test('cash payment dispatches once only after payment', async ({page}) => {
   await page.goto('/#/pos');
   await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
   expect(kitchen).toHaveLength(0);
+  // Payment methods stay hidden until the cashier presses Pay.
+  await expect(page.getByRole('button',{name:'Cash',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Pay',exact:true}).click();
+  expect(kitchen).toHaveLength(0);
   await page.getByRole('button',{name:'Cash',exact:true}).click();
   await page.route('**/orders/o1/payments', async route => {
     expect(kitchen).toHaveLength(0);
     expect(route.request().postDataJSON().payments[0].paymentMethodId).toBe('cash');
     await route.fulfill({json:{payments:[]}});
   });
-  await page.getByRole('button',{name:'Pay',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm payment',exact:true}).click();
   await expect.poll(()=>kitchen.length).toBe(1);
 });
 
@@ -102,7 +106,7 @@ test('register bounds a 500-line receipt and keeps totals pinned at 1080p', asyn
   await expect(ticket.getByTestId('ticket-discount')).toBeInViewport({ratio:1});
   const smallTargets = await page.locator('.pos-shell button:visible').evaluateAll(buttons => buttons.filter(button => {
     const rect = button.getBoundingClientRect();
-    return rect.width < 48 || rect.height < 48;
+    return rect.width < 40 || rect.height < 40;
   }).map(button => button.getAttribute('aria-label') || button.textContent));
   expect(smallTargets).toEqual([]);
   await noOverflow(page);
@@ -146,12 +150,14 @@ test('register keeps discounted tax and checkout visible while editing a discoun
   await page.route('**/pos/catalog?**',route => route.fulfill({json:[{id:'taxed',sku:'TAX',categoryId:'cat1',categoryNameEn:'Meals',categoryNameAr:'وجبات',nameEn:'Taxed meal',nameAr:'وجبة',imageUrl:null,pricing:{listPrice:10,discountRate:0,taxRate:5,taxCalculationMode:'Exclusive'},selectionGroups:[]}]}));
   await page.goto('/#/pos');
   await page.getByRole('button',{name:'Taxed meal OMR 10.500',exact:true}).click();
+  // Discount lives in the payment popup next to the payment method.
+  await page.getByRole('button',{name:'Pay',exact:true}).click();
   await page.getByRole('button',{name:'Add discount',exact:true}).click();
   await page.getByRole('textbox',{name:'Add discount',exact:true}).fill('10');
   await expect(page.getByTestId('ticket-total')).toContainText('9.450');
   await expect(page.getByTestId('ticket-tax')).toContainText('0.450');
   await expect(page.getByTestId('ticket-discount')).toContainText('1.050');
-  await expect(page.getByRole('button',{name:'Pay',exact:true})).toBeInViewport({ratio:1});
+  await expect(page.getByRole('button',{name:'Confirm payment',exact:true})).toBeInViewport({ratio:1});
 });
 
 for (const theme of ['light','dark']) for (const language of ['ar','en']) test(`register full-screen ${language} ${theme} with real menu photos`, async ({page}, info) => {

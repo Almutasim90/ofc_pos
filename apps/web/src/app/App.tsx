@@ -490,7 +490,7 @@ export function App() {
               aria-current={view === key ? "page" : undefined}
               title={collapsed ? entry[1] : undefined}
               onClick={() => navigate(key)}
-              className={`app-nav-item flex min-h-11 w-full items-center gap-3 text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"}`}
+              className={`app-nav-item flex min-h-10 w-full items-center gap-3 text-start text-sm ${collapsed ? "justify-center px-0" : "px-3"}`}
             >
               <Icon size={18} />
               {!collapsed && entry[1]}
@@ -514,7 +514,7 @@ export function App() {
         className={`app-shell min-h-screen bg-background text-foreground ${view === "pos" ? "pos-shell" : ""}`}
       >
         <header
-          className={`app-header flex items-center justify-between gap-2 border-b bg-card px-4 ${kiosk ? "kiosk-header min-h-12" : "min-h-16"}`}
+          className={`app-header flex items-center justify-between gap-2 border-b bg-card px-4 ${kiosk ? "kiosk-header min-h-12" : "min-h-14"}`}
         >
           <div className="app-header-brand flex min-w-0 items-center gap-2">
             <Button
@@ -649,7 +649,7 @@ export function App() {
             <nav
               ref={sidebarRef}
               aria-label={tr("القائمة الرئيسية", "Main menu")}
-              className="app-sidebar hidden border-e bg-card lg:sticky lg:top-16 lg:block lg:h-[calc(100dvh-64px)] lg:overflow-y-auto"
+              className="app-sidebar hidden border-e bg-card lg:sticky lg:top-14 lg:block lg:h-[calc(100dvh-56px)] lg:overflow-y-auto"
             >
               <Button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}

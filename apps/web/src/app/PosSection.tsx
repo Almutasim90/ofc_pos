@@ -28,6 +28,7 @@ import { VirtualTicketList } from "@/app/VirtualTicketList";
 import "@/app/pos-register.css";
 import { ProductPhoto } from "@/app/CatalogScreen";
 import { PaymentDialog } from "@/app/PaymentDialog";
+import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { Button } from "@/components/ui/button";
 import {
@@ -137,6 +138,8 @@ const words = {
     empty: "أضف أصنافًا للبدء",
     hold: "تعليق",
     send: "الدفع",
+    confirmPay: "تأكيد الدفع",
+    backToCart: "رجوع",
     notes: "ملاحظة",
     branch: "الفرع",
     channel: "قناة البيع",
@@ -212,6 +215,8 @@ const words = {
     empty: "Add products to begin",
     hold: "Hold",
     send: "Pay",
+    confirmPay: "Confirm payment",
+    backToCart: "Back",
     notes: "Note",
     branch: "Branch",
     channel: "Sales channel",
@@ -385,6 +390,8 @@ export function PosSection({
     tendered: string;
   } | null>(null);
   const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
+  // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
+  const [payStep, setPayStep] = useState(false);
   const [payCash, setPayCash] = useState("");
   const [payCard, setPayCard] = useState("");
   const [payMessage, setPayMessage] = useState("");
@@ -868,6 +875,9 @@ export function PosSection({
     ) ?? [];
   const isExternallyPaidChannel =
     !!activeChannel && salesChannelKind(activeChannel) === "Electronic";
+  useEffect(() => {
+    if (cart.length === 0 || isExternallyPaidChannel) setPayStep(false);
+  }, [cart.length, isExternallyPaidChannel]);
   const selectableOfflineMethods = offlineMethods.filter((method) =>
     isExternallyPaidChannel
       ? method.kind === "External"
@@ -1753,142 +1763,6 @@ export function PosSection({
             />
           )}
         />
-        <div className="pos-ticket-options">
-          {canDiscount && online && cart.length > 0 && (
-            <div className="mb-4">
-              {!discountOpen ? (
-                <Button
-                  type="button"
-                  onClick={() => setDiscountOpen(true)}
-                  className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
-                >
-                  <Plus size={15} />
-                  {t.addDiscount}
-                </Button>
-              ) : (
-                <div className="rounded-lg border border-border p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">{t.addDiscount}</p>
-                    <Button
-                      type="button"
-                      onClick={clearDiscount}
-                      className="text-xs text-destructive"
-                    >
-                      {t.discountRemove}
-                    </Button>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setDiscountType("Percentage");
-                        applyDiscount();
-                      }}
-                      className={`min-h-12 rounded-lg border text-sm font-semibold ${discountType === "Percentage" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                    >
-                      {t.discountPercentage}
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        setDiscountType("Amount");
-                        applyDiscount();
-                      }}
-                      className={`min-h-12 rounded-lg border text-sm font-semibold ${discountType === "Amount" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                    >
-                      {t.discountAmount}
-                    </Button>
-                  </div>
-                  <Input
-                    aria-label={t.addDiscount}
-                    type="text"
-                    inputMode="decimal"
-                    value={discountValue}
-                    onChange={(e) => {
-                      const normalized = normalizeMoneyInput(e.target.value);
-                      if (normalized === null) return;
-                      setDiscountValue(normalized);
-                      setPayCash("");
-                      setPayCard("");
-                    }}
-                    placeholder={discountType === "Percentage" ? "0" : "0.000"}
-                    className="mt-2 min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
-                  />
-                  {discountEstimate > 0 && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {t.discountLabel}: -OMR {discountEstimate.toFixed(3)}
-                    </p>
-                  )}
-                  {discountExceedsMax && (
-                    <p className="mt-1 text-xs text-destructive">
-                      {t.discountTooHigh}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {!isExternallyPaidChannel && cart.length > 0 && (
-            <div className="mb-4">
-              <p className="text-sm font-medium">{t.payMethod}</p>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  disabled={!payCashMethod}
-                  onClick={() => choosePayMethod("Cash")}
-                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                >
-                  <Banknote size={16} />
-                  {t.cash}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={!payCardMethod}
-                  onClick={() => choosePayMethod("Card")}
-                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                >
-                  <CreditCard size={16} />
-                  {t.card}
-                </Button>
-                <Button
-                  type="button"
-                  disabled={!payCashMethod || !payCardMethod}
-                  onClick={() => choosePayMethod("Mixed")}
-                  className={`flex min-h-12 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                >
-                  {t.mixed}
-                </Button>
-              </div>
-              {effectivePayMethod === "Mixed" && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Input
-                    aria-label={t.cash}
-                    type="text"
-                    inputMode="decimal"
-                    value={payCash}
-                    onChange={(e) => setPayCashAmount(e.target.value)}
-                    placeholder="0.000"
-                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
-                  />
-                  <Input
-                    aria-label={t.card}
-                    type="text"
-                    inputMode="decimal"
-                    value={payCard}
-                    onChange={(e) => setPayCardAmount(e.target.value)}
-                    placeholder="0.000"
-                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
-                  />
-                </div>
-              )}
-              {(offlineMethods.length === 0 || payMessage) && (
-                <p role="alert" className="mt-2 text-xs text-destructive">
-                  {payMessage || t.payNoMethods}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
         <footer className="pos-ticket-footer">
           <dl
             className="pos-totals"
@@ -1928,14 +1802,11 @@ export function PosSection({
               {t.hold}
             </Button>
             <Button
-              disabled={
-                busy ||
-                !cart.length ||
-                discountExceedsMax ||
-                (!isExternallyPaidChannel &&
-                  (!payValid || offlineMethods.length === 0))
-              }
-              onClick={() => void submit("Pending")}
+              disabled={busy || !cart.length || discountExceedsMax}
+              onClick={() => {
+                if (isExternallyPaidChannel) void submit("Pending");
+                else setPayStep(true);
+              }}
               className="pos-checkout"
             >
               {isExternallyPaidChannel
@@ -2257,6 +2128,231 @@ export function PosSection({
           </section>
         </div>
       )}
+      {payStep && !isExternallyPaidChannel && cart.length > 0 && (
+        <FormDialog
+          title={t.send}
+          closeLabel={t.backToCart}
+          onClose={() => setPayStep(false)}
+          width="max-w-lg"
+        >
+          <div className="grid gap-4 p-4 sm:p-5">
+            <ul
+              aria-label={language === "ar" ? "تفاصيل الطلب" : "Order details"}
+              className="max-h-56 divide-y divide-border overflow-y-auto rounded-lg border border-border text-sm"
+            >
+              {cart.map((line) => {
+                const title =
+                  language === "ar" ? line.product.nameAr : line.product.nameEn;
+                const unit = resolveOfflinePricing(
+                  line.product.pricing,
+                  lineAdjustment(line),
+                ).gross;
+                return (
+                  <li
+                    key={line.key}
+                    className="flex items-start justify-between gap-3 px-3 py-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="font-semibold">{line.quantity} × </span>
+                      {title}
+                      {line.note && (
+                        <span className="block text-xs text-muted-foreground">
+                          {line.note}
+                        </span>
+                      )}
+                    </span>
+                    <span dir="ltr" className="shrink-0 font-semibold">
+                      {(unit * line.quantity).toFixed(3)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <dl className="grid gap-1 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <dt>{t.subtotal}</dt>
+                <dd dir="ltr">OMR {total.toFixed(3)}</dd>
+              </div>
+              {discountEstimate > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <dt>{t.discountLabel}</dt>
+                  <dd dir="ltr">− OMR {discountEstimate.toFixed(3)}</dd>
+                </div>
+              )}
+              <div className="flex justify-between text-muted-foreground">
+                <dt>
+                  {language === "ar"
+                    ? "الضريبة ضمن الإجمالي"
+                    : "Tax included in total"}
+                </dt>
+                <dd dir="ltr">OMR {taxTotal.toFixed(3)}</dd>
+              </div>
+              <div className="mt-1 flex items-baseline justify-between border-t border-border pt-2">
+                <dt className="font-bold">{t.total}</dt>
+                <dd dir="ltr" className="text-2xl font-extrabold">
+                  OMR {payableTotal.toFixed(3)}
+                </dd>
+              </div>
+            </dl>
+            {canDiscount && online && cart.length > 0 && (
+              <div>
+                {!discountOpen ? (
+                  <Button
+                    type="button"
+                    onClick={() => setDiscountOpen(true)}
+                    className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
+                  >
+                    <Plus size={15} />
+                    {t.addDiscount}
+                  </Button>
+                ) : (
+                  <div className="rounded-lg border border-border p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">{t.addDiscount}</p>
+                      <Button
+                        type="button"
+                        onClick={clearDiscount}
+                        className="text-xs text-destructive"
+                      >
+                        {t.discountRemove}
+                      </Button>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setDiscountType("Percentage");
+                          applyDiscount();
+                        }}
+                        className={`min-h-12 rounded-lg border text-sm font-semibold ${discountType === "Percentage" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                      >
+                        {t.discountPercentage}
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setDiscountType("Amount");
+                          applyDiscount();
+                        }}
+                        className={`min-h-12 rounded-lg border text-sm font-semibold ${discountType === "Amount" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                      >
+                        {t.discountAmount}
+                      </Button>
+                    </div>
+                    <Input
+                      aria-label={t.addDiscount}
+                      type="text"
+                      inputMode="decimal"
+                      value={discountValue}
+                      onChange={(e) => {
+                        const normalized = normalizeMoneyInput(e.target.value);
+                        if (normalized === null) return;
+                        setDiscountValue(normalized);
+                        setPayCash("");
+                        setPayCard("");
+                      }}
+                      placeholder={
+                        discountType === "Percentage" ? "0" : "0.000"
+                      }
+                      className="mt-2 min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
+                    />
+                    {discountEstimate > 0 && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t.discountLabel}: -OMR {discountEstimate.toFixed(3)}
+                      </p>
+                    )}
+                    {discountExceedsMax && (
+                      <p className="mt-1 text-xs text-destructive">
+                        {t.discountTooHigh}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-medium">{t.payMethod}</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  disabled={!payCashMethod}
+                  onClick={() => choosePayMethod("Cash")}
+                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  <Banknote size={16} />
+                  {t.cash}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!payCardMethod}
+                  onClick={() => choosePayMethod("Card")}
+                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  <CreditCard size={16} />
+                  {t.card}
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!payCashMethod || !payCardMethod}
+                  onClick={() => choosePayMethod("Mixed")}
+                  className={`flex min-h-12 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  {t.mixed}
+                </Button>
+              </div>
+              {effectivePayMethod === "Mixed" && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Input
+                    aria-label={t.cash}
+                    type="text"
+                    inputMode="decimal"
+                    value={payCash}
+                    onChange={(e) => setPayCashAmount(e.target.value)}
+                    placeholder="0.000"
+                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
+                  />
+                  <Input
+                    aria-label={t.card}
+                    type="text"
+                    inputMode="decimal"
+                    value={payCard}
+                    onChange={(e) => setPayCardAmount(e.target.value)}
+                    placeholder="0.000"
+                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
+                  />
+                </div>
+              )}
+              {(offlineMethods.length === 0 || payMessage) && (
+                <p role="alert" className="mt-2 text-xs text-destructive">
+                  {payMessage || t.payNoMethods}
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+              <Button
+                type="button"
+                onClick={() => setPayStep(false)}
+                className="min-h-12 rounded-lg border border-border px-4 font-semibold"
+              >
+                {t.backToCart}
+              </Button>
+              <Button
+                type="button"
+                disabled={
+                  busy ||
+                  discountExceedsMax ||
+                  !payValid ||
+                  offlineMethods.length === 0
+                }
+                onClick={() => void submit("Pending")}
+                className="min-h-12 rounded-lg bg-primary px-4 font-bold text-primary-foreground hover:bg-primary/90"
+              >
+                {t.confirmPay}
+              </Button>
+            </div>
+          </div>
+        </FormDialog>
+      )}
       {payment && (
         <PaymentDialog
           language={language}
@@ -2333,15 +2429,32 @@ const TicketLine = memo(function TicketLine({
   disabled: boolean;
 }) {
   const title = language === "ar" ? line.product.nameAr : line.product.nameEn;
+  const unit = resolveOfflinePricing(
+    line.product.pricing,
+    lineAdjustment(line),
+  ).gross;
+  // Unit price, quantity and chosen modifiers so the cashier can verify a line at a glance.
+  const choices = Object.entries(line.selections).flatMap(([groupId, ids]) => {
+    const group = line.product.selectionGroups.find((g) => g.id === groupId);
+    return ids.flatMap((id) => {
+      const option = group?.options.find((o) => o.id === id);
+      return option ? [language === "ar" ? option.nameAr : option.nameEn] : [];
+    });
+  });
+  const details = [
+    `${unit.toFixed(3)} × ${line.quantity}`,
+    ...choices,
+    ...(line.note ? [line.note] : []),
+  ].join(" · ");
   return (
     <div className="pos-ticket-line">
       <strong title={title}>{title}</strong>
       <span className="pos-line-amount">
-        {(
-          resolveOfflinePricing(line.product.pricing, lineAdjustment(line))
-            .gross * line.quantity
-        ).toFixed(3)}
+        {(unit * line.quantity).toFixed(3)}
       </span>
+      <small className="pos-line-details" title={details}>
+        {details}
+      </small>
       <div className="pos-quantity">
         <Button
           disabled={disabled}

@@ -657,3 +657,131 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
 .pos-register .pos-checkout-actions button {
   min-height: 52px;
 }
+
+/* Denser receipt: smaller type, a details line per item and a tighter footer. */
+.pos-ticket-heading {
+  min-height: 52px;
+  padding-inline: 12px;
+}
+.pos-ticket-heading h2 {
+  font-size: 16px;
+}
+.pos-ticket-line {
+  grid-template-columns: minmax(0, 1fr) minmax(80px, 1fr);
+  grid-template-rows: 20px 16px 48px;
+  gap: 4px 8px;
+  height: 108px;
+  padding: 8px 12px;
+}
+.pos-ticket-line > strong {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+.pos-line-amount {
+  font-size: 14px;
+  line-height: 20px;
+  direction: ltr;
+}
+.pos-line-details {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pos-quantity > span {
+  font-size: 14px;
+}
+.pos-ticket-options {
+  padding-inline: 12px;
+}
+.pos-ticket-options > div {
+  margin-block: 6px;
+}
+.pos-ticket-options p,
+.pos-ticket-options button {
+  font-size: 13px;
+}
+.pos-ticket-footer {
+  padding: 10px 12px;
+}
+.pos-totals {
+  font-size: 12.5px;
+}
+.pos-grand-total dt {
+  font-size: 15px;
+}
+.pos-grand-total dd {
+  font-size: 24px;
+}
+.pos-grand-total small {
+  font-size: 12px;
+}
+.pos-checkout-actions {
+  margin-top: 8px;
+  gap: 8px;
+}
+.pos-register .pos-checkout-actions button {
+  min-height: 48px;
+  font-size: 15px;
+}
+
+/* Item search: comfortable inner spacing around the icon, text and shortcuts. */
+.pos-register .pos-search {
+  gap: 10px;
+  min-height: 52px;
+  padding-inline: 16px 10px;
+}
+.pos-register .pos-search input {
+  padding-inline: 6px !important;
+}
+
+/* Smaller controls: 40px targets and 16px icons keep the register touch-friendly
+   without dominating the screen. */
+.pos-shell button,
+.pos-register :is(button, [role="combobox"], select),
+.pos-register input:not([type="checkbox"]):not([type="radio"]),
+body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
+  min-width: 40px;
+  min-height: 40px;
+}
+.pos-shell svg.lucide {
+  width: 16px;
+  height: 16px;
+}
+.pos-ticket-line {
+  grid-template-rows: 20px 16px 40px;
+  height: 100px;
+}
+.pos-quantity button {
+  width: 40px;
+}
+.pos-register .pos-checkout-actions button {
+  min-height: 44px;
+}
+.pos-register .pos-search {
+  min-height: 44px;
+}
+.app-shell.pos-shell > .app-header {
+  min-height: 56px;
+  padding-block: 6px;
+}
+@media (min-width: 1024px) {
+  .pos-workspace {
+    height: var(--pos-height, calc(100dvh - 128px));
+  }
+}
+@media (max-width: 639px) {
+  .pos-shell .app-header-actions > button {
+    width: 40px;
+    min-width: 40px;
+  }
+}
+.app-shell.pos-shell .app-sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
