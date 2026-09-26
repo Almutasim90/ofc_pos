@@ -399,3 +399,22 @@ test('an add-on for a paid order is a new invoice that references it', async ({p
   await ticket.getByRole('button',{name:'Hold',exact:true}).click();
   await expect.poll(() => created?.note ?? null).toBe('Add-on for order #9');
 });
+
+test('reports dashboard charts the period with a table view for every chart', async ({page}) => {
+  await page.setViewportSize({width:1366,height:1200}); await setup(page,'en','light');
+  const hour = new Date(); hour.setMinutes(0,0,0);
+  await page.route('**/api/v1/reports/dashboard?**', route => route.fulfill({json:{todaySales:30,orderCount:4,averageOrderValue:7.5,openShifts:1,cashVariance:0,refunds:{count:0,amount:0},cancellations:{count:1,amount:5,rate:0.2},lowStockCount:0,waste:{quantity:0},kitchen:{avgPrepMinutes:9,overdue:0}}}));
+  await page.route('**/api/v1/reports/sales?**', route => route.fulfill({json:{summary:{},daily:[],hourly:[{hour:hour.toISOString(),orderCount:4,grossSales:30}],byChannel:[{channelId:'c1',channelNameAr:'محلي',channelNameEn:'Dine in',orderCount:4,grossSales:30}],byProduct:[{productId:'p0',nameAr:'وجبة',nameEn:'Chicken meal',quantity:6}],byCategory:[{categoryId:'k1',categoryNameAr:'وجبات',categoryNameEn:'Meals',quantity:4,grossSales:22},{categoryId:'k2',categoryNameAr:'مشروبات',categoryNameEn:'Drinks',quantity:3,grossSales:8}],byPayment:[{paymentMethodId:'m1',nameAr:'نقد',nameEn:'Cash',count:3,amount:20},{paymentMethodId:'m2',nameAr:'بطاقة',nameEn:'Card',count:1,amount:10}]}}));
+  await page.goto('/#/reports');
+  await expect(page.locator('.viz-columns:not(.viz-columns-categories) .viz-column')).toHaveCount(1);
+  await expect(page.locator('.viz-bar-label',{hasText:'Chicken meal'})).toBeVisible();
+  await expect(page.locator('.viz-columns-categories .viz-column')).toHaveCount(2);
+  await expect(page.locator('.viz-cap').first()).toBeVisible();
+  await expect(page.locator('.viz-share-segment')).toHaveCount(2);
+  await expect(page.locator('.viz-meter-danger')).toBeVisible();
+  await expect(page.getByText('Very high')).toBeVisible();
+  await expect(page.locator('details.viz-table')).toHaveCount(5);
+  await page.locator('.viz-share-segment').first().focus();
+  await expect(page.locator('.viz-tooltip')).toContainText('67%');
+  await noOverflow(page);
+});

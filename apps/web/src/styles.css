@@ -3052,3 +3052,394 @@
   height: 36px;
   font-size: 15px;
 }
+
+/* Dashboard charts (DashboardCharts.tsx). Categorical slots validated with the dataviz palette script:
+   light on #ffffff, dark on #1e1e24 (adjacent CVD ΔE ≥ 9.2). Text always wears text tokens. */
+:root {
+  --viz-accent: var(--app-primary);
+  --viz-track: color-mix(in srgb, var(--app-primary) 14%, var(--app-surface));
+  --viz-grid: color-mix(in srgb, var(--app-border) 70%, transparent);
+  --viz-cat-1: #2a78d6;
+  --viz-cat-2: #eb6834;
+  --viz-cat-3: #1baf7a;
+  --viz-cat-4: #eda100;
+  --viz-cat-5: #e87ba4;
+  --viz-cat-6: #008300;
+  --viz-cat-7: #4a3aa7;
+  --viz-cat-8: #e34948;
+  --viz-cat-other: #8a8f98;
+}
+:root[data-theme="dark"] {
+  --viz-cat-1: #3987e5;
+  --viz-cat-2: #d95926;
+  --viz-cat-3: #199e70;
+  --viz-cat-4: #c98500;
+  --viz-cat-5: #d55181;
+  --viz-cat-6: #008300;
+  --viz-cat-7: #9085e9;
+  --viz-cat-8: #e66767;
+  --viz-cat-other: #6b6f78;
+}
+.viz-grid-layout {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+@media (min-width: 1024px) {
+  .viz-grid-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .viz-span-2 {
+    grid-column: span 2;
+  }
+}
+.viz-card {
+  position: relative;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  background: var(--app-surface);
+}
+.viz-card > header {
+  margin-bottom: 14px;
+}
+.viz-card h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+.viz-card header p,
+.viz-muted {
+  color: var(--app-muted);
+  font-size: 12.5px;
+}
+.viz-empty {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+  color: var(--app-muted);
+  font-size: 13px;
+}
+.viz-tooltip {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface-raised);
+  box-shadow: 0 8px 20px var(--app-shadow);
+  color: var(--app-text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
+}
+.viz-tooltip strong {
+  font-size: 13px;
+}
+.viz-tooltip span {
+  color: var(--app-muted);
+}
+[tabindex][class^="viz-"]:focus-visible {
+  outline: 2px solid var(--app-text);
+  outline-offset: 2px;
+}
+
+/* Columns (time): a 2x2 grid of y-axis | plot over blank | x-axis, so ticks align with gridlines. */
+.viz-columns {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-rows: 200px 22px;
+  column-gap: 8px;
+}
+.viz-y-axis {
+  position: relative;
+  color: var(--app-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.viz-y-axis span {
+  position: absolute;
+  inset-inline-end: 0;
+  transform: translateY(50%);
+}
+.viz-plot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  border-bottom: 1px solid var(--app-border);
+}
+.viz-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--viz-grid);
+}
+.viz-column-slot {
+  display: flex;
+  flex: 1 1 0;
+  height: 100%;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: center;
+}
+.viz-column {
+  position: relative;
+  width: min(24px, 70%);
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(
+    180deg,
+    var(--viz-c, var(--viz-accent)),
+    color-mix(in srgb, var(--viz-c, var(--viz-accent)) 62%, var(--app-surface))
+  );
+  cursor: default;
+}
+.viz-column:hover,
+.viz-column:focus-visible,
+.viz-bar:hover,
+.viz-bar:focus-visible,
+.viz-share-segment:hover,
+.viz-share-segment:focus-visible {
+  filter: brightness(1.12);
+}
+.viz-peak {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.viz-x-axis {
+  display: flex;
+  gap: 2px;
+  padding-top: 5px;
+}
+.viz-x-axis span {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--app-muted);
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Horizontal bars (ranking) */
+.viz-bars {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+.viz-bar-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 34%) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.viz-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.viz-bar-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.viz-bar {
+  height: 16px;
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
+  background: linear-gradient(
+    to left,
+    var(--viz-c, var(--viz-accent)),
+    color-mix(in srgb, var(--viz-c, var(--viz-accent)) 70%, var(--app-surface))
+  );
+}
+[dir="rtl"] .viz-bar {
+  background: linear-gradient(
+    to right,
+    var(--viz-c, var(--viz-accent)),
+    color-mix(in srgb, var(--viz-c, var(--viz-accent)) 70%, var(--app-surface))
+  );
+}
+/* Category columns: wider bars, a value on every cap, names under each column. */
+.viz-columns-categories .viz-column {
+  width: min(44px, 64%);
+}
+.viz-cap {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.viz-columns-categories .viz-x-axis span {
+  overflow: hidden;
+  padding-inline: 2px;
+  text-overflow: ellipsis;
+}
+.viz-bar-value {
+  flex-shrink: 0;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Share (part-to-whole) */
+.viz-share {
+  position: relative;
+}
+.viz-share-bar {
+  display: flex;
+  gap: 2px;
+  height: 20px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.viz-share-segment {
+  min-width: 4px;
+}
+/* A mark's colour: categorical slots set --viz-c; single-series marks fall back to the accent. */
+.viz-cat-1 {
+  --viz-c: var(--viz-cat-1);
+}
+.viz-cat-2 {
+  --viz-c: var(--viz-cat-2);
+}
+.viz-cat-3 {
+  --viz-c: var(--viz-cat-3);
+}
+.viz-cat-4 {
+  --viz-c: var(--viz-cat-4);
+}
+.viz-cat-5 {
+  --viz-c: var(--viz-cat-5);
+}
+.viz-cat-6 {
+  --viz-c: var(--viz-cat-6);
+}
+.viz-cat-7 {
+  --viz-c: var(--viz-cat-7);
+}
+.viz-cat-8 {
+  --viz-c: var(--viz-cat-8);
+}
+.viz-cat-other {
+  --viz-c: var(--viz-cat-other);
+}
+.viz-share-segment,
+.viz-swatch {
+  background: var(--viz-c, var(--viz-accent));
+}
+.viz-legend {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.viz-legend li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto 44px;
+  align-items: center;
+  gap: 8px;
+}
+.viz-legend li .viz-muted {
+  text-align: end;
+}
+.viz-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* Meter (ratio against limits) */
+.viz-meter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.viz-meter-head strong {
+  font-size: 28px;
+  font-weight: 800;
+}
+.viz-meter-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.viz-meter-state i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--viz-meter-color);
+}
+.viz-meter {
+  --viz-meter-color: var(--app-success);
+}
+.viz-meter-warn {
+  --viz-meter-color: var(--app-warning);
+}
+.viz-meter-danger {
+  --viz-meter-color: var(--app-danger);
+}
+.viz-meter-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--viz-meter-color) 16%, var(--app-surface));
+}
+.viz-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--viz-meter-color);
+}
+
+/* Table view */
+.viz-table {
+  margin-top: 12px;
+  font-size: 12.5px;
+}
+.viz-table summary {
+  width: fit-content;
+  color: var(--app-muted);
+  cursor: pointer;
+}
+.viz-table table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.viz-table th,
+.viz-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--app-border);
+  text-align: start;
+}
+
+/* On phones the per-column values would collide; the tooltip and table view carry them. */
+@media (max-width: 639px) {
+  .viz-columns-categories .viz-cap {
+    display: none;
+  }
+}

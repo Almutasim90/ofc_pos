@@ -5,6 +5,14 @@ import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
 import { paymentMethodName } from "@/lib/payment-method";
 import { Button } from "@/components/ui/button";
+import {
+  BarList,
+  ChartCard,
+  ColumnChart,
+  EmptyChart,
+  Meter,
+  ShareBar,
+} from "@/app/DashboardCharts";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -62,6 +70,27 @@ const copy = {
     kitchen: "المطبخ",
     audit: "سجل التدقيق",
     dashboard: "لوحة التحكم",
+    salesOverTime: "المبيعات خلال الفترة",
+    salesByHour: "إجمالي المبيعات لكل ساعة",
+    salesByDay: "إجمالي المبيعات لكل يوم",
+    salesByChannel: "المبيعات حسب القناة",
+    salesByCategory: "المبيعات حسب التصنيف",
+    category: "التصنيف",
+    salesByCategoryNote: "إجمالي المبيعات لكل تصنيف في القائمة",
+    topProducts: "الأصناف الأكثر مبيعاً",
+    topProductsNote: "أعلى 5 أصناف بعدد القطع",
+    paymentMix: "طرق الدفع",
+    paymentMixNote: "نسبة المبالغ المحصلة",
+    cancelMeter: "نسبة الإلغاء",
+    cancelMeterNote: "تنبيه عند 5% وخطر عند 10%",
+    meterGood: "طبيعية",
+    meterWarn: "مرتفعة",
+    meterDanger: "مرتفعة جداً",
+    showTable: "عرض البيانات كجدول",
+    noChartData: "لا توجد مبيعات في هذه الفترة",
+    other: "أخرى",
+    period: "الفترة",
+    pieces: "قطعة",
     todaySales: "مبيعات اليوم",
     netSales: "صافي المبيعات",
     tax: "الضريبة",
@@ -99,6 +128,7 @@ const copy = {
     when: "الوقت",
     amount: "المبلغ",
     items: "الصنف",
+    minutes: "دقيقة",
     orderCount: "الطلبات",
     branchComparison: "مقارنة الفروع",
     profitLoss: "الأرباح والخسائر",
@@ -161,6 +191,27 @@ const copy = {
     kitchen: "Kitchen",
     audit: "Audit log",
     dashboard: "Dashboard",
+    salesOverTime: "Sales over the period",
+    salesByHour: "Gross sales per hour",
+    salesByDay: "Gross sales per day",
+    salesByChannel: "Sales by channel",
+    salesByCategory: "Sales by category",
+    category: "Category",
+    salesByCategoryNote: "Gross sales per menu category",
+    topProducts: "Top-selling items",
+    topProductsNote: "Top 5 items by quantity",
+    paymentMix: "Payment methods",
+    paymentMixNote: "Share of collected amounts",
+    cancelMeter: "Cancellation rate",
+    cancelMeterNote: "Warning at 5%, critical at 10%",
+    meterGood: "Normal",
+    meterWarn: "High",
+    meterDanger: "Very high",
+    showTable: "Show data as a table",
+    noChartData: "No sales in this period",
+    other: "Other",
+    period: "Period",
+    pieces: "pcs",
     todaySales: "Today's sales",
     netSales: "Net sales",
     tax: "Tax",
@@ -198,6 +249,7 @@ const copy = {
     when: "When",
     amount: "Amount",
     items: "Item",
+    minutes: "min",
     orderCount: "Orders",
     branchComparison: "Branch comparison",
     profitLoss: "Profit & loss",
@@ -382,7 +434,12 @@ export function ReportsSection({ language }: { language: Language }) {
     try {
       const response = await auth(`${basePath(tab)}?${qs.toString()}`);
       if (!response.ok) throw new Error();
-      setData(await response.json());
+      const body = await response.json();
+      if (tab === "dashboard") {
+        const sales = await auth(`/api/v1/reports/sales?${qs.toString()}`);
+        body.sales = sales.ok ? await sales.json() : null;
+      }
+      setData(body);
       setState("idle");
     } catch {
       setState("error");
@@ -530,7 +587,15 @@ export function ReportsSection({ language }: { language: Language }) {
         <div className="mt-6">
           {" "}
           {tab === "dashboard" && (
-            <DashboardView t={t} data={data} money={money} num={num} />
+            <DashboardView
+              t={t}
+              data={data}
+              money={money}
+              num={num}
+              language={language}
+              from={from}
+              to={to}
+            />
           )}
           {tab === "sales" && (
             <SalesView
@@ -662,7 +727,7 @@ export function ReportsSection({ language }: { language: Language }) {
 
 function Cards({ cards }: { cards: SummaryCard[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {cards.map((c) => (
         <div
           key={c.label}
@@ -671,7 +736,9 @@ function Cards({ cards }: { cards: SummaryCard[] }) {
           <div className="text-sm font-medium text-muted-foreground">
             {c.label}
           </div>
-          <p className="mt-2 text-2xl font-semibold">{c.value}</p>
+          <p className="mt-2 text-lg font-semibold break-words sm:text-2xl">
+            {c.value}
+          </p>
         </div>
       ))}
     </div>
@@ -761,6 +828,280 @@ function DashboardView({
   data,
   money,
   num,
+  language,
+  from,
+  to,
+}: {
+  t: any;
+  data: any;
+  money: (v: number | null | undefined) => string;
+  num: (v: number | null | undefined) => string;
+  language: Language;
+  from: string;
+  to: string;
+}) {
+  return (
+    <>
+      <DashboardCards t={t} data={data} money={money} num={num} />
+      <DashboardCharts
+        t={t}
+        data={data}
+        money={money}
+        num={num}
+        language={language}
+        from={from}
+        to={to}
+      />
+    </>
+  );
+}
+
+function DashboardCharts({
+  t,
+  data,
+  money,
+  num,
+  language,
+  from,
+  to,
+}: {
+  t: any;
+  data: any;
+  money: (v: number | null | undefined) => string;
+  num: (v: number | null | undefined) => string;
+  language: Language;
+  from: string;
+  to: string;
+}) {
+  const sales = data.sales;
+  const name = (a: string | null | undefined, e: string | null | undefined) =>
+    language === "ar" ? (a ?? e ?? "—") : (e ?? a ?? "—");
+  const amount = (v: number) => money(v);
+  const axis = (v: number) =>
+    new Intl.NumberFormat(language, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(v);
+
+  // Within one day: hourly buckets (local time) with empty hours filled; longer ranges: one column per day.
+  const singleDay = from === to;
+  let points: Array<{ key: string; label: string; value: number }> = [];
+  if (sales && singleDay) {
+    const byHour = new Map<number, number>();
+    for (const row of sales.hourly ?? [])
+      byHour.set(new Date(row.hour).getTime(), row.grossSales);
+    const hours = [...byHour.keys()];
+    if (hours.length) {
+      const first = Math.min(...hours);
+      const last = Math.max(...hours);
+      for (let at = first; at <= last; at += 3_600_000)
+        points.push({
+          key: String(at),
+          label: new Date(at).toLocaleTimeString(language, {
+            hour: "numeric",
+          }),
+          value: byHour.get(at) ?? 0,
+        });
+    }
+  } else if (sales) {
+    const byDay = new Map<string, number>();
+    for (const row of sales.daily ?? [])
+      byDay.set(String(row.date).slice(0, 10), row.grossSales);
+    const day = new Date(`${from}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
+    for (let i = 0; day <= end && i < 400; i++) {
+      const key = day.toISOString().slice(0, 10);
+      points.push({
+        key,
+        label: day.toLocaleDateString(language, {
+          day: "numeric",
+          month: "numeric",
+          timeZone: "UTC",
+        }),
+        value: byDay.get(key) ?? 0,
+      });
+      day.setUTCDate(day.getUTCDate() + 1);
+    }
+  }
+  const hasSales = points.some((p) => p.value > 0);
+
+  const channels = [...(sales?.byChannel ?? [])]
+    .sort((a: any, b: any) => b.grossSales - a.grossSales)
+    .map((row: any) => ({
+      key: String(row.channelId),
+      label: name(row.channelNameAr, row.channelNameEn),
+      value: row.grossSales,
+    }));
+  // Up to seven categories get their own colour; the rest fold into "Other" (never a generated hue).
+  const categoryRows = [...(sales?.byCategory ?? [])]
+    .sort((a: any, b: any) => b.grossSales - a.grossSales)
+    .map((row: any) => ({
+      key: String(row.categoryId),
+      label: name(row.categoryNameAr, row.categoryNameEn),
+      value: row.grossSales,
+    }));
+  const categories =
+    categoryRows.length > 8
+      ? [
+          ...categoryRows.slice(0, 7),
+          {
+            key: "other",
+            label: t.other,
+            value: categoryRows
+              .slice(7)
+              .reduce((sum: number, x: { value: number }) => sum + x.value, 0),
+          },
+        ]
+      : categoryRows;
+  const products = [...(sales?.byProduct ?? [])]
+    .sort((a: any, b: any) => b.quantity - a.quantity)
+    .slice(0, 5)
+    .map((row: any) => ({
+      key: String(row.productId),
+      label: name(row.nameAr, row.nameEn),
+      value: row.quantity,
+    }));
+  // Three validated categorical slots; anything beyond folds into "Other".
+  const methods = [...(sales?.byPayment ?? [])]
+    .sort((a: any, b: any) => b.amount - a.amount)
+    .map((row: any) => ({
+      key: String(row.paymentMethodId),
+      label: name(row.nameAr, row.nameEn),
+      value: row.amount,
+    }));
+  const payments =
+    methods.length > 3
+      ? [
+          ...methods.slice(0, 3),
+          {
+            key: "other",
+            label: t.other,
+            value: methods
+              .slice(3)
+              .reduce((sum: number, x: { value: number }) => sum + x.value, 0),
+          },
+        ]
+      : methods;
+
+  return (
+    <div className="viz-grid-layout">
+      <ChartCard
+        wide
+        title={t.salesOverTime}
+        subtitle={singleDay ? t.salesByHour : t.salesByDay}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.period, t.todaySales],
+          rows: points.map((p) => [p.label, amount(p.value)]),
+        }}
+      >
+        {hasSales ? (
+          <ColumnChart
+            points={points}
+            format={amount}
+            formatAxis={axis}
+            label={t.salesOverTime}
+          />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        wide
+        title={t.salesByCategory}
+        subtitle={t.salesByCategoryNote}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.category, t.todaySales],
+          rows: categories.map((c: any) => [c.label, amount(c.value)]),
+        }}
+      >
+        {categories.length ? (
+          <ColumnChart
+            points={categories}
+            format={amount}
+            formatAxis={axis}
+            label={t.salesByCategory}
+            categorical
+          />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        title={t.salesByChannel}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.channel, t.todaySales],
+          rows: channels.map((c: any) => [c.label, amount(c.value)]),
+        }}
+      >
+        {channels.length ? (
+          <BarList items={channels} format={amount} categorical />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        title={t.cancelMeter}
+        subtitle={t.cancelMeterNote}
+        tableLabel={t.showTable}
+      >
+        <Meter
+          value={data.cancellations?.rate ?? 0}
+          warnAt={0.05}
+          dangerAt={0.1}
+          label={t.cancelMeter}
+          states={{
+            good: t.meterGood,
+            warn: t.meterWarn,
+            danger: t.meterDanger,
+          }}
+        />
+        <p className="viz-muted mt-3">
+          {num(data.cancellations?.count)} {t.cancelled} ·{" "}
+          {money(data.cancellations?.amount)}
+        </p>
+      </ChartCard>
+      <ChartCard
+        title={t.topProducts}
+        subtitle={t.topProductsNote}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.product, t.quantity],
+          rows: products.map((p: any) => [p.label, num(p.value)]),
+        }}
+      >
+        {products.length ? (
+          <BarList items={products} format={(v) => `${num(v)} ${t.pieces}`} />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        title={t.paymentMix}
+        subtitle={t.paymentMixNote}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.payments, t.amount],
+          rows: payments.map((p: any) => [p.label, amount(p.value)]),
+        }}
+      >
+        {payments.length ? (
+          <ShareBar items={payments} format={amount} />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+    </div>
+  );
+}
+
+function DashboardCards({
+  t,
+  data,
+  money,
+  num,
 }: {
   t: any;
   data: any;
@@ -788,7 +1129,7 @@ function DashboardView({
           value:
             data.kitchen?.avgPrepMinutes == null
               ? "—"
-              : `${num(data.kitchen.avgPrepMinutes)} ${t.items}`,
+              : `${num(data.kitchen.avgPrepMinutes)} ${t.minutes}`,
         },
         { label: t.lateOrders, value: num(data.kitchen?.overdue) },
       ]}

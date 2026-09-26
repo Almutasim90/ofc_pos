@@ -97,6 +97,8 @@ public static class SprintThirteenEndpoints
         var methods = methodIds.Count == 0 ? new Dictionary<Guid, PaymentMethod>() : await db.PaymentMethods.AsNoTracking().Where(x => methodIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
 
         var daily = salesOrders.GroupBy(x => x.CreatedAt.Date).OrderBy(g => g.Key).Select(g => new { date = g.Key, orderCount = g.Count(), netSales = Round(g.Sum(x => x.NetAmount)), taxAmount = Round(g.Sum(x => x.TaxAmount)), grossSales = Round(g.Sum(x => x.GrossAmount)) });
+        // Hour buckets (UTC) for the dashboard's within-day sales chart; the client shows them in local time.
+        var hourly = salesOrders.GroupBy(x => { var u = x.CreatedAt.UtcDateTime; return new DateTimeOffset(u.Year, u.Month, u.Day, u.Hour, 0, 0, TimeSpan.Zero); }).OrderBy(g => g.Key).Select(g => new { hour = g.Key, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byBranch = salesOrders.GroupBy(x => x.BranchId).Select(g => new { branchId = g.Key, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byCashier = salesOrders.GroupBy(x => x.CreatedByUserId).Select(g => new { userId = g.Key, name = g.Key.HasValue && cashiers.TryGetValue(g.Key.Value, out var u) ? u.DisplayName : null, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byChannel = salesOrders.GroupBy(x => x.SalesChannelId).Select(g => new { channelId = g.Key, channelNameAr = channels.TryGetValue(g.Key, out var c) ? c.NameAr : null, channelNameEn = channels.TryGetValue(g.Key, out var c2) ? c2.NameEn : null, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
@@ -107,7 +109,7 @@ public static class SprintThirteenEndpoints
         return Results.Ok(new
         {
             summary = new { netSales = Round(netSales), discountAmount = Round(discountAmount), taxAmount = Round(taxAmount), grossSales = Round(grossSales), orderCount, lineCount, averageOrderValue = Round(averageOrderValue) },
-            daily, byBranch, byCashier, byChannel, byProduct, byCategory, byPayment
+            daily, hourly, byBranch, byCashier, byChannel, byProduct, byCategory, byPayment
         });
     }
 
