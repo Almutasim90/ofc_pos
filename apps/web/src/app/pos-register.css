@@ -785,3 +785,24 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
   height: 40px;
   min-height: 40px;
 }
+
+/* Clear order: quiet by default, turns solid red while awaiting confirmation. */
+.pos-register .pos-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 10px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 40%, var(--border));
+  background: transparent;
+  color: var(--destructive);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pos-register .pos-clear:hover:not(:disabled) {
+  background: var(--app-danger-soft);
+}
+.pos-register .pos-clear.is-confirming {
+  border-color: var(--destructive);
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}

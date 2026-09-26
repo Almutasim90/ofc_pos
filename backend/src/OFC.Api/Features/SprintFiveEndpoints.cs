@@ -7,6 +7,7 @@ using OFC.Infrastructure.Security;
 using OFC.Modules.Catalog;
 using OFC.Modules.Ordering;
 using OFC.Modules.Reporting;
+using OFC.Modules.Shifts;
 
 namespace OFC.Api.Features;
 
@@ -70,15 +71,26 @@ public static class SprintFiveEndpoints
         }));
     }
 
-    private static async Task<IResult> List(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    private static async Task<IResult> List(Guid branchId, string? scope, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
+        var query = db.Orders.AsNoTracking().Where(x => x.BranchId == branchId);
+        // scope=shift limits the POS "current orders" panel to the open shift: unfinished orders always stay
+        // (a held order from an earlier shift must still be completable), finished ones only since the shift
+        // opened. Without an open shift only unfinished orders remain.
+        if (string.Equals(scope, "shift", StringComparison.OrdinalIgnoreCase))
+        {
+            var openedAt = await db.Shifts.AsNoTracking().Where(s => s.BranchId == branchId && s.Status == ShiftStatus.Open)
+                .Select(s => (DateTimeOffset?)s.OpenedAt).FirstOrDefaultAsync(ct);
+            query = query.Where(x => x.Status == OrderStatus.Draft || x.Status == OrderStatus.Pending || x.Status == OrderStatus.Confirmed
+                || (openedAt != null && x.CreatedAt >= openedAt));
+        }
         // The table code/name lets the cashier find a held order by table from the payment picker
         // (QR dine-in orders link to a table via QrOrderApproval -> QrContext; POS-created orders have none).
-        return Results.Ok(await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId).OrderByDescending(x => x.CreatedAt).Take(100)
+        return Results.Ok(await query.OrderByDescending(x => x.CreatedAt).Take(100)
             .Select(x => new
             {
-                x.Id, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt,
+                x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt,
                 table = db.QrOrderApprovals.Where(a => a.OrderId == x.Id)
                     .Join(db.QrContexts, a => a.QrContextId, c => c.Id, (a, c) => new { c.Code, c.NameAr, c.NameEn })
                     .FirstOrDefault()

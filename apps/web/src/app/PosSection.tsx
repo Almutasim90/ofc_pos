@@ -12,6 +12,7 @@ import {
   WifiOff,
   ScanBarcode,
   ReceiptText,
+  Trash2,
   X,
 } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
@@ -139,6 +140,8 @@ const words = {
     hold: "تعليق",
     send: "الدفع",
     confirmPay: "تأكيد الدفع",
+    clearOrder: "إفراغ",
+    confirmClear: "تأكيد الإفراغ",
     backToCart: "رجوع",
     notes: "ملاحظة",
     branch: "الفرع",
@@ -163,6 +166,7 @@ const words = {
       "لا توجد وسائل دفع محفوظة لهذا الفرع؛ اتصل بالإنترنت مرة واحدة على الأقل",
     offlinePayInvalid: "المبلغ المستلم غير كافٍ",
     heldOrders: "الطلبات الحالية",
+    heldScope: "طلبات الوردية الحالية والطلبات غير المكتملة",
     resume: "استئناف",
     noHeld: "لا توجد طلبات حالية",
     heldSearch: "ابحث برقم الطلب أو الطاولة",
@@ -216,6 +220,8 @@ const words = {
     hold: "Hold",
     send: "Pay",
     confirmPay: "Confirm payment",
+    clearOrder: "Clear",
+    confirmClear: "Confirm clear",
     backToCart: "Back",
     notes: "Note",
     branch: "Branch",
@@ -240,6 +246,7 @@ const words = {
       "No payment methods are cached for this branch; connect to the internet at least once first",
     offlinePayInvalid: "Tendered amount does not cover the total",
     heldOrders: "Current orders",
+    heldScope: "This shift's orders and any unfinished orders",
     resume: "Resume",
     noHeld: "No current orders",
     heldSearch: "Search by order # or table",
@@ -287,6 +294,7 @@ const words = {
 } as const;
 type HeldOrder = {
   id: string;
+  number?: number | null;
   status: string;
   grossAmount: number;
   note: string | null;
@@ -314,6 +322,9 @@ type OrderDetail = {
 };
 function orderRef(id: string) {
   return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+function heldRef(order: { id: string; number?: number | null }) {
+  return order.number ? `#${order.number}` : orderRef(order.id);
 }
 type QrToast = { id: number; text: string };
 type QrPendingOrder = {
@@ -392,6 +403,13 @@ export function PosSection({
   const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
   // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
   const [payStep, setPayStep] = useState(false);
+  // Clearing needs a second tap so a stray touch never wipes an order.
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => {
+    if (!confirmClear) return;
+    const timer = setTimeout(() => setConfirmClear(false), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmClear]);
   const [payCash, setPayCash] = useState("");
   const [payCard, setPayCard] = useState("");
   const [payMessage, setPayMessage] = useState("");
@@ -583,7 +601,9 @@ export function PosSection({
   async function loadHeld() {
     if (!branchId || !online) return;
     try {
-      const response = await auth(`/api/v1/orders?branchId=${branchId}`);
+      const response = await auth(
+        `/api/v1/orders?branchId=${branchId}&scope=shift`,
+      );
       if (handleAuthFailure(response)) return;
       if (response.ok)
         setHeldOrders(
@@ -1014,6 +1034,13 @@ export function PosSection({
     setPayCard("");
     setPayMessage("");
   }
+  function clearOrder() {
+    setCart([]);
+    clearDiscount();
+    requestRef.current = { snapshot: "", id: "" };
+    setPayStep(false);
+    setConfirmClear(false);
+  }
   function clearDiscount() {
     setDiscountOpen(false);
     setDiscountValue("");
@@ -1366,6 +1393,7 @@ export function PosSection({
       : "";
     const searchable = [
       orderRef(order.id),
+      order.number ? `#${order.number} ${order.number}` : "",
       table,
       order.note ?? "",
       order.status,
@@ -1472,6 +1500,9 @@ export function PosSection({
                       ({heldOrders.length})
                     </span>
                   )}
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {t.heldScope}
+                  </span>
                 </h2>
                 <Button
                   onClick={closeHeldOrders}
@@ -1522,10 +1553,10 @@ export function PosSection({
                               onClick={() => void openOrderDetail(order.id)}
                               className="min-h-12 max-w-full justify-start truncate px-0 text-base font-bold text-primary hover:underline"
                             >
-                              {orderRef(order.id)}
+                              {heldRef(order)}
                             </Button>
                             <p className="text-xs text-muted-foreground">
-                              {order.table ? order.table.code : "—"} ·{" "}
+                              {order.table ? name(order.table) : "—"} ·{" "}
                               {new Date(order.createdAt).toLocaleTimeString(
                                 language,
                               )}
@@ -1596,7 +1627,7 @@ export function PosSection({
                               onClick={() => void openOrderDetail(order.id)}
                               className="font-semibold text-primary hover:underline"
                             >
-                              {orderRef(order.id)}
+                              {heldRef(order)}
                             </Button>
                             {order.note && (
                               <p
@@ -1608,7 +1639,7 @@ export function PosSection({
                             )}
                           </TableCell>
                           <TableCell className="px-4 py-3 text-muted-foreground">
-                            {order.table ? order.table.code : "—"}
+                            {order.table ? name(order.table) : "—"}
                           </TableCell>
                           <TableCell className="px-4 py-3">
                             <span
@@ -1741,6 +1772,19 @@ export function PosSection({
           <span className="pos-ticket-channel">
             {activeChannel && name(activeChannel)}
           </span>
+          {cart.length > 0 && (
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                confirmClear ? clearOrder() : setConfirmClear(true)
+              }
+              className={`pos-clear ${confirmClear ? "is-confirming" : ""}`}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+              {confirmClear ? t.confirmClear : t.clearOrder}
+            </Button>
+          )}
           <Button
             className="lg:hidden"
             aria-label={language === "ar" ? "إغلاق السلة" : "Close cart"}

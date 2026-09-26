@@ -272,3 +272,45 @@ for (const width of [375,768,1366,1920]) for (const language of ['ar','en']) for
     }
   });
 }
+
+test('clear order empties the cart only after a confirming second tap', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:/Crispy chicken family meal 2 OMR/}).first().click();
+  const ticket = page.locator('.pos-ticket-desktop');
+  await expect(ticket.getByRole('listitem')).toHaveCount(2);
+  await ticket.getByRole('button',{name:'Clear',exact:true}).click();
+  await expect(ticket.getByRole('listitem')).toHaveCount(2);
+  await ticket.getByRole('button',{name:'Confirm clear',exact:true}).click();
+  await expect(ticket.getByRole('listitem')).toHaveCount(0);
+  await expect(ticket.getByRole('button',{name:'Clear',exact:true})).toHaveCount(0);
+});
+
+test('current orders ask for the open shift and show table names and order numbers', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  let query = '';
+  await page.route('**/api/v1/orders?**', async route => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== 'GET' || url.pathname !== '/api/v1/orders') return route.fallback();
+    query = url.search;
+    await route.fulfill({json:[{id:'order-1',number:1042,status:'Pending',grossAmount:4.5,note:'',createdAt:new Date().toISOString(),table:{code:'QR-T7-X9',nameAr:'طاولة 7',nameEn:'Table 7'}}]});
+  });
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Current orders/}).first().click();
+  const dialog = page.getByRole('dialog',{name:'Current orders'});
+  await expect(dialog.getByRole('button',{name:'#1042'}).last()).toBeVisible();
+  await expect(dialog.getByText('Table 7').last()).toBeVisible();
+  await expect(dialog.getByText('QR-T7-X9')).toHaveCount(0);
+  expect(query).toContain('scope=shift');
+});
+
+test('F11 toggles kiosk mode', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.goto('/#/users');
+  await expect(page.locator('.app-header')).not.toHaveClass(/kiosk-header/);
+  await page.keyboard.press('F11');
+  await expect(page.locator('.app-header')).toHaveClass(/kiosk-header/);
+  await page.keyboard.press('F11');
+  await expect(page.locator('.app-header')).not.toHaveClass(/kiosk-header/);
+});

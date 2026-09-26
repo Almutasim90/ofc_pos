@@ -350,6 +350,24 @@ export function App() {
       );
     };
   }, [kiosk]);
+  // F11 toggles kiosk mode (the browser's own F11 fullscreen is suppressed so the two never fight).
+  useEffect(() => {
+    if (!token || permissions === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "F11" || event.repeat) return;
+      event.preventDefault();
+      if (kiosk) {
+        exitKiosk();
+        setKiosk(false);
+      } else {
+        void enterKiosk().then((success) => {
+          if (success) setKiosk(true);
+        });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [kiosk, token, permissions]);
   useEffect(() => {
     if (!token) {
       setCheckingSession(false);
@@ -553,7 +571,10 @@ export function App() {
               (kiosk ? (
                 <Button
                   aria-label={tr("خروج من وضع الأكشاك", "Exit kiosk mode")}
-                  title={tr("خروج من وضع الأكشاك", "Exit kiosk mode")}
+                  title={tr(
+                    "خروج من وضع الأكشاك (F11)",
+                    "Exit kiosk mode (F11)",
+                  )}
                   className="min-h-11 px-3"
                   onClick={() => {
                     exitKiosk();
@@ -565,7 +586,8 @@ export function App() {
               ) : (
                 <Button
                   aria-label={tr("وضع الأكشاك", "Kiosk mode")}
-                  title={tr("وضع الأكشاك", "Kiosk mode")}
+                  aria-keyshortcuts="F11"
+                  title={tr("وضع الأكشاك (F11)", "Kiosk mode (F11)")}
                   className="min-h-11 px-3"
                   onClick={async () => {
                     const success = await enterKiosk();
