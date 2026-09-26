@@ -314,3 +314,41 @@ test('F11 toggles kiosk mode', async ({page}) => {
   await page.keyboard.press('F11');
   await expect(page.locator('.app-header')).not.toHaveClass(/kiosk-header/);
 });
+
+const kdsTicket = (id: string) => ({id,branchId:'b1',orderId:`o-${id}`,dispatchId:`d-${id}`,orderNumber:'21',stationId:null,stationCode:null,stationNameAr:null,stationNameEn:null,dispatchStatus:'SentToKds',channel:'Kds',status:'New',targetMinutes:15,kdsAttempts:1,fallbackPrinted:false,lastError:null,note:null,wasPrepStartedBeforeCancellation:false,cancellationNotified:false,createdAt:new Date().toISOString(),startedAt:null,readyAt:null,completedAt:null,cancelledAt:null,acknowledgedAt:null,fallbackPrintedAt:null,updatedAt:new Date().toISOString(),overdue:false,items:[{id:`i-${id}`,orderLineId:null,productId:'p0',productNameAr:'وجبة',productNameEn:'Chicken meal',quantity:2,note:null,selections:'[]',status:'New',startedAt:null,readyAt:null,completedAt:null}]});
+
+test('kitchen tablet shows new tickets ready to acknowledge without a send step', async ({page}) => {
+  await page.setViewportSize({width:1280,height:800}); await setup(page,'en','light');
+  await page.route('**/api/v1/kitchen/tickets?**', route => route.fulfill({json:[kdsTicket('t1')]}));
+  await page.goto('/#/kitchen');
+  await expect(page.getByRole('button',{name:'Received',exact:true})).toBeVisible();
+  await expect(page.getByText('New',{exact:true}).first()).toBeVisible();
+  await expect(page.getByRole('button',{name:'Send to KDS'})).toHaveCount(0);
+});
+
+test('cashier is warned when the kitchen does not acknowledge and can print the slip', async ({page}) => {
+  await page.clock.install();
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.addInitScript(() => { (window as unknown as {__printed:number}).__printed = 0; HTMLIFrameElement.prototype.focus = () => {}; });
+  // Every GET of the order list reports the dispatched order still waiting in the kitchen.
+  await page.route('**/api/v1/orders?**', async route => {
+    if (route.request().method() !== 'GET' || new URL(route.request().url()).pathname !== '/api/v1/orders') return route.fallback();
+    await route.fulfill({json:[{id:'o1',number:77,status:'SentToKitchen',grossAmount:2.5,note:'',createdAt:new Date().toISOString(),table:null}]});
+  });
+  await page.route('**/api/v1/orders/o1', route => route.fulfill({json:{id:'o1',number:77,status:'SentToKitchen',note:null,netAmount:2.5,taxAmount:0,grossAmount:2.5,createdAt:new Date().toISOString(),lines:[{id:'l1',productId:'p0',productNameAr:'وجبة',productNameEn:'Crispy chicken family meal 1',quantity:1,note:'No onion',unitGrossAmount:2.5,selectionsSnapshot:'[{"NameAr":"مشروبات","choices":[{"NameAr":"كولا","NameEn":"Cola","Quantity":1}]}]'}]}}));
+  await page.goto('/#/pos');
+  await page.getByRole('radio',{name:'Electronic',exact:true}).click();
+  await page.getByRole('radio',{name:'Talabat',exact:true}).click();
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
+  await expect(page.getByRole('alert').filter({hasText:'Not received in the kitchen'})).toHaveCount(0);
+  await page.clock.fastForward(26_000);
+  const alert = page.locator('.pos-kitchen-alert');
+  await expect(alert).toContainText('#77');
+  await expect(alert).toContainText('Not received in the kitchen');
+  const printed = page.waitForEvent('frameattached');
+  await alert.getByRole('button',{name:'Print for kitchen'}).click();
+  const frame = await printed;
+  await expect.poll(async () => (await frame.content()).includes('Cola') && (await frame.content()).includes('No onion')).toBe(true);
+  await expect(alert).toHaveCount(0);
+});

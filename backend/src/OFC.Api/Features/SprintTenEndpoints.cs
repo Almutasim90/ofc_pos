@@ -85,7 +85,8 @@ public static class SprintTenEndpoints
         foreach (var group in order.Lines.Where(x => x.VoidedQuantity < x.Quantity).GroupBy(x => products.TryGetValue(x.ProductId, out var product) ? product.PreparationStationId : null))
         {
             if (created.Count >= KitchenRules.MaxItemsPerTicket) break;
-            var ticket = new KitchenTicket { BranchId = branchId, OrderId = order.Id, DispatchId = dispatchId, OrderNumber = resolvedOrderNumber, StationId = group.Key, TargetMinutes = targetMinutes, Note = note?.Trim(), CreatedByUserId = createdByUserId, DeviceId = deviceId };
+            // Tickets go straight to the kitchen screen: there is no separate "send" step for staff to forget.
+            var ticket = new KitchenTicket { BranchId = branchId, OrderId = order.Id, DispatchId = dispatchId, OrderNumber = resolvedOrderNumber, StationId = group.Key, TargetMinutes = targetMinutes, Note = note?.Trim(), CreatedByUserId = createdByUserId, DeviceId = deviceId, DispatchStatus = KitchenDispatchStatus.SentToKds, KdsAttempts = 1 };
             foreach (var line in group)
             {
                 var product = products.TryGetValue(line.ProductId, out var found) ? found : null;
@@ -372,6 +373,8 @@ public static class SprintTenEndpoints
     }
 
     private static async Task<PreparationStation?> Station(OFCDbContext db, KitchenTicket ticket, CancellationToken ct) => ticket.StationId is Guid sid ? await db.PreparationStations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == sid, ct) : null;
+
+    internal static async Task<bool> HasPrintRoute(OFCDbContext db, KitchenTicket ticket, CancellationToken ct) => await ResolveRoute(db, ticket, ct) is not null;
 
     private static async Task<PrinterRoute?> ResolveRoute(OFCDbContext db, KitchenTicket ticket, CancellationToken ct)
     {

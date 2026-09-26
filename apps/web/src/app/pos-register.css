@@ -806,3 +806,72 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
   background: var(--destructive);
   color: var(--destructive-foreground);
 }
+
+/* Kitchen tablet did not acknowledge an order in time: a persistent warning with the paper fallback. */
+.pos-kitchen-alerts {
+  position: fixed;
+  z-index: 115;
+  inset-block-end: 16px;
+  inset-inline-start: 50%;
+  display: grid;
+  gap: 8px;
+  width: min(92vw, 560px);
+  transform: translateX(-50%);
+}
+[dir="rtl"] .pos-kitchen-alerts {
+  transform: translateX(50%);
+}
+.pos-kitchen-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--warning);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-warning-soft);
+  color: var(--foreground);
+  font-size: 14px;
+  box-shadow: 0 8px 24px var(--app-shadow);
+}
+.pos-kitchen-alert > span {
+  flex: 1 1 180px;
+}
+.pos-register .pos-kitchen-print {
+  padding-inline: 12px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+}
+.pos-register .pos-kitchen-dismiss {
+  padding-inline: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-weight: 600;
+}
+
+/* Receipt line: the name gets most of the width, the price sits at the far end in the accent color. */
+.pos-ticket-line {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.pos-ticket-line > strong {
+  grid-column: 1 / 3;
+  font-size: 13px;
+  font-weight: 700;
+}
+.pos-line-amount {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--primary);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+.pos-line-details {
+  font-size: 11.5px;
+}
+.pos-ticket-line > .pos-quantity {
+  grid-column: 1;
+}
+.pos-ticket-line > .pos-line-note {
+  grid-column: 2 / 4;
+}

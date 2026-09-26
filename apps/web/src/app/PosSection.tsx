@@ -30,6 +30,7 @@ import "@/app/pos-register.css";
 import { ProductPhoto } from "@/app/CatalogScreen";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { FormDialog } from "@/app/FormDialog";
+import { printKitchenSlip, snapshotChoices } from "@/lib/kitchen-slip";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { Button } from "@/components/ui/button";
 import {
@@ -141,6 +142,10 @@ const words = {
     send: "الدفع",
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
+    printKitchen: "طباعة للمطبخ",
+    kitchenSlip: "طلب مطبخ",
+    notReceived: "لم يُستلم في المطبخ",
+    kitchenInformed: "تم إبلاغ المطبخ",
     confirmClear: "تأكيد الإفراغ",
     backToCart: "رجوع",
     notes: "ملاحظة",
@@ -221,6 +226,10 @@ const words = {
     send: "Pay",
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
+    printKitchen: "Print for kitchen",
+    kitchenSlip: "Kitchen order",
+    notReceived: "Not received in the kitchen",
+    kitchenInformed: "Kitchen informed",
     confirmClear: "Confirm clear",
     backToCart: "Back",
     notes: "Note",
@@ -309,9 +318,11 @@ type OrderDetailLine = {
   quantity: number;
   note: string | null;
   unitGrossAmount: number;
+  selectionsSnapshot?: string;
 };
 type OrderDetail = {
   id: string;
+  number?: number | null;
   status: string;
   note: string | null;
   netAmount: number;
@@ -403,6 +414,16 @@ export function PosSection({
   const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
   // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
   const [payStep, setPayStep] = useState(false);
+  // Orders sent to the kitchen tablet that it has not acknowledged yet; after 20s the cashier is warned
+  // and can print the slip or confirm they told the kitchen.
+  const [kitchenWatch, setKitchenWatch] = useState<
+    Array<{
+      orderId: string;
+      number: number | null;
+      sentAt: number;
+      late: boolean;
+    }>
+  >([]);
   // Clearing needs a second tap so a stray touch never wipes an order.
   const [confirmClear, setConfirmClear] = useState(false);
   useEffect(() => {
@@ -805,6 +826,68 @@ export function PosSection({
       </ul>
     </div>
   );
+  useEffect(() => {
+    if (!kitchenWatch.length || !branchId || !online) return;
+    const timer = setInterval(async () => {
+      try {
+        const response = await auth(`/api/v1/orders?branchId=${branchId}`);
+        if (!response.ok) return;
+        const list = (await response.json()) as Array<{
+          id: string;
+          status: string;
+          number?: number | null;
+        }>;
+        const byId = new Map(list.map((order) => [order.id, order]));
+        setKitchenWatch((watch) =>
+          watch.flatMap((entry) => {
+            const order = byId.get(entry.orderId);
+            // Anything past SentToKitchen means a cook acknowledged it (or it was cancelled).
+            if (!order || order.status !== "SentToKitchen") return [];
+            return [
+              {
+                ...entry,
+                number: order.number ?? entry.number,
+                late: Date.now() - entry.sentAt >= 20_000,
+              },
+            ];
+          }),
+        );
+      } catch {
+        /* Best effort: the next tick retries. */
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [kitchenWatch.length, branchId, online]);
+  async function printForKitchen(orderId: string) {
+    try {
+      const response = await auth(`/api/v1/orders/${orderId}`);
+      if (handleAuthFailure(response)) return;
+      if (!response.ok) {
+        setMessage(t.unavailable);
+        return;
+      }
+      const detail = (await response.json()) as OrderDetail;
+      const held = heldOrders.find((order) => order.id === orderId);
+      const printed = printKitchenSlip({
+        title: t.kitchenSlip,
+        reference: detail.number ? `#${detail.number}` : orderRef(detail.id),
+        table: held?.table ? name(held.table) : null,
+        createdAt: detail.createdAt,
+        note: detail.note,
+        language,
+        lines: detail.lines.map((line) => ({
+          quantity: line.quantity,
+          name: language === "ar" ? line.productNameAr : line.productNameEn,
+          choices: snapshotChoices(line.selectionsSnapshot, language),
+          note: line.note,
+        })),
+      });
+      if (!printed) setMessage(t.unavailable);
+      setKitchenWatch((watch) => watch.filter((x) => x.orderId !== orderId));
+    } catch {
+      setMessage(t.unavailable);
+    }
+  }
   async function dispatchOrder(orderId: string) {
     const response = await auth("/api/v1/kitchen/tickets", {
       method: "POST",
@@ -823,6 +906,10 @@ export function PosSection({
           ? "الطلب محفوظ. تعذر إرساله للمطبخ؛ أعد الإرسال من الطلبات الحالية."
           : "Order saved. Kitchen dispatch failed; retry from Current orders.",
       );
+    setKitchenWatch((watch) => [
+      ...watch.filter((x) => x.orderId !== orderId),
+      { orderId, number: null, sentAt: Date.now(), late: false },
+    ]);
     setMessage(
       language === "ar" ? "تم إرسال الطلب للمطبخ." : "Order sent to kitchen.",
     );
@@ -1583,6 +1670,14 @@ export function PosSection({
                             >
                               {language === "ar" ? "مطبخ" : "Kitchen"}
                             </Button>
+                            <Button
+                              disabled={busy}
+                              onClick={() => void printForKitchen(order.id)}
+                              title={t.printKitchen}
+                              className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
+                            >
+                              {language === "ar" ? "طباعة" : "Print"}
+                            </Button>
                             {order.status !== "Paid" && (
                               <Button
                                 disabled={busy}
@@ -1669,6 +1764,14 @@ export function PosSection({
                                 className="min-h-12 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
                               >
                                 {language === "ar" ? "مطبخ" : "Kitchen"}
+                              </Button>
+                              <Button
+                                disabled={busy}
+                                onClick={() => void printForKitchen(order.id)}
+                                title={t.printKitchen}
+                                className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
+                              >
+                                {language === "ar" ? "طباعة" : "Print"}
                               </Button>
                               {order.status !== "Paid" && (
                                 <Button
@@ -2423,6 +2526,42 @@ export function PosSection({
       {qrToastsNode}
       {offlinePayModal}
       {heldOrdersModal}
+      {kitchenWatch.some((entry) => entry.late) && (
+        <div role="alert" className="pos-kitchen-alerts">
+          {kitchenWatch
+            .filter((entry) => entry.late)
+            .map((entry) => (
+              <div key={entry.orderId} className="pos-kitchen-alert">
+                <span>
+                  <strong>
+                    {entry.number
+                      ? `#${entry.number}`
+                      : orderRef(entry.orderId)}
+                  </strong>{" "}
+                  · {t.notReceived}
+                </span>
+                <Button
+                  type="button"
+                  onClick={() => void printForKitchen(entry.orderId)}
+                  className="pos-kitchen-print"
+                >
+                  {t.printKitchen}
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() =>
+                    setKitchenWatch((watch) =>
+                      watch.filter((x) => x.orderId !== entry.orderId),
+                    )
+                  }
+                  className="pos-kitchen-dismiss"
+                >
+                  {t.kitchenInformed}
+                </Button>
+              </div>
+            ))}
+        </div>
+      )}
       {message && (
         <p role="status" className="pos-message">
           {message}

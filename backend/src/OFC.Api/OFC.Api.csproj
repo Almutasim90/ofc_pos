@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
+    <InternalsVisibleTo Include="OFC.Api.IntegrationTests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\OFC.Infrastructure\OFC.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Identity\OFC.Modules.Identity.csproj" />
     <ProjectReference Include="..\Modules\OFC.Modules.Organization\OFC.Modules.Organization.csproj" />

@@ -107,7 +107,8 @@ const copy = {
     dispatchNote:
       "أرسل الطلب من نقطة البيع بزر «إرسال للمطبخ». تظهر أصناف الشواية للشواية والمشروبات لقسم المشروبات، حسب مكان التحضير المحدد عند تعديل المنتج. المنتج دون مكان محدد يظهر في المطبخ العام.",
     send: "إرسال إلى KDS",
-    ack: "استلام/بدء التحضير",
+    ack: "استلام",
+    newTicket: "جديد",
     fallback: "طباعة احتياطية",
     fail: "فشل",
     printed: "تمت الطباعة",
@@ -171,7 +172,8 @@ const copy = {
     dispatchAction: "Dispatch",
     dispatchNote: "Items route to their station automatically via the product.",
     send: "Send to KDS",
-    ack: "Acknowledge / start prep",
+    ack: "Received",
+    newTicket: "New",
     fallback: "Print fallback",
     fail: "Fail",
     printed: "Mark printed",
@@ -286,13 +288,26 @@ export function KitchenSection({ language }: { language: Language }) {
     setIsError(error);
   };
 
+  // Tickets already on screen; a new unacknowledged one rings so a busy kitchen notices it.
+  const seenTickets = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    seenTickets.current = null;
+  }, [branchId, stationId]);
   async function loadTickets() {
     if (!branchId) return;
     setLoading(true);
     try {
       const url = `/api/v1/kitchen/tickets?branchId=${branchId}${stationId ? `&stationId=${stationId}` : ""}&activeOnly=true`;
       const response = await auth(url);
-      setTickets(response.ok ? ((await response.json()) as Ticket[]) : []);
+      const next = response.ok ? ((await response.json()) as Ticket[]) : [];
+      const seen = seenTickets.current;
+      if (
+        seen &&
+        next.some((x) => x.dispatchStatus === "SentToKds" && !seen.has(x.id))
+      )
+        playNewTicketChime();
+      seenTickets.current = new Set(next.map((x) => x.id));
+      setTickets(next);
     } finally {
       setLoading(false);
     }
@@ -731,7 +746,7 @@ export function KitchenSection({ language }: { language: Language }) {
         {tickets.map((ticket) => (
           <article
             key={ticket.id}
-            className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:-translate-y-0.5"
+            className={`group relative overflow-hidden rounded-xl border bg-card transition hover:-translate-y-0.5 ${ticket.dispatchStatus === "SentToKds" ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
           >
             <div
               className={`h-1.5 w-full ${ticket.overdue ? "bg-destructive" : ticket.status === "Ready" ? "bg-success" : ticket.status === "Preparing" ? "bg-warning" : "bg-primary"}`}
@@ -742,8 +757,13 @@ export function KitchenSection({ language }: { language: Language }) {
                   <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     {t.orderNo}
                   </p>
-                  <p className="mt-0.5 text-2xl font-black tracking-tight text-foreground">
+                  <p className="mt-0.5 flex items-center gap-2 text-2xl font-black tracking-tight text-foreground">
                     #{ticket.orderNumber}
+                    {ticket.dispatchStatus === "SentToKds" && (
+                      <span className="animate-pulse rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground">
+                        {t.newTicket}
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -902,8 +922,16 @@ export function KitchenSection({ language }: { language: Language }) {
                 )}
                 {ticket.dispatchStatus === "SentToKds" && (
                   <Button
+                    onClick={() => void act(ticket, "ack")}
+                    className="min-h-12 flex-1 rounded-lg bg-success px-4 text-base font-bold text-success-foreground"
+                  >
+                    {t.ack}
+                  </Button>
+                )}
+                {ticket.dispatchStatus === "SentToKds" && (
+                  <Button
                     onClick={() => void act(ticket, "fallback")}
-                    className="min-h-10 rounded-lg bg-warning px-3 text-sm font-semibold text-primary-foreground"
+                    className="min-h-10 rounded-lg border border-border px-3 text-sm font-semibold text-muted-foreground"
                   >
                     {t.fallback}
                   </Button>
@@ -922,14 +950,6 @@ export function KitchenSection({ language }: { language: Language }) {
                     className="min-h-10 rounded-lg border border-destructive px-3 text-sm font-semibold text-destructive"
                   >
                     {t.fail}
-                  </Button>
-                )}
-                {ticket.dispatchStatus === "SentToKds" && (
-                  <Button
-                    onClick={() => void act(ticket, "ack")}
-                    className="min-h-10 rounded-lg bg-success px-3 text-sm font-semibold text-primary-foreground"
-                  >
-                    {t.ack}
                   </Button>
                 )}
                 {confirmCancelId === ticket.id ? (
@@ -962,4 +982,26 @@ export function KitchenSection({ language }: { language: Language }) {
       </div>
     </div>
   );
+}
+
+// A short two-tone chime generated in the browser, so no audio file has to ship with the app.
+function playNewTicketChime() {
+  try {
+    const context = new AudioContext();
+    [880, 1320].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = frequency;
+      const start = context.currentTime + index * 0.18;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.18);
+    });
+    setTimeout(() => void context.close(), 600);
+  } catch {
+    /* Audio may be blocked until the screen has been tapped once; the visual badge still shows. */
+  }
 }

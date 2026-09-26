@@ -35,6 +35,9 @@ public sealed class KitchenFallbackWatcher(IServiceScopeFactory scopeFactory, IK
         foreach (var ticket in candidates)
         {
             if (!KitchenRules.ShouldTriggerFallback(kdsAvailable: false, ticket.KdsAttempts, ticket.CreatedAt, now)) continue;
+            // Without a configured kitchen printer an automatic print job would only queue up unprinted;
+            // the POS instead warns the cashier, who can print the slip at the counter.
+            if (!await SprintTenEndpoints.HasPrintRoute(db, ticket, ct)) continue;
             var (ok, _) = await SprintTenEndpoints.ApplyFallback(db, ticket, "KDS did not acknowledge in time", null, KitchenExecutionChannel.PrintFallback, null, ticket.CreatedByUserId, ct);
             if (!ok) continue;
             await db.SaveChangesAsync(ct);
