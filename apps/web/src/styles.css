@@ -2146,7 +2146,7 @@
     [data-slot="dropdown-menu-content"],
     [data-slot="select-content"]
   )
-  button[class~="border"]:not([class*="bg-[#"]):hover:not(:disabled) {
+  button[class~="border"]:not([class*="bg-[#"]):not([class~="bg-primary"]):hover:not(:disabled) {
   border-color: color-mix(
     in srgb,
     var(--app-primary) 45%,

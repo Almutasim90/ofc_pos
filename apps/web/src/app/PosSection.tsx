@@ -2244,9 +2244,9 @@ export function PosSection({
                   <Button
                     type="button"
                     onClick={() => setDiscountOpen(true)}
-                    className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
+                    className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-sm font-semibold text-muted-foreground"
                   >
-                    <Plus size={15} />
+                    <Plus size={13} />
                     {t.addDiscount}
                   </Button>
                 ) : (
@@ -2321,62 +2321,73 @@ export function PosSection({
                   type="button"
                   disabled={!payCashMethod}
                   onClick={() => choosePayMethod("Cash")}
-                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Cash" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                 >
-                  <Banknote size={16} />
+                  <Banknote size={14} />
                   {t.cash}
                 </Button>
                 <Button
                   type="button"
                   disabled={!payCardMethod}
                   onClick={() => choosePayMethod("Card")}
-                  className={`flex min-h-12 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                 >
-                  <CreditCard size={16} />
+                  <CreditCard size={14} />
                   {t.card}
                 </Button>
                 <Button
                   type="button"
                   disabled={!payCashMethod || !payCardMethod}
                   onClick={() => choosePayMethod("Mixed")}
-                  className={`flex min-h-12 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  className={`flex min-h-11 items-center justify-center rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Mixed" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
                 >
                   {t.mixed}
                 </Button>
               </div>
-              {effectivePayMethod === "Mixed" && (
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Input
-                    aria-label={t.cash}
-                    type="text"
-                    inputMode="decimal"
-                    value={payCash}
-                    onChange={(e) => setPayCashAmount(e.target.value)}
-                    placeholder="0.000"
-                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
-                  />
-                  <Input
-                    aria-label={t.card}
-                    type="text"
-                    inputMode="decimal"
-                    value={payCard}
-                    onChange={(e) => setPayCardAmount(e.target.value)}
-                    placeholder="0.000"
-                    className="min-h-12 w-full rounded-lg border border-border bg-card px-3 text-base outline-none focus:border-primary md:text-sm"
-                  />
-                </div>
-              )}
-              {(offlineMethods.length === 0 || payMessage) && (
-                <p role="alert" className="mt-2 text-xs text-destructive">
-                  {payMessage || t.payNoMethods}
-                </p>
-              )}
+              {/* The split row keeps its space for every method so the layout never shifts under the cashier. */}
+              <div
+                className={`mt-2 grid grid-cols-2 gap-2 ${effectivePayMethod === "Mixed" ? "" : "invisible"}`}
+                aria-hidden={effectivePayMethod !== "Mixed"}
+              >
+                {(
+                  [
+                    [t.cash, payCash, setPayCashAmount],
+                    [t.card, payCard, setPayCardAmount],
+                  ] as const
+                ).map(([label, value, onChange], index) => (
+                  <label
+                    key={label}
+                    className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 focus-within:border-primary"
+                  >
+                    <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                      {label}
+                    </span>
+                    <Input
+                      aria-label={label}
+                      type="text"
+                      inputMode="decimal"
+                      value={value}
+                      tabIndex={effectivePayMethod === "Mixed" ? 0 : -1}
+                      autoFocus={effectivePayMethod === "Mixed" && index === 0}
+                      onChange={(e) => onChange(e.target.value)}
+                      placeholder="0.000"
+                      dir="ltr"
+                      className="min-w-0 flex-1 border-0 bg-transparent dark:bg-transparent focus-visible:ring-0 px-0 text-end text-base shadow-none outline-none md:text-sm"
+                    />
+                  </label>
+                ))}
+              </div>
+              <p role="alert" className="mt-1 min-h-4 text-xs text-destructive">
+                {offlineMethods.length === 0 || payMessage
+                  ? payMessage || t.payNoMethods
+                  : ""}
+              </p>
             </div>
-            <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+            <div className="sticky bottom-0 -mx-4 -mb-4 grid grid-cols-[auto_minmax(0,1fr)] gap-2 border-t border-border bg-background px-4 py-3 sm:-mx-5 sm:-mb-5 sm:px-5">
               <Button
                 type="button"
                 onClick={() => setPayStep(false)}
-                className="min-h-12 rounded-lg border border-border px-4 font-semibold"
+                className="min-h-11 rounded-lg border border-border px-4 text-sm font-semibold"
               >
                 {t.backToCart}
               </Button>
@@ -2389,7 +2400,7 @@ export function PosSection({
                   offlineMethods.length === 0
                 }
                 onClick={() => void submit("Pending")}
-                className="min-h-12 rounded-lg bg-primary px-4 font-bold text-primary-foreground hover:bg-primary/90"
+                className="min-h-11 rounded-lg bg-primary px-4 font-bold text-primary-foreground hover:bg-primary/90"
               >
                 {t.confirmPay}
               </Button>
