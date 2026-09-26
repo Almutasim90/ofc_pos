@@ -1,4 +1,7 @@
 using System.Linq;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using OFC.Api.Features;
 using OFC.Infrastructure.Persistence;
@@ -58,5 +61,33 @@ public class KitchenDispatchFlowTests
             Assert.Equal(KitchenDispatchStatus.SentToKds, db.KitchenTickets.Single(x => x.Id == ticketId).DispatchStatus);
             Assert.False(db.PrintJobs.Any(x => x.BranchId == branchId));
         }
+    }
+
+    // Regression: dispatch used to fail every time with DbUpdateConcurrencyException because the order's
+    // new status-history row was taken for an existing one (POS showed "Kitchen dispatch failed").
+    [Fact]
+    public async Task Paid_order_dispatches_through_the_api_and_the_kitchen_can_acknowledge_it()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.AnonymousClient();
+        await client.PostAsJsonAsync("/api/v1/auth/bootstrap", new { organizationNameAr = "منظمة", organizationNameEn = "Org", branchNameAr = "الفرع", branchNameEn = "Branch", username = "kds-api-admin", displayName = "Admin", password = "password1234" });
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { username = "kds-api-admin", password = "password1234", branchId = (Guid?)null, deviceId = (Guid?)null });
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        var branchId = (await (await client.GetAsync("/api/v1/branches")).Content.ReadFromJsonAsync<JsonElement>())[0].GetProperty("id").GetGuid();
+        var channelId = (await (await client.PostAsJsonAsync("/api/v1/sales-channels", new { code = "POS", nameAr = "الصالة", nameEn = "Dine-in", isActive = true })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var categoryId = (await (await client.PostAsJsonAsync("/api/v1/categories", new { nameAr = "وجبات", nameEn = "Meals", parentId = (Guid?)null, sortOrder = 0, imageUrl = (string?)null })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var productId = (await (await client.PostAsJsonAsync("/api/v1/products", new { sku = "KDS-API-1", barcode = (string?)null, nameAr = "وجبة", nameEn = "Meal", descriptionAr = (string?)null, descriptionEn = (string?)null, categoryId, type = "Simple", taxCategoryId = (Guid?)null, preparationStationId = (Guid?)null, basePrice = 2m, isActive = true, images = Array.Empty<object>(), availability = new[] { new { branchId, isAvailable = true } } })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var orderId = (await (await client.PostAsJsonAsync("/api/v1/orders", new { branchId, salesChannelId = channelId, clientRequestId = Guid.NewGuid(), source = "Pos", note = (string?)null, lines = new[] { new { productId, quantity = 1, note = (string?)null, selections = Array.Empty<object>() } } })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        (await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/status", new { status = "Pending", note = (string?)null })).EnsureSuccessStatusCode();
+
+        var dispatch = await client.PostAsJsonAsync("/api/v1/kitchen/tickets", new { branchId, orderId, clientDispatchId = Guid.NewGuid(), orderNumber = (string?)null, note = (string?)null, targetMinutes = (int?)null });
+        Assert.True(dispatch.StatusCode == HttpStatusCode.Created, await dispatch.Content.ReadAsStringAsync());
+        var ticket = (await dispatch.Content.ReadFromJsonAsync<JsonElement>())[0];
+        Assert.Equal("SentToKds", ticket.GetProperty("dispatchStatus").GetString());
+
+        var ack = await client.PostAsync($"/api/v1/kitchen/tickets/{ticket.GetProperty("id").GetGuid()}/ack", null);
+        Assert.True(ack.StatusCode == HttpStatusCode.OK, await ack.Content.ReadAsStringAsync());
+        var order = await (await client.GetAsync($"/api/v1/orders/{orderId}")).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Preparing", order.GetProperty("status").GetString());
     }
 }

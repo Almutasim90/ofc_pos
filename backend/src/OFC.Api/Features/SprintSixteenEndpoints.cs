@@ -244,7 +244,7 @@ public static class SprintSixteenEndpoints
         var fromOrderStatus = order.Status;
         order.Status = targetOrderStatus;
         order.UpdatedAt = DateTimeOffset.UtcNow;
-        order.StatusHistory.Add(new OrderStatusHistory { FromStatus = fromOrderStatus, ToStatus = targetOrderStatus, ChangedByUserId = UserId(user), Note = request.Note?.Trim() ?? (decision == "approve" ? "Approved" : "Rejected") });
+        db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = fromOrderStatus, ToStatus = targetOrderStatus, ChangedByUserId = UserId(user), Note = request.Note?.Trim() ?? (decision == "approve" ? "Approved" : "Rejected") });
         var trackedApproval = await db.QrOrderApprovals.SingleOrDefaultAsync(x => x.Id == approval.Id, ct);
         trackedApproval!.Status = target;
         trackedApproval.ReviewedByUserId = UserId(user);

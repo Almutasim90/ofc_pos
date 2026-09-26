@@ -97,7 +97,7 @@ public static class SprintTenEndpoints
             created.Add(ticket);
             identity.Audit(createdByUserId, branchId, deviceId, "kitchen.ticket.dispatch", "kitchen_ticket", ticket.Id.ToString(), traceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.OrderId, ticket.DispatchId, ticket.StationId, itemCount = ticket.Items.Count }));
         }
-        if (created.Count > 0) ApplyOrderStatus(order, OrderStatus.SentToKitchen, createdByUserId, "Sent to kitchen");
+        if (created.Count > 0) ApplyOrderStatus(db, order, OrderStatus.SentToKitchen, createdByUserId, "Sent to kitchen");
         return created;
     }
 
@@ -337,22 +337,25 @@ public static class SprintTenEndpoints
                     : active.Any(x => x.Status is KitchenTicketStatus.Preparing or KitchenTicketStatus.Ready or KitchenTicketStatus.Completed)
                         ? OrderStatus.Preparing
                         : OrderStatus.SentToKitchen;
-        ApplyOrderStatus(order, target, changedByUserId, "Kitchen progress");
+        ApplyOrderStatus(db, order, target, changedByUserId, "Kitchen progress");
         return order;
     }
 
-    private static void ApplyOrderStatus(Order order, OrderStatus target, Guid? changedByUserId, string note)
+    // History rows are added through the context, not the loaded order's collection: a new row with a
+    // client-generated key reached only via navigation is taken for an existing row and UPDATEd, which
+    // failed every kitchen dispatch with DbUpdateConcurrencyException.
+    private static void ApplyOrderStatus(OFCDbContext db, Order order, OrderStatus target, Guid? changedByUserId, string note)
     {
         if (order.Status == target) return;
         if (target == OrderStatus.Completed && order.Status == OrderStatus.Preparing)
         {
-            ApplyOrderStatus(order, OrderStatus.Ready, changedByUserId, note);
+            ApplyOrderStatus(db, order, OrderStatus.Ready, changedByUserId, note);
         }
         if (!OrderRules.CanTransition(order.Status, target)) return;
         var from = order.Status;
         order.Status = target;
         order.UpdatedAt = DateTimeOffset.UtcNow;
-        order.StatusHistory.Add(new OrderStatusHistory { FromStatus = from, ToStatus = target, ChangedByUserId = changedByUserId, Note = note });
+        db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = from, ToStatus = target, ChangedByUserId = changedByUserId, Note = note });
     }
 
     // Shared by the manual "Print fallback" action and KitchenFallbackWatcher's automatic trigger, so an
