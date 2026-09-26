@@ -23,6 +23,7 @@ public static class SprintFiveEndpoints
         api.MapGet("/orders/{id:guid}", Get).RequireAuthorization();
         api.MapPost("/orders", Create).RequireAuthorization();
         api.MapPost("/orders/{id:guid}/status", ChangeStatus).RequireAuthorization();
+        api.MapPut("/orders/{id:guid}/lines", ReplaceLines).RequireAuthorization();
     }
 
     private static async Task<IResult> Context(OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
@@ -113,7 +114,7 @@ public static class SprintFiveEndpoints
         var pageIndex = ReportingRules.NormalizePage(page);
         var size = ReportingRules.NormalizePageSize(pageSize);
         var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageIndex - 1) * size).Take(size)
-            .Select(x => new { x.Id, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, lineCount = x.Lines.Count })
+            .Select(x => new { x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, lineCount = x.Lines.Count })
             .ToListAsync(ct);
         return Results.Ok(new { total, page = pageIndex, pageSize = size, items });
     }
@@ -132,22 +133,60 @@ public static class SprintFiveEndpoints
         var existing = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientRequestId == request.ClientRequestId, ct);
         if (existing is not null) return Results.Ok(OrderResponse(existing));
         if (!await db.SalesChannels.AnyAsync(x => x.Id == request.SalesChannelId && x.IsActive, ct)) return Validation("salesChannelId", "The sales channel is invalid.");
-        var productIds = request.Lines.Select(x => x.ProductId).Distinct().ToList();
-        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == request.BranchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
-        if (products.Count != productIds.Count) return Validation("lines", "One or more products are unavailable at this branch.");
-        var at = DateTimeOffset.UtcNow;
-        var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
-        var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || productIds.Contains(x.ProductId.Value)).ToListAsync(ct);
-        var taxIds = products.Values.Where(x => x.TaxCategoryId.HasValue).Select(x => x.TaxCategoryId!.Value).Distinct().ToList();
-        var taxes = await db.TaxRules.AsNoTracking().Where(x => taxIds.Contains(x.TaxCategoryId)).ToListAsync(ct);
-        var version = await db.CatalogVersions.AsNoTracking().OrderByDescending(x => x.Number).FirstOrDefaultAsync(ct);
-        var built = OrderingEngine.Build(request.BranchId, request.SalesChannelId, request.Source, UserId(user), null, DeviceId(user), request.Note, request.ClientRequestId, at, request.Lines.Select(x => new OrderLineInput(x.ProductId, x.Quantity, x.Note, x.Selections?.Select(s => new GroupSelectionInput(s.SelectionGroupId, s.Choices.Select(c => new ChoiceInput(c.OptionId, c.Quantity)).ToList())).ToList())).ToList(), products, prices, promotions, taxes, version, request.Discount is null ? null : new ManualDiscountInput(request.Discount.Type, request.Discount.Value));
+        var built = await BuildOrder(db, user, request.BranchId, request.SalesChannelId, request.Source, request.Note, request.ClientRequestId, request.Lines, request.Discount, ct);
         if (!built.Succeeded) return Validation(built.Field!, built.Error!);
         var order = built.Order!;
         order.StatusHistory.Add(new OrderStatusHistory { FromStatus = OrderStatus.Draft, ToStatus = OrderStatus.Draft, ChangedByUserId = UserId(user), Note = "Created" });
         db.Orders.Add(order); identity.Audit(UserId(user), request.BranchId, DeviceId(user), "order.create", "order", order.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { order.ClientRequestId, order.Source, order.GrossAmount, order.ManualDiscountAmount }));
         try { await db.SaveChangesAsync(ct); } catch (DbUpdateException) { var duplicate = await db.Orders.Include(x => x.Lines).Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.BranchId == request.BranchId && x.ClientRequestId == request.ClientRequestId, ct); if (duplicate is not null) return Results.Ok(OrderResponse(duplicate)); throw; }
         return Results.Created($"/api/v1/orders/{order.Id}", OrderResponse(order));
+    }
+
+    // Prices and validates order lines exactly as a new order would be; shared by Create and ReplaceLines so
+    // an edited held order can never be priced differently from a freshly rung-up one.
+    private static async Task<OrderingBuildResult> BuildOrder(OFCDbContext db, ClaimsPrincipal user, Guid branchId, Guid salesChannelId, OrderSource source, string? note, Guid clientRequestId, List<LineRequest> lines, ManualDiscountRequest? discount, CancellationToken ct)
+    {
+        var productIds = lines.Select(x => x.ProductId).Distinct().ToList();
+        var products = await db.Products.Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).Where(x => productIds.Contains(x.Id) && x.IsActive && x.BranchAvailability.Any(a => a.BranchId == branchId && a.IsAvailable)).ToDictionaryAsync(x => x.Id, x => x, ct);
+        if (products.Count != productIds.Count) return OrderingBuildResult.Fail("lines", "One or more products are unavailable at this branch.");
+        var at = DateTimeOffset.UtcNow;
+        var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
+        var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || productIds.Contains(x.ProductId.Value)).ToListAsync(ct);
+        var taxIds = products.Values.Where(x => x.TaxCategoryId.HasValue).Select(x => x.TaxCategoryId!.Value).Distinct().ToList();
+        var taxes = await db.TaxRules.AsNoTracking().Where(x => taxIds.Contains(x.TaxCategoryId)).ToListAsync(ct);
+        var version = await db.CatalogVersions.AsNoTracking().OrderByDescending(x => x.Number).FirstOrDefaultAsync(ct);
+        return OrderingEngine.Build(branchId, salesChannelId, source, UserId(user), null, DeviceId(user), note, clientRequestId, at, lines.Select(x => new OrderLineInput(x.ProductId, x.Quantity, x.Note, x.Selections?.Select(s => new GroupSelectionInput(s.SelectionGroupId, s.Choices.Select(c => new ChoiceInput(c.OptionId, c.Quantity)).ToList())).ToList())).ToList(), products, prices, promotions, taxes, version, discount is null ? null : new ManualDiscountInput(discount.Type, discount.Value));
+    }
+
+    // Edit a held (Draft) or awaiting-payment (Pending) order in place: the cashier adds or changes items the
+    // customer asked for. Once money was taken, a line was voided or the kitchen has the ticket, the order is
+    // frozen — further items go on a new order instead.
+    private static async Task<IResult> ReplaceLines(Guid id, ReplaceLinesRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        var order = await db.Orders.Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (order is null) return Results.NotFound();
+        if (!await CanOperate(db, user, order.BranchId, ct)) return Forbidden();
+        if (request.Lines is not { Count: > 0 } || request.Lines.Count > 100) return Validation("lines", "Provide between 1 and 100 order lines.");
+        if (request.Discount is not null && !user.HasClaim("permission", "orders.discount")) return Forbidden();
+        if (order.Status is not (OrderStatus.Draft or OrderStatus.Pending)) return Validation("order", "Only a held or unpaid order can be edited.");
+        if (await db.Payments.AnyAsync(x => x.OrderId == id, ct) || await db.OrderLineVoids.AnyAsync(x => x.OrderId == id, ct) || await db.KitchenTickets.AnyAsync(x => x.OrderId == id && x.DispatchStatus != OFC.Modules.Kitchen.KitchenDispatchStatus.Cancelled, ct))
+            return Validation("order", "This order already has a payment, a void or a kitchen ticket; add the new items as a separate order.");
+        var built = await BuildOrder(db, user, order.BranchId, order.SalesChannelId, order.Source, order.Note, order.ClientRequestId, request.Lines, request.Discount, ct);
+        if (!built.Succeeded) return Validation(built.Field!, built.Error!);
+        var before = new { order.GrossAmount, lines = order.Lines.Count };
+        db.OrderLines.RemoveRange(order.Lines);
+        foreach (var line in built.Order!.Lines)
+        {
+            // Added through the context with an explicit OrderId (see ApplyOrderStatus in SprintTenEndpoints).
+            line.OrderId = order.Id;
+            db.OrderLines.Add(line);
+        }
+        order.NetAmount = built.Order.NetAmount; order.TaxAmount = built.Order.TaxAmount; order.GrossAmount = built.Order.GrossAmount; order.ManualDiscountAmount = built.Order.ManualDiscountAmount; order.UpdatedAt = DateTimeOffset.UtcNow;
+        db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = order.Status, ToStatus = order.Status, ChangedByUserId = UserId(user), Note = "Edited" });
+        identity.Audit(UserId(user), order.BranchId, DeviceId(user), "order.edit", "order", order.Id.ToString(), context.TraceIdentifier, JsonSerializer.Serialize(before), JsonSerializer.Serialize(new { order.GrossAmount, lines = built.Order.Lines.Count, order.ManualDiscountAmount }));
+        await db.SaveChangesAsync(ct);
+        var saved = await db.Orders.AsNoTracking().Include(x => x.Lines).Include(x => x.StatusHistory).SingleAsync(x => x.Id == id, ct);
+        return Results.Ok(OrderResponse(saved));
     }
 
     private static async Task<IResult> ChangeStatus(Guid id, StatusRequest request, OFCDbContext db, IdentityService identity, IOrdersBroadcaster ordersBroadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
@@ -169,6 +208,7 @@ public static class SprintFiveEndpoints
     private static IResult Validation(string field, string detail) => Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [detail] });
     private sealed record CreateOrderRequest(Guid BranchId, Guid SalesChannelId, Guid ClientRequestId, OrderSource Source, string? Note, List<LineRequest> Lines, ManualDiscountRequest? Discount = null);
     private sealed record ManualDiscountRequest(string Type, decimal Value);
+    private sealed record ReplaceLinesRequest(List<LineRequest> Lines, ManualDiscountRequest? Discount = null);
     private sealed record LineRequest(Guid ProductId, int Quantity, string? Note, List<GroupSelection>? Selections);
     private sealed record GroupSelection(Guid SelectionGroupId, List<ChoiceRequest> Choices);
     private sealed record ChoiceRequest(Guid OptionId, int Quantity);

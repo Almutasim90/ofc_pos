@@ -352,3 +352,50 @@ test('cashier is warned when the kitchen does not acknowledge and can print the 
   await expect.poll(async () => (await frame.content()).includes('Cola') && (await frame.content()).includes('No onion')).toBe(true);
   await expect(alert).toHaveCount(0);
 });
+
+async function openOrdersRoute(page: Page, orders: unknown[]) {
+  await page.route('**/api/v1/orders?**', async route => {
+    if (route.request().method() !== 'GET' || new URL(route.request().url()).pathname !== '/api/v1/orders') return route.fallback();
+    await route.fulfill({json:orders});
+  });
+}
+
+test('a held order can be reopened, extended and paid as the same order', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await openOrdersRoute(page, [{id:'o5',number:5,status:'Pending',salesChannelId:'c1',grossAmount:2.5,note:'',createdAt:new Date().toISOString(),table:null}]);
+  await page.route('**/api/v1/orders/o5', route => route.fulfill({json:{id:'o5',number:5,salesChannelId:'c1',status:'Pending',note:null,netAmount:2.5,taxAmount:0,grossAmount:2.5,manualDiscountAmount:0,createdAt:new Date().toISOString(),lines:[{id:'l1',productId:'p0',productNameAr:'وجبة',productNameEn:'Crispy chicken family meal 1',quantity:1,note:null,unitGrossAmount:2.5,selectionsSnapshot:'[]'}]}}));
+  const calls: string[] = [];
+  page.on('request', request => { const u = new URL(request.url()); if (request.method() !== 'GET' && u.pathname.startsWith('/api/')) calls.push(`${request.method()} ${u.pathname}`); });
+  await page.route('**/api/v1/orders/o5/lines', route => route.fulfill({json:{id:'o5',grossAmount:5}}));
+  await page.route('**/api/v1/orders/o5/payments', route => route.fulfill({json:{payments:[]}}));
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Current orders/}).first().click();
+  await page.getByRole('dialog',{name:'Current orders'}).getByRole('button',{name:'Edit',exact:true}).last().click();
+  const ticket = page.locator('.pos-ticket-desktop');
+  await expect(ticket.getByText('Editing order #5')).toBeVisible();
+  await expect(ticket.getByRole('listitem')).toHaveCount(1);
+  await page.getByRole('button',{name:/Crispy chicken family meal 2 OMR/}).first().click();
+  await expect(ticket.getByRole('listitem')).toHaveCount(2);
+  await ticket.getByRole('button',{name:'Pay',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm payment',exact:true}).click();
+  await expect.poll(() => calls.includes('POST /api/v1/orders/o5/payments')).toBe(true);
+  expect(calls).toContain('PUT /api/v1/orders/o5/lines');
+  expect(calls).not.toContain('POST /api/v1/orders');
+  expect(calls).not.toContain('POST /api/v1/orders/o5/status');
+  await expect(ticket.getByText('Editing order #5')).toHaveCount(0);
+});
+
+test('an add-on for a paid order is a new invoice that references it', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await openOrdersRoute(page, [{id:'o9',number:9,status:'Paid',salesChannelId:'c1',grossAmount:2.5,note:'',createdAt:new Date().toISOString(),table:null}]);
+  let created: {note: string | null} | null = null;
+  page.on('request', request => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/orders') created = request.postDataJSON(); });
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Current orders/}).first().click();
+  await page.getByRole('dialog',{name:'Current orders'}).getByRole('button',{name:'Add-on order',exact:true}).last().click();
+  const ticket = page.locator('.pos-ticket-desktop');
+  await expect(ticket.getByText('Add-on for order #9')).toBeVisible();
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await ticket.getByRole('button',{name:'Hold',exact:true}).click();
+  await expect.poll(() => created?.note ?? null).toBe('Add-on for order #9');
+});

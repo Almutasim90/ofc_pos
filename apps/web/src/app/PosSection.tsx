@@ -142,6 +142,15 @@ const words = {
     send: "الدفع",
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
+    editOrder: "تعديل",
+    editingOrder: "تعديل الطلب",
+    cancelEdit: "إلغاء التعديل",
+    addOnOrder: "طلب إضافي",
+    addOnFor: "طلب إضافي للطلب",
+    emptyCartFirst: "أفرغ السلة أولاً ثم أعد المحاولة.",
+    editUnavailable: "بعض أصناف هذا الطلب غير متوفرة حالياً، لا يمكن تعديله.",
+    editDiscountDropped: "كان على الطلب خصم؛ أعد إدخاله قبل الدفع.",
+    editOffline: "تعديل الطلبات يحتاج اتصالاً بالخادم.",
     printKitchen: "طباعة للمطبخ",
     kitchenSlip: "طلب مطبخ",
     notReceived: "لم يُستلم في المطبخ",
@@ -226,6 +235,17 @@ const words = {
     send: "Pay",
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
+    editOrder: "Edit",
+    editingOrder: "Editing order",
+    cancelEdit: "Cancel edit",
+    addOnOrder: "Add-on order",
+    addOnFor: "Add-on for order",
+    emptyCartFirst: "Clear the cart first, then try again.",
+    editUnavailable:
+      "Some items of this order are unavailable now; it cannot be edited.",
+    editDiscountDropped:
+      "This order had a discount; re-enter it before paying.",
+    editOffline: "Editing orders needs a server connection.",
     printKitchen: "Print for kitchen",
     kitchenSlip: "Kitchen order",
     notReceived: "Not received in the kitchen",
@@ -261,7 +281,7 @@ const words = {
     heldSearch: "Search by order # or table",
     heldNoMatch: "No orders match",
     heldSince: "Held since",
-    orderRef: "Order ref",
+    orderRef: "Order no.",
     table: "Table",
     back: "Back",
     loadingOrder: "Loading order details…",
@@ -309,6 +329,7 @@ type HeldOrder = {
   note: string | null;
   createdAt: string;
   table: { code: string; nameAr: string; nameEn: string } | null;
+  salesChannelId?: string;
 };
 type OrderDetailLine = {
   id: string;
@@ -323,6 +344,8 @@ type OrderDetailLine = {
 type OrderDetail = {
   id: string;
   number?: number | null;
+  salesChannelId?: string;
+  manualDiscountAmount?: number;
   status: string;
   note: string | null;
   netAmount: number;
@@ -331,15 +354,39 @@ type OrderDetail = {
   createdAt: string;
   lines: OrderDetailLine[];
 };
-function orderRef(id: string) {
-  return id.replace(/-/g, "").slice(0, 8).toUpperCase();
+// Rebuilds a cart line's chosen options (groupId -> optionIds) from the order line's JSON snapshot, which
+// the server may serialize in PascalCase or camelCase.
+function snapshotSelections(snapshot: string | undefined) {
+  const selections: Record<string, string[]> = {};
+  if (!snapshot) return selections;
+  try {
+    type Choice = { OptionId?: string; optionId?: string };
+    type Group = {
+      Id?: string;
+      id?: string;
+      Choices?: Choice[];
+      choices?: Choice[];
+    };
+    for (const group of JSON.parse(snapshot) as Group[]) {
+      const groupId = group.Id ?? group.id;
+      if (!groupId) continue;
+      selections[groupId] = (group.choices ?? group.Choices ?? [])
+        .map((choice) => choice.OptionId ?? choice.optionId)
+        .filter((id): id is string => !!id);
+    }
+  } catch {
+    /* A malformed snapshot just means no options are preselected. */
+  }
+  return selections;
 }
-function heldRef(order: { id: string; number?: number | null }) {
-  return order.number ? `#${order.number}` : orderRef(order.id);
+// Orders are identified to staff by their sequential number only (never the internal id).
+function orderLabel(number?: number | null) {
+  return number ? `#${number}` : "#—";
 }
 type QrToast = { id: number; text: string };
 type QrPendingOrder = {
   id: string;
+  number?: number | null;
   clientRequestId: string;
   grossAmount: number;
   lines: Array<{
@@ -414,6 +461,14 @@ export function PosSection({
   const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
   // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
   const [payStep, setPayStep] = useState(false);
+  // An open order loaded back into the cart: Pay/Hold update it in place instead of creating a new one.
+  const [editing, setEditing] = useState<{
+    orderId: string;
+    number: number | null;
+    status: string;
+  } | null>(null);
+  // A new order rung up for a customer whose earlier order is already paid; linked through its note.
+  const [addOnFor, setAddOnFor] = useState<number | null>(null);
   // Orders sent to the kitchen tablet that it has not acknowledged yet; after 20s the cashier is warned
   // and can print the slip or confirm they told the kitchen.
   const [kitchenWatch, setKitchenWatch] = useState<
@@ -738,14 +793,20 @@ export function PosSection({
     if (!branchId || payload.branchId !== branchId) return;
     const who = payload.approvalStatus === "Pending" ? t.qrPending : t.qrNew;
     qrNotify(
-      `${who} · ${payload.clientRequestId.slice(0, 8)} · OMR ${Number(payload.grossAmount).toFixed(3)}`,
+      [
+        who,
+        payload.contextCode,
+        `OMR ${Number(payload.grossAmount).toFixed(3)}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     );
     void refreshOrders();
   }
   function onQrOrderReviewed(payload: QrOrderReviewedEvent) {
     if (!branchId || payload.branchId !== branchId) return;
     qrNotify(
-      `${payload.approvalStatus === "Approved" ? t.qrApproved : t.qrRejected} · ${payload.clientRequestId.slice(0, 8)}`,
+      payload.approvalStatus === "Approved" ? t.qrApproved : t.qrRejected,
     );
     void refreshOrders();
   }
@@ -794,7 +855,7 @@ export function PosSection({
           >
             <div className="min-w-0">
               <p className="font-medium">
-                {o.clientRequestId.slice(0, 8)} · OMR {o.grossAmount.toFixed(3)}
+                {orderLabel(o.number)} · OMR {o.grossAmount.toFixed(3)}
               </p>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {o.lines
@@ -870,7 +931,7 @@ export function PosSection({
       const held = heldOrders.find((order) => order.id === orderId);
       const printed = printKitchenSlip({
         title: t.kitchenSlip,
-        reference: detail.number ? `#${detail.number}` : orderRef(detail.id),
+        reference: orderLabel(detail.number),
         table: held?.table ? name(held.table) : null,
         createdAt: detail.createdAt,
         note: detail.note,
@@ -913,6 +974,55 @@ export function PosSection({
     setMessage(
       language === "ar" ? "تم إرسال الطلب للمطبخ." : "Order sent to kitchen.",
     );
+  }
+  async function startEdit(order: HeldOrder) {
+    if (busy) return;
+    if (!online) return setMessage(t.editOffline);
+    if (cart.length) return setMessage(t.emptyCartFirst);
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await auth(`/api/v1/orders/${order.id}`);
+      if (handleAuthFailure(response)) return;
+      if (!response.ok) throw new Error(t.unavailable);
+      const detail = (await response.json()) as OrderDetail;
+      const byId = new Map(products.map((product) => [product.id, product]));
+      const lines: CartLine[] = [];
+      for (const line of detail.lines) {
+        const product = byId.get(line.productId);
+        if (!product) throw new Error(t.editUnavailable);
+        lines.push({
+          key: createId(),
+          product,
+          quantity: line.quantity,
+          note: line.note ?? "",
+          selections: snapshotSelections(line.selectionsSnapshot),
+        });
+      }
+      if (detail.salesChannelId) setChannelId(detail.salesChannelId);
+      clearDiscount();
+      setCart(lines);
+      setEditing({
+        orderId: order.id,
+        number: order.number ?? null,
+        status: order.status,
+      });
+      setAddOnFor(null);
+      closeHeldOrders();
+      if ((detail.manualDiscountAmount ?? 0) > 0)
+        setMessage(t.editDiscountDropped);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t.unavailable);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function startAddOn(order: HeldOrder) {
+    if (cart.length) return setMessage(t.emptyCartFirst);
+    if (order.salesChannelId) setChannelId(order.salesChannelId);
+    setEditing(null);
+    setAddOnFor(order.number ?? null);
+    closeHeldOrders();
   }
   async function resumeHeld(order: HeldOrder, kitchen = false) {
     if (busy) return;
@@ -1123,6 +1233,8 @@ export function PosSection({
   }
   function clearOrder() {
     setCart([]);
+    setEditing(null);
+    setAddOnFor(null);
     clearDiscount();
     requestRef.current = { snapshot: "", id: "" };
     setPayStep(false);
@@ -1233,6 +1345,10 @@ export function PosSection({
   // Hold saves a draft; Pay captures the selected inline tender before kitchen dispatch.
   async function submit(status: "Draft" | "Pending") {
     if (!cart.length || !branchId || !channelId || busy) return;
+    if (!online && editing) {
+      setMessage(t.editOffline);
+      return;
+    }
     if (!online) {
       persistBranch(branchId);
       if (status === "Draft") {
@@ -1278,7 +1394,7 @@ export function PosSection({
         salesChannelId: channelId,
         clientRequestId: requestRef.current.id,
         source: "Pos",
-        note: null,
+        note: addOnFor ? `${t.addOnFor} #${addOnFor}` : null,
         discount:
           canDiscount && discountOpen && discountRawValue > 0
             ? { type: discountType, value: discountRawValue }
@@ -1295,20 +1411,35 @@ export function PosSection({
           ),
         })),
       };
-      const response = await auth("/api/v1/orders", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const response = editing
+        ? await auth(`/api/v1/orders/${editing.orderId}/lines`, {
+            method: "PUT",
+            body: JSON.stringify({
+              lines: body.lines,
+              discount: body.discount,
+            }),
+          })
+        : await auth("/api/v1/orders", {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
       if (handleAuthFailure(response)) return;
       if (!response.ok) {
         const problem = await response.json().catch(() => null);
-        throw new Error(problem?.errors?.discount?.[0] ?? t.unavailable);
+        throw new Error(
+          problem?.errors?.discount?.[0] ??
+            problem?.errors?.order?.[0] ??
+            t.unavailable,
+        );
       }
       const order = (await response.json()) as {
         id: string;
         grossAmount: number;
       };
+      const alreadyPending = editing?.status === "Pending";
       setCart([]);
+      setEditing(null);
+      setAddOnFor(null);
       requestRef.current = { snapshot: "", id: "" };
       if (status === "Draft") {
         setDiscountOpen(false);
@@ -1316,12 +1447,14 @@ export function PosSection({
         setMessage(t.saved);
         return;
       }
-      const changed = await auth("/api/v1/orders/" + order.id + "/status", {
-        method: "POST",
-        body: JSON.stringify({ status: "Pending", note: null }),
-      });
-      if (handleAuthFailure(changed)) return;
-      if (!changed.ok)
+      const changed = alreadyPending
+        ? null
+        : await auth("/api/v1/orders/" + order.id + "/status", {
+            method: "POST",
+            body: JSON.stringify({ status: "Pending", note: null }),
+          });
+      if (changed && handleAuthFailure(changed)) return;
+      if (changed && !changed.ok)
         throw new Error(
           language === "ar"
             ? "تم حفظ الطلب. أكمل من الطلبات الحالية."
@@ -1479,7 +1612,6 @@ export function PosSection({
       ? `${order.table.code} ${order.table.nameAr} ${order.table.nameEn}`
       : "";
     const searchable = [
-      orderRef(order.id),
       order.number ? `#${order.number} ${order.number}` : "",
       table,
       order.note ?? "",
@@ -1504,7 +1636,7 @@ export function PosSection({
           {language === "ar" ? "→" : "←"}
         </Button>
         <h2 className="text-lg font-bold">
-          {t.orderRef} {orderRef(detailOrderId)}
+          {t.orderRef} {orderLabel(orderDetail?.number)}
         </h2>
       </div>
       {!orderDetail ? (
@@ -1640,7 +1772,7 @@ export function PosSection({
                               onClick={() => void openOrderDetail(order.id)}
                               className="min-h-12 max-w-full justify-start truncate px-0 text-base font-bold text-primary hover:underline"
                             >
-                              {heldRef(order)}
+                              {orderLabel(order.number)}
                             </Button>
                             <p className="text-xs text-muted-foreground">
                               {order.table ? name(order.table) : "—"} ·{" "}
@@ -1678,6 +1810,25 @@ export function PosSection({
                             >
                               {language === "ar" ? "طباعة" : "Print"}
                             </Button>
+                            {(order.status === "Draft" ||
+                              order.status === "Pending") && (
+                              <Button
+                                disabled={busy}
+                                onClick={() => void startEdit(order)}
+                                className="min-h-12 rounded-xl border border-border px-3 text-xs font-semibold"
+                              >
+                                {t.editOrder}
+                              </Button>
+                            )}
+                            {order.status === "Paid" && (
+                              <Button
+                                disabled={busy}
+                                onClick={() => startAddOn(order)}
+                                className="min-h-12 rounded-xl border border-border px-3 text-xs font-semibold"
+                              >
+                                {t.addOnOrder}
+                              </Button>
+                            )}
                             {order.status !== "Paid" && (
                               <Button
                                 disabled={busy}
@@ -1722,7 +1873,7 @@ export function PosSection({
                               onClick={() => void openOrderDetail(order.id)}
                               className="font-semibold text-primary hover:underline"
                             >
-                              {heldRef(order)}
+                              {orderLabel(order.number)}
                             </Button>
                             {order.note && (
                               <p
@@ -1773,6 +1924,25 @@ export function PosSection({
                               >
                                 {language === "ar" ? "طباعة" : "Print"}
                               </Button>
+                              {(order.status === "Draft" ||
+                                order.status === "Pending") && (
+                                <Button
+                                  disabled={busy}
+                                  onClick={() => void startEdit(order)}
+                                  className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold"
+                                >
+                                  {t.editOrder}
+                                </Button>
+                              )}
+                              {order.status === "Paid" && (
+                                <Button
+                                  disabled={busy}
+                                  onClick={() => startAddOn(order)}
+                                  className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold"
+                                >
+                                  {t.addOnOrder}
+                                </Button>
+                              )}
                               {order.status !== "Paid" && (
                                 <Button
                                   disabled={busy}
@@ -1896,6 +2066,22 @@ export function PosSection({
             <X size={20} />
           </Button>
         </div>
+        {(editing || addOnFor) && (
+          <div className="pos-mode-banner" role="status">
+            <span>
+              {editing
+                ? `${t.editingOrder} ${orderLabel(editing.number)}`
+                : `${t.addOnFor} #${addOnFor}`}
+            </span>
+            <Button
+              type="button"
+              onClick={clearOrder}
+              className="pos-mode-cancel"
+            >
+              {t.cancelEdit}
+            </Button>
+          </div>
+        )}
         <VirtualTicketList
           lines={cart}
           label={t.cart}
@@ -2533,12 +2719,7 @@ export function PosSection({
             .map((entry) => (
               <div key={entry.orderId} className="pos-kitchen-alert">
                 <span>
-                  <strong>
-                    {entry.number
-                      ? `#${entry.number}`
-                      : orderRef(entry.orderId)}
-                  </strong>{" "}
-                  · {t.notReceived}
+                  <strong>{orderLabel(entry.number)}</strong> · {t.notReceived}
                 </span>
                 <Button
                   type="button"

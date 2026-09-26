@@ -26,6 +26,7 @@ type Reason = {
 };
 type Order = {
   id: string;
+  number?: number | null;
   status: string;
   grossAmount: number;
   createdAt: string;
@@ -58,6 +59,7 @@ type ReportGroup = {
 type ReportUserGroup = { user: string; count: number; amount: number };
 type ReportRecord = {
   orderId: string;
+  orderNumber?: number | null;
   orderTotal: number;
   cancelledAt: string;
   wasSentToKitchen: boolean;
@@ -478,7 +480,7 @@ export function CancellationSection({ language }: { language: Language }) {
                       {report.records.map((r) => (
                         <TableRow key={r.orderId}>
                           <TableCell className="px-4 py-3">
-                            {r.orderId.slice(0, 8)}
+                            {r.orderNumber ? `#${r.orderNumber}` : "—"}
                           </TableCell>
                           <TableCell className="px-4 py-3">
                             {name(r.reason)}
@@ -559,7 +561,10 @@ export function CancellationSection({ language }: { language: Language }) {
                         onClick={() => void select(order)}
                         className={`block w-full border-b p-4 text-start hover:bg-muted ${detail?.id === order.id ? "bg-accent" : ""}`}
                       >
-                        <strong>{order.status}</strong>
+                        <strong>
+                          {order.number ? `#${order.number} · ` : ""}
+                          {order.status}
+                        </strong>
                         <span className="float-end">
                           OMR {order.grossAmount.toFixed(3)}
                         </span>

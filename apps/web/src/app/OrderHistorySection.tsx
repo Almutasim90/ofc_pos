@@ -19,6 +19,7 @@ type Branch = { id: string; nameAr: string; nameEn: string };
 type Channel = { id: string; code: string; nameAr: string; nameEn: string };
 type OrderRow = {
   id: string;
+  number?: number | null;
   status: string;
   source: string;
   salesChannelId: string;
@@ -89,6 +90,7 @@ const copy = {
     retry: "إعادة المحاولة",
     empty: "لا توجد طلبات لهذه الفترة.",
     time: "الوقت",
+    orderNo: "رقم الطلب",
     items: "الأصناف",
     total: "الإجمالي",
     view: "عرض",
@@ -137,6 +139,7 @@ const copy = {
     retry: "Retry",
     empty: "No orders for this period.",
     time: "Time",
+    orderNo: "Order no.",
     items: "Items",
     total: "Total",
     view: "View",
@@ -363,6 +366,9 @@ export function OrderHistorySection({ language }: { language: Language }) {
               <TableHeader>
                 <TableRow className="border-b border-border text-xs text-muted-foreground">
                   <TableHead className="px-4 py-3 text-start font-semibold">
+                    {t.orderNo}
+                  </TableHead>
+                  <TableHead className="px-4 py-3 text-start font-semibold">
                     {t.time}
                   </TableHead>
                   <TableHead className="px-4 py-3 text-start font-semibold">
@@ -388,6 +394,9 @@ export function OrderHistorySection({ language }: { language: Language }) {
                       key={o.id}
                       className="border-b border-border last:border-0 hover:bg-background"
                     >
+                      <TableCell className="px-4 py-3 font-semibold tabular-nums">
+                        {o.number ? `#${o.number}` : "—"}
+                      </TableCell>
                       <TableCell className="px-4 py-3">
                         {new Date(o.createdAt).toLocaleString(language)}
                       </TableCell>

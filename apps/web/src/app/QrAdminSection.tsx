@@ -37,6 +37,7 @@ type QrContextItem = {
 };
 type QrOrder = {
   id: string;
+  number?: number | null;
   status: string;
   grossAmount: number;
   createdAt: string;
@@ -370,14 +371,20 @@ export function QrAdminSection({ language }: { language: Language }) {
     const label =
       payload.approvalStatus === "Pending" ? t.newOrderPending : t.newOrder;
     notify(
-      `${label} · ${payload.clientRequestId.slice(0, 8)} · ${fmt(payload.grossAmount)} ${language === "ar" ? "ر.ع" : "OMR"}`,
+      [
+        label,
+        payload.contextCode,
+        `${fmt(payload.grossAmount)} ${language === "ar" ? "ر.ع" : "OMR"}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     );
   }
   function onQrOrderReviewed(payload: QrOrderReviewedEvent) {
     if (!branchId || payload.branchId !== branchId) return;
     void loadBranch();
     notify(
-      `${payload.approvalStatus === "Approved" ? t.approvedToast : t.rejectedToast} · ${payload.clientRequestId.slice(0, 8)}`,
+      payload.approvalStatus === "Approved" ? t.approvedToast : t.rejectedToast,
     );
   }
   const ordersLive = useQrOrdersLive(
@@ -549,7 +556,8 @@ export function QrAdminSection({ language }: { language: Language }) {
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-medium">
-                          {o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)}{" "}
+                          {o.number ? `#${o.number}` : "#—"} ·{" "}
+                          {fmt(o.grossAmount)}{" "}
                           {language === "ar" ? "ر.ع" : "OMR"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -606,7 +614,8 @@ export function QrAdminSection({ language }: { language: Language }) {
                     >
                       <div>
                         <p className="text-sm font-medium">
-                          {o.clientRequestId.slice(0, 8)} · {fmt(o.grossAmount)}{" "}
+                          {o.number ? `#${o.number}` : "#—"} ·{" "}
+                          {fmt(o.grossAmount)}{" "}
                           {language === "ar" ? "ر.ع" : "OMR"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">

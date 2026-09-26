@@ -875,3 +875,25 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
 .pos-ticket-line > .pos-line-note {
   grid-column: 2 / 4;
 }
+
+/* Editing an open order, or ringing up an add-on for a paid one. */
+.pos-mode-banner {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--app-warning-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pos-register .pos-mode-cancel {
+  min-height: 40px;
+  padding-inline: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 600;
+}
