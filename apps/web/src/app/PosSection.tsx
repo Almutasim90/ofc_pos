@@ -13,6 +13,9 @@ import {
   ScanBarcode,
   ReceiptText,
   Trash2,
+  Clock,
+  Timer,
+  UserRound,
   X,
 } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
@@ -142,6 +145,9 @@ const words = {
     send: "الدفع",
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
+    cashier: "الكاشير",
+    shiftOpenSince: "الوردية مفتوحة منذ",
+    noOpenShift: "لا توجد وردية مفتوحة",
     editOrder: "تعديل",
     editingOrder: "تعديل الطلب",
     cancelEdit: "إلغاء التعديل",
@@ -235,6 +241,9 @@ const words = {
     send: "Pay",
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
+    cashier: "Cashier",
+    shiftOpenSince: "Shift open since",
+    noOpenShift: "No open shift",
     editOrder: "Edit",
     editingOrder: "Editing order",
     cancelEdit: "Cancel edit",
@@ -379,6 +388,53 @@ function snapshotSelections(snapshot: string | undefined) {
   }
   return selections;
 }
+function PosClock({ language }: { language: Language }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <time dateTime={now.toISOString()} className="pos-session-item">
+      <Clock size={14} aria-hidden="true" />
+      {now.toLocaleTimeString(language, { hour: "numeric", minute: "2-digit" })}
+    </time>
+  );
+}
+function PosSessionInfo({
+  language,
+  cashier,
+  cashierLabel,
+  shiftLabel,
+  shiftMissing,
+}: {
+  language: Language;
+  cashier: string;
+  cashierLabel: string;
+  shiftLabel: string | null;
+  shiftMissing: boolean;
+}) {
+  return (
+    <div className="pos-session" aria-live="polite">
+      {cashier && (
+        <span className="pos-session-item" title={cashierLabel}>
+          <UserRound size={14} aria-hidden="true" />
+          <span className="sr-only">{cashierLabel}: </span>
+          {cashier}
+        </span>
+      )}
+      {shiftLabel && (
+        <span
+          className={`pos-session-item ${shiftMissing ? "is-warning" : ""}`}
+        >
+          <Timer size={14} aria-hidden="true" />
+          {shiftLabel}
+        </span>
+      )}
+      <PosClock language={language} />
+    </div>
+  );
+}
 // Orders are identified to staff by their sequential number only (never the internal id).
 function orderLabel(number?: number | null) {
   return number ? `#${number}` : "#—";
@@ -419,10 +475,12 @@ export function PosSection({
   language,
   kiosk,
   permissions,
+  cashierName = "",
 }: {
   language: Language;
   kiosk: boolean;
   permissions: string[] | null;
+  cashierName?: string;
 }) {
   const t = words[language];
   const canDiscount =
@@ -461,6 +519,12 @@ export function PosSection({
   const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
   // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
   const [payStep, setPayStep] = useState(false);
+  // Which non-cash method (card, Apple Pay, voucher, …) the cashier picked in the payment popup.
+  const [cardMethodId, setCardMethodId] = useState<string | null>(null);
+  // Opening time of the branch's open shift (null = none open, undefined = not known yet / offline).
+  const [shiftOpenedAt, setShiftOpenedAt] = useState<string | null | undefined>(
+    undefined,
+  );
   // An open order loaded back into the cart: Pay/Hold update it in place instead of creating a new one.
   const [editing, setEditing] = useState<{
     orderId: string;
@@ -736,8 +800,28 @@ export function PosSection({
       /* The approval queue is best-effort here; the QR admin screen remains the source of truth. */
     }
   }
+  async function loadShift() {
+    if (!branchId || !online) return;
+    try {
+      const response = await auth(
+        `/api/v1/shifts/current?branchId=${branchId}`,
+      );
+      if (!response.ok) return;
+      const body = (await response.json()) as {
+        shift: { openedAt: string } | null;
+      };
+      setShiftOpenedAt(body.shift?.openedAt ?? null);
+    } catch {
+      /* The header simply keeps its last known shift state. */
+    }
+  }
   async function refreshOrders() {
-    await Promise.all([loadHeld(), loadSalesSummary(), loadQrPending()]);
+    await Promise.all([
+      loadHeld(),
+      loadSalesSummary(),
+      loadQrPending(),
+      loadShift(),
+    ]);
   }
   useEffect(() => {
     void refreshOrders();
@@ -1130,9 +1214,13 @@ export function PosSection({
   );
   const total = roundMoney(amounts.gross);
   const payCashMethod = offlineMethods.find((m) => m.kind === "Cash");
-  const payCardMethod = offlineMethods.find(
+  const cardMethods = offlineMethods.filter(
     (m) => m.kind !== "Cash" && m.kind !== "External",
   );
+  const payCardMethod =
+    cardMethods.find((m) => m.id === cardMethodId) ??
+    cardMethods.find((m) => m.kind === "Card") ??
+    cardMethods[0];
   // Mirrors backend OrderRules.ManualDiscountMaxPercent — this is a display estimate only, the server
   // is the authority and re-validates the cap independently when the order is created.
   const discountMaxPercent = 20;
@@ -2040,7 +2128,10 @@ export function PosSection({
         <div className="pos-ticket-heading">
           <ReceiptText size={20} aria-hidden="true" />
           <h2>
-            {t.cart} <span className="pos-count">{cart.length}</span>
+            {t.cart}{" "}
+            <span key={cart.length} className="pos-count pos-count-bump">
+              {cart.length}
+            </span>
           </h2>
           <span className="pos-ticket-channel">
             {activeChannel && name(activeChannel)}
@@ -2282,6 +2373,19 @@ export function PosSection({
             </span>
           </div>
         )}
+        <PosSessionInfo
+          language={language}
+          cashier={cashierName}
+          cashierLabel={t.cashier}
+          shiftLabel={
+            shiftOpenedAt === undefined
+              ? null
+              : shiftOpenedAt === null
+                ? t.noOpenShift
+                : `${t.shiftOpenSince} ${new Date(shiftOpenedAt).toLocaleTimeString(language, { hour: "numeric", minute: "2-digit" })}`
+          }
+          shiftMissing={shiftOpenedAt === null}
+        />
         <span
           className={`flex shrink-0 items-center gap-1 text-xs ${online ? "text-success" : "text-destructive"}`}
         >
@@ -2605,7 +2709,7 @@ export function PosSection({
             )}
             <div>
               <p className="text-sm font-medium">{t.payMethod}</p>
-              <div className="mt-2 grid grid-cols-3 gap-2">
+              <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(96px,1fr))] gap-2">
                 <Button
                   type="button"
                   disabled={!payCashMethod}
@@ -2615,15 +2719,30 @@ export function PosSection({
                   <Banknote size={14} />
                   {t.cash}
                 </Button>
-                <Button
-                  type="button"
-                  disabled={!payCardMethod}
-                  onClick={() => choosePayMethod("Card")}
-                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                >
-                  <CreditCard size={14} />
-                  {t.card}
-                </Button>
+                {(cardMethods.length ? cardMethods : [null]).map((method) => {
+                  const selected =
+                    effectivePayMethod === "Card" &&
+                    !!method &&
+                    payCardMethod?.id === method.id;
+                  return (
+                    <Button
+                      key={method?.id ?? "card"}
+                      type="button"
+                      disabled={!method}
+                      onClick={() => {
+                        if (!method) return;
+                        setCardMethodId(method.id);
+                        choosePayMethod("Card");
+                      }}
+                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                    >
+                      <CreditCard size={14} />
+                      {method && cardMethods.length > 1
+                        ? paymentMethodName(language, method)
+                        : t.card}
+                    </Button>
+                  );
+                })}
                 <Button
                   type="button"
                   disabled={!payCashMethod || !payCardMethod}
@@ -2771,7 +2890,21 @@ const ProductGrid = memo(function ProductGrid({
           <Button
             key={product.id}
             disabled={busy}
-            onClick={() => onAdd(product)}
+            onClick={(event) => {
+              onAdd(product);
+              // Instant visual confirmation without re-rendering the grid.
+              event.currentTarget.animate(
+                [
+                  { transform: "scale(1)" },
+                  {
+                    transform: "scale(0.96)",
+                    boxShadow: "0 0 0 3px var(--ring)",
+                  },
+                  { transform: "scale(1)" },
+                ],
+                { duration: 260, easing: "ease-out" },
+              );
+            }}
             className="pos-product"
           >
             <ProductPhoto

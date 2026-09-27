@@ -423,3 +423,28 @@ test('reports dashboard charts the period with a table view for every chart', as
   await expect(page.locator('.viz-tooltip')).toContainText('67%');
   await noOverflow(page);
 });
+
+test('register header shows the cashier, the open shift and the time', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.route('**/api/v1/auth/me', route => route.fulfill({json:{permissions, displayName:'Sara Al-Balushi'}}));
+  const opened = new Date(); opened.setHours(8,30,0,0);
+  await page.route('**/api/v1/shifts/current?**', route => route.fulfill({json:{shift:{openedAt:opened.toISOString()}}}));
+  await page.goto('/#/pos');
+  const session = page.locator('.pos-session');
+  await expect(session).toContainText('Sara Al-Balushi');
+  await expect(session).toContainText('Shift open since');
+  await expect(session.locator('time')).toBeVisible();
+});
+
+test('every configured non-cash method can take the payment', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.route('**/api/v1/payment-methods**', route => route.fulfill({json:[{id:'cash',code:'CASH',nameAr:'نقد',nameEn:'Cash',kind:'Cash'},{id:'card',code:'CARD',nameAr:'بطاقة',nameEn:'Card',kind:'Card'},{id:'apple',code:'APPLE',nameAr:'آبل باي',nameEn:'Apple Pay',kind:'ApplePay'}]}));
+  let paidWith = '';
+  await page.route('**/orders/o1/payments', async route => { paidWith = route.request().postDataJSON().payments[0].paymentMethodId; await route.fulfill({json:{payments:[]}}); });
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:'Pay',exact:true}).click();
+  await page.getByRole('button',{name:'Apple Pay',exact:true}).click();
+  await page.getByRole('button',{name:'Confirm payment',exact:true}).click();
+  await expect.poll(() => paidWith).toBe('apple');
+});

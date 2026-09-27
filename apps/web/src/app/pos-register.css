@@ -897,3 +897,39 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* Header session details: cashier, shift and clock (SRS §7 header). */
+.pos-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-inline-start: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.pos-session-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pos-session-item.is-warning {
+  color: var(--warning);
+  font-weight: 700;
+}
+/* Cart count acknowledges every add/remove. */
+@keyframes pos-count-bump {
+  40% {
+    transform: scale(1.3);
+  }
+}
+.pos-count-bump {
+  animation: pos-count-bump 260ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pos-count-bump {
+    animation: none;
+  }
+}

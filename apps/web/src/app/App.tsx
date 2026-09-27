@@ -115,6 +115,7 @@ export function App() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [hash, setHash] = useState(window.location.hash);
   const [permissions, setPermissions] = useState<string[] | null>(null);
+  const [displayName, setDisplayName] = useState("");
   const ar = language === "ar";
   const tr = (a: string, e: string) => (ar ? a : e);
   const text = {
@@ -391,9 +392,12 @@ export function App() {
           setPermissions([]);
           return;
         }
-        setPermissions(
-          ((await response.json()) as { permissions: string[] }).permissions,
-        );
+        const me = (await response.json()) as {
+          permissions: string[];
+          displayName?: string | null;
+        };
+        setDisplayName(me.displayName ?? "");
+        setPermissions(me.permissions);
       })
       .catch(() => {
         if (!controller.signal.aborted) setPermissions([]);
@@ -757,6 +761,7 @@ export function App() {
                 language={language}
                 kiosk={kiosk}
                 permissions={permissions}
+                cashierName={displayName}
               />
             ) : view === "kitchen" ? (
               <KitchenSection language={language} />
