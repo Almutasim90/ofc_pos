@@ -49,6 +49,7 @@ public static class IntegrationRules
         IntegrationKind.Notifications => ("الإشعارات", "Notifications"),
         IntegrationKind.AiAssist => ("مساعد الذكاء الاصطناعي", "AI assist"),
         IntegrationKind.ExternalBilling => ("الفوترة الخارجية", "External billing"),
+        IntegrationKind.EInvoicing => ("الفوترة الإلكترونية", "E-invoicing"),
         _ => (kind.ToString(), kind.ToString())
     };
 
@@ -60,6 +61,7 @@ public static class IntegrationRules
         IntegrationKind.Delivery,
         IntegrationKind.Notifications,
         IntegrationKind.AiAssist,
-        IntegrationKind.ExternalBilling
+        IntegrationKind.ExternalBilling,
+        IntegrationKind.EInvoicing
     ];
 }

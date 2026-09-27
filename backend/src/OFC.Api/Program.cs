@@ -21,6 +21,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IKitchenBroadcaster, KitchenBroadcaster>();
 builder.Services.AddSingleton<IOrdersBroadcaster, OrdersBroadcaster>();
 builder.Services.AddHostedService<KitchenFallbackWatcher>();
+builder.Services.AddHostedService<EInvoiceWorker>();
 // The QR customer endpoints (/api/v1/qr/{code}...) are the only anonymous, unauthenticated routes in
 // the API — open to menu-scraping and order-submission flooding with nothing else standing in the way.
 builder.Services.AddRateLimiter(options =>
@@ -88,6 +89,7 @@ app.MapSprintFifteenEndpoints();
 app.MapSprintSixteenEndpoints();
 app.MapSprintSeventeenEndpoints();
 app.MapSprintEighteenEndpoints();
+app.MapEInvoicingEndpoints();
 app.MapHub<KitchenHub>("/hubs/kitchen");
 app.MapHub<OrdersHub>("/hubs/orders");
 app.MapHub<CustomerOrdersHub>("/hubs/customer-orders");

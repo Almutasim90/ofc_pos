@@ -8,7 +8,8 @@ public enum IntegrationKind
     Delivery = 3,
     Notifications = 4,
     AiAssist = 5,
-    ExternalBilling = 6
+    ExternalBilling = 6,
+    EInvoicing = 7
 }
 
 public enum IntegrationChannel

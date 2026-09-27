@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
+import { EInvoicingPanel } from "@/app/EInvoicingPanel";
 import { store } from "@/lib/local-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -435,6 +436,12 @@ export function IntegrationsSection({ language }: { language: Language }) {
                 </option>
               ))}
             </SearchableSelect>
+
+            <EInvoicingPanel
+              language={language}
+              branchId={branchId}
+              token={token}
+            />
 
             <section className="rounded-xl border border-border bg-card p-4">
               <h2 className="flex items-center gap-2 font-semibold">
