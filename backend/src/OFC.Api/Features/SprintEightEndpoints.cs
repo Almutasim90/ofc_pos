@@ -36,7 +36,7 @@ public static class SprintEightEndpoints
         var shift = await db.Shifts.AsNoTracking().Include(x => x.Movements).SingleOrDefaultAsync(x => x.BranchId == branchId && x.Status == ShiftStatus.Open, ct);
         if (shift is null) return Results.Ok(new { shift = (object?)null });
         var ledger = await LiveLedger(db, shift, ct);
-        return Results.Ok(new { shift = ShiftResponse(shift, ledger, includeClosed: false) });
+        return Results.Ok(new { shift = ShiftResponse(shift, ledger, includeClosed: false, includeLedger: CanSeeLiveTotals(user)) });
     }
 
     private static async Task<IResult> Get(Guid id, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
@@ -46,7 +46,7 @@ public static class SprintEightEndpoints
         if (!await HasBranch(db, user, shift.BranchId, ct) || !(user.HasClaim("permission", "shifts.manage") || user.HasClaim("permission", "shifts.view-variance") || user.HasClaim("permission", "shifts.report") || user.HasClaim("permission", "shifts.open") || UserId(user) == shift.OpenedByUserId)) return Forbidden();
         var ledger = shift.Status == ShiftStatus.Open ? await LiveLedger(db, shift, ct) : new ShiftLedger(shift.CashSales ?? 0m, shift.CardSales ?? 0m, shift.CashRefunds ?? 0m, shift.CardRefunds ?? 0m);
         var includeClosed = shift.Status != ShiftStatus.Open && CanViewVariance(user, shift);
-        return Results.Ok(ShiftResponse(shift, ledger, includeClosed));
+        return Results.Ok(ShiftResponse(shift, ledger, includeClosed, includeLedger: shift.Status != ShiftStatus.Open || CanSeeLiveTotals(user)));
     }
 
     private static async Task<IResult> Open(OpenRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
@@ -150,11 +150,16 @@ public static class SprintEightEndpoints
         return new ShiftLedger(ShiftRules.RoundMoney(cashSales), ShiftRules.RoundMoney(cardSales), ShiftRules.RoundMoney(cashRefunds), ShiftRules.RoundMoney(cardRefunds));
     }
 
-    private static object ShiftResponse(Shift shift, ShiftLedger ledger, bool includeClosed) => new
+    // Blind close (SRS §26): while a shift is open its running sales totals would let the cashier work out
+    // the expected cash, so they are only returned to reviewers; everyone sees them once the shift is closed.
+    private static object ShiftResponse(Shift shift, ShiftLedger ledger, bool includeClosed, bool includeLedger = true) => new
     {
         shift.Id, shift.Status, shift.OpeningCash, shift.OpenedAt, shift.OpenedByUserId, shift.ClosedAt, shift.ClosedByUserId,
         shift.ReviewStatus, shift.ReviewedByUserId, shift.ReviewedAt, shift.ReviewNote,
-        ledger.CashSales, ledger.CardSales, ledger.CashRefunds, ledger.CardRefunds,
+        cashSales = includeLedger ? ledger.CashSales : (decimal?)null,
+        cardSales = includeLedger ? ledger.CardSales : (decimal?)null,
+        cashRefunds = includeLedger ? ledger.CashRefunds : (decimal?)null,
+        cardRefunds = includeLedger ? ledger.CardRefunds : (decimal?)null,
         cashVariance = includeClosed ? shift.CashVariance : null,
         cardVariance = includeClosed ? shift.CardVariance : null,
         expectedCash = includeClosed ? shift.ExpectedCash : null,
@@ -163,6 +168,7 @@ public static class SprintEightEndpoints
         denominations = shift.Denominations.OrderBy(x => x.Denomination).Select(x => new { x.Denomination, x.Count, x.Total })
     };
 
+    private static bool CanSeeLiveTotals(ClaimsPrincipal user) => user.HasClaim("permission", "shifts.view-variance") || user.HasClaim("permission", "shifts.report") || user.HasClaim("permission", "shifts.manage") || user.HasClaim("permission", "shifts.approve");
     private static bool CanViewVariance(ClaimsPrincipal user, Shift shift) => user.HasClaim("permission", "shifts.view-variance") || user.HasClaim("permission", "shifts.report") || user.HasClaim("permission", "shifts.manage") || UserId(user) == shift.OpenedByUserId;
     private static async Task<bool> HasBranch(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationToken ct) => user.FindFirstValue("branch_id") == branchId.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId, ct);
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);

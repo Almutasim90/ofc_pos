@@ -21,10 +21,11 @@ type CurrentShift = {
   openingCash: number;
   openedAt: string;
   openedByUserId: string;
-  cashSales: number;
-  cardSales: number;
-  cashRefunds: number;
-  cardRefunds: number;
+  // null while the shift is open for users without review rights (blind close).
+  cashSales: number | null;
+  cardSales: number | null;
+  cashRefunds: number | null;
+  cardRefunds: number | null;
   movements: Movement[];
 };
 type ShiftRow = {
@@ -66,6 +67,7 @@ const copy = {
     cashSales: "مبيعات نقدية",
     cardSales: "مبيعات بطاقات",
     cashRefunds: "مرتجعات نقدية",
+    blindCloseHint: "إغلاق أعمى: تظهر المبيعات والنقد المتوقع بعد إغلاق الوردية.",
     cardRefunds: "مرتجعات بطاقات",
     movements: "حركات النقد",
     addMovement: "تسجيل حركة",
@@ -120,6 +122,8 @@ const copy = {
     cashSales: "Cash sales",
     cardSales: "Card sales",
     cashRefunds: "Cash refunds",
+    blindCloseHint:
+      "Blind close: sales and expected cash are shown after the shift is closed.",
     cardRefunds: "Card refunds",
     movements: "Cash movements",
     addMovement: "Record movement",
@@ -483,19 +487,28 @@ export function ShiftsSection({ language }: { language: Language }) {
                   label={t.openingCash}
                   value={money(displayCurrent.openingCash)}
                 />
-                <Metric
-                  label={t.cashSales}
-                  value={money(displayCurrent.cashSales)}
-                />
-                <Metric
-                  label={t.cardSales}
-                  value={money(displayCurrent.cardSales)}
-                />
-                <Metric
-                  label={t.cashRefunds}
-                  value={money(displayCurrent.cashRefunds)}
-                />
+                {displayCurrent.cashSales !== null && (
+                  <>
+                    <Metric
+                      label={t.cashSales}
+                      value={money(displayCurrent.cashSales)}
+                    />
+                    <Metric
+                      label={t.cardSales}
+                      value={money(displayCurrent.cardSales)}
+                    />
+                    <Metric
+                      label={t.cashRefunds}
+                      value={money(displayCurrent.cashRefunds)}
+                    />
+                  </>
+                )}
               </dl>
+              {displayCurrent.cashSales === null && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {t.blindCloseHint}
+                </p>
+              )}
 
               <div className="mt-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">

@@ -3,33 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (() => {
-        try {
-          const saved = JSON.parse(
-            localStorage.getItem("ofc:theme") || '"system"',
-          );
-          const mode = saved === "light" || saved === "dark" ? saved : "system";
-          const resolved =
-            mode === "system" &&
-            matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : mode === "system"
-                ? "light"
-                : mode;
-          document.documentElement.dataset.themeMode = mode;
-          document.documentElement.dataset.theme = resolved;
-        } catch {
-          document.documentElement.dataset.theme = "light";
-        }
-      })();
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Blocking on purpose: theme and direction must be set before the first paint. -->
+    <script src="/theme-boot.js"></script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#d9480f" />
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />

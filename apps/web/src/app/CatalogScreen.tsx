@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, Search, Pencil, Package } from "lucide-react";
+import { Plus, Search, Pencil } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
 import { Pagination, PAGE_SIZE } from "@/app/Pagination";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
+import { ProductPhoto } from "@/app/ProductPhoto";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -49,38 +50,6 @@ const input =
   "mt-1 min-h-11 min-w-0 w-full rounded-lg border border-border bg-card px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1";
 const button =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
-
-export function ProductPhoto({
-  src,
-  name,
-  className = "h-16 w-16",
-}: {
-  src?: string | null;
-  name: string;
-  className?: string;
-}) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  return (
-    <div
-      className={`${className} shrink-0 overflow-hidden rounded-xl bg-accent text-primary`}
-    >
-      {src && !failed ? (
-        <img
-          src={src}
-          alt={name}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="h-full w-full object-contain"
-        />
-      ) : (
-        <span className="flex h-full items-center justify-center" title={name}>
-          <Package size={28} />
-        </span>
-      )}
-    </div>
-  );
-}
 
 export function CatalogScreen({
   language,

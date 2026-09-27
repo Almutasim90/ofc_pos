@@ -1,4 +1,4 @@
-import Dexie, { type Table } from "dexie";
+import type { Dexie, Table } from "dexie";
 import { createId, store } from "@/lib/local-store";
 
 export type SyncStatus = "applied" | "duplicate" | "conflict" | "failed";
@@ -79,17 +79,21 @@ export function lastSyncedAt(): string | null {
 
 type OutboxRow = OutboxOperation & { seq?: number };
 
-class OfflineDb extends Dexie {
-  outbox!: Table<OutboxRow, number>;
-  conflicts!: Table<SyncConflict, string>;
-  constructor() {
-    super("ofc-offline");
-    this.version(1).stores({
-      // seq keeps the original order of sales; the idempotency key is unique.
-      outbox: "++seq, &idempotencyKey",
-      conflicts: "&idempotencyKey",
-    });
-  }
+type OfflineDb = Dexie & {
+  outbox: Table<OutboxRow, number>;
+  conflicts: Table<SyncConflict, string>;
+};
+
+// Dexie is loaded on first use, so it stays out of the register's startup bundle.
+async function createOfflineDb(): Promise<OfflineDb> {
+  const { default: DexieClass } = await import("dexie");
+  const instance = new DexieClass("ofc-offline") as OfflineDb;
+  instance.version(1).stores({
+    // seq keeps the original order of sales; the idempotency key is unique.
+    outbox: "++seq, &idempotencyKey",
+    conflicts: "&idempotencyKey",
+  });
+  return instance;
 }
 
 let database: Promise<OfflineDb | null> | null = null;
@@ -100,7 +104,7 @@ function db(): Promise<OfflineDb | null> {
   database ??= (async () => {
     if (typeof indexedDB === "undefined") return null;
     try {
-      const instance = new OfflineDb();
+      const instance = await createOfflineDb();
       await instance.open();
       const legacyOutbox = store.get<OutboxOperation[]>(Outbox);
       const legacyConflicts = store.get<SyncConflict[]>(Conflicts);
@@ -126,7 +130,9 @@ function db(): Promise<OfflineDb | null> {
       store.remove(Conflicts);
       return instance;
     } catch {
-      // IndexedDB can be unavailable (restricted/private contexts): fall back to localStorage below.
+      // IndexedDB can be unavailable (restricted/private contexts) or its code may not have loaded yet:
+      // fall back to localStorage for this write and try IndexedDB again on the next one.
+      database = null;
       return null;
     }
   })();
@@ -361,4 +367,10 @@ export async function applyResults(
 export function backoffDelay(attempt: number): number {
   const base = Math.min(8, Math.max(0, attempt));
   return Math.min(30_000, 1000 * 2 ** base);
+}
+
+// Opens the offline store (and loads its code) ahead of time, while the register is still online, so the
+// first offline sale never depends on downloading anything.
+export function warmOfflineStore(): void {
+  void db();
 }

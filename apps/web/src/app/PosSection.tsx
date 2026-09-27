@@ -22,7 +22,11 @@ import {
 import { createId, store } from "@/lib/local-store";
 import { normalizeMoneyInput, type PaymentMethod } from "@/lib/payment";
 import { paymentMethodName } from "@/lib/payment-method";
-import { enqueue, setBranchId as persistBranch } from "@/lib/sync-outbox";
+import {
+  enqueue,
+  setBranchId as persistBranch,
+  warmOfflineStore,
+} from "@/lib/sync-outbox";
 import {
   useQrOrdersLive,
   type QrOrderReceivedEvent,
@@ -31,7 +35,7 @@ import {
 import { useBarcodeScanner } from "@/lib/use-barcode-scanner";
 import { VirtualTicketList } from "@/app/VirtualTicketList";
 import "@/app/pos-register.css";
-import { ProductPhoto } from "@/app/CatalogScreen";
+import { ProductPhoto } from "@/app/ProductPhoto";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { FormDialog } from "@/app/FormDialog";
 import { printKitchenSlip, snapshotChoices } from "@/lib/kitchen-slip";
@@ -593,6 +597,7 @@ export function PosSection({
   } | null>(null);
   const [payMethod, setPayMethod] = useState<PaymentMethod>("Cash");
   // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
+  useEffect(() => warmOfflineStore(), []);
   const [payStep, setPayStep] = useState(false);
   // Which non-cash method (card, Apple Pay, voucher, …) the cashier picked in the payment popup.
   const [cardMethodId, setCardMethodId] = useState<string | null>(null);

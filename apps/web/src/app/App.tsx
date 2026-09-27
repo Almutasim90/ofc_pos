@@ -32,28 +32,13 @@ import {
 
 import { store } from "@/lib/local-store";
 import { enterKiosk, exitKiosk } from "@/lib/fullscreen-kiosk";
-import { SelectionGroupsSection } from "@/app/SelectionGroupsSection";
-import { PricingSection } from "@/app/PricingSection";
 import { PosSection } from "@/app/PosSection";
-import { ShiftsSection } from "@/app/ShiftsSection";
-import { PrintingSection } from "@/app/PrintingSection";
-import { KitchenSection } from "@/app/KitchenSection";
-import { InventorySection } from "@/app/InventorySection";
-import { AdvancedInventorySection } from "@/app/AdvancedInventorySection";
-import { ProcurementSection } from "@/app/ProcurementSection";
-import { SyncSection } from "@/app/SyncSection";
-import { ReportsSection } from "@/app/ReportsSection";
-import { QrAdminSection } from "@/app/QrAdminSection";
-import { QrCustomerPage } from "@/app/QrCustomerPage";
-import { CustomerDisplay } from "@/app/CustomerDisplay";
-import { IntegrationsSection } from "@/app/IntegrationsSection";
-import { AdminSection } from "@/app/AdminSection";
 import { LoginScreen } from "@/app/LoginScreen";
 import { ThemeControls } from "@/app/ThemeControls";
 import { applyTheme, resolveTheme, type ThemeMode } from "@/lib/theme";
 
-import { CatalogScreen } from "@/app/CatalogScreen";
 import { Button } from "@/components/ui/button";
+import { ScreenBoundary } from "@/app/ScreenBoundary";
 type Language = "ar" | "en";
 type View =
   | "branches"
@@ -76,6 +61,87 @@ type View =
   | "qr"
   | "integrations"
   | "orderHistory";
+// Screens other than the register load when first opened, keeping the initial download small.
+const SelectionGroupsSection = lazy(() =>
+  import("@/app/SelectionGroupsSection").then((module) => ({
+    default: module.SelectionGroupsSection,
+  })),
+);
+const PricingSection = lazy(() =>
+  import("@/app/PricingSection").then((module) => ({
+    default: module.PricingSection,
+  })),
+);
+const ShiftsSection = lazy(() =>
+  import("@/app/ShiftsSection").then((module) => ({
+    default: module.ShiftsSection,
+  })),
+);
+const PrintingSection = lazy(() =>
+  import("@/app/PrintingSection").then((module) => ({
+    default: module.PrintingSection,
+  })),
+);
+const KitchenSection = lazy(() =>
+  import("@/app/KitchenSection").then((module) => ({
+    default: module.KitchenSection,
+  })),
+);
+const InventorySection = lazy(() =>
+  import("@/app/InventorySection").then((module) => ({
+    default: module.InventorySection,
+  })),
+);
+const AdvancedInventorySection = lazy(() =>
+  import("@/app/AdvancedInventorySection").then((module) => ({
+    default: module.AdvancedInventorySection,
+  })),
+);
+const ProcurementSection = lazy(() =>
+  import("@/app/ProcurementSection").then((module) => ({
+    default: module.ProcurementSection,
+  })),
+);
+const SyncSection = lazy(() =>
+  import("@/app/SyncSection").then((module) => ({
+    default: module.SyncSection,
+  })),
+);
+const ReportsSection = lazy(() =>
+  import("@/app/ReportsSection").then((module) => ({
+    default: module.ReportsSection,
+  })),
+);
+const QrAdminSection = lazy(() =>
+  import("@/app/QrAdminSection").then((module) => ({
+    default: module.QrAdminSection,
+  })),
+);
+const QrCustomerPage = lazy(() =>
+  import("@/app/QrCustomerPage").then((module) => ({
+    default: module.QrCustomerPage,
+  })),
+);
+const CustomerDisplay = lazy(() =>
+  import("@/app/CustomerDisplay").then((module) => ({
+    default: module.CustomerDisplay,
+  })),
+);
+const IntegrationsSection = lazy(() =>
+  import("@/app/IntegrationsSection").then((module) => ({
+    default: module.IntegrationsSection,
+  })),
+);
+const AdminSection = lazy(() =>
+  import("@/app/AdminSection").then((module) => ({
+    default: module.AdminSection,
+  })),
+);
+const CatalogScreen = lazy(() =>
+  import("@/app/CatalogScreen").then((module) => ({
+    default: module.CatalogScreen,
+  })),
+);
 const CancellationSection = lazy(() =>
   import("@/app/CancellationSection").then((module) => ({
     default: module.CancellationSection,
@@ -438,15 +504,34 @@ export function App() {
       setLoggingIn(false);
     }
   }
-  if (hash === "#/customer-display") return <CustomerDisplay />;
+  if (hash === "#/customer-display")
+    return (
+      <Suspense
+        fallback={
+          <div className="grid min-h-[40vh] place-items-center">
+            <div className="size-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+          </div>
+        }
+      >
+        <CustomerDisplay />
+      </Suspense>
+    );
   if (hash.startsWith("#/qr/")) {
     const [encodedCode, route, trackingId] = hash.slice(5).split("/");
     return (
       <div className="app-shell min-h-screen">
-        <QrCustomerPage
-          code={decodeURIComponent(encodedCode)}
-          trackingId={route === "order" ? trackingId : undefined}
-        />
+        <Suspense
+          fallback={
+            <div className="grid min-h-[40vh] place-items-center">
+              <div className="size-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+            </div>
+          }
+        >
+          <QrCustomerPage
+            code={decodeURIComponent(encodedCode)}
+            trackingId={route === "order" ? trackingId : undefined}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -753,64 +838,77 @@ export function App() {
                 </ol>
               </nav>
             )}
-            {!allowed ? (
-              <p
-                role="alert"
-                className="rounded-xl border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive"
+            <ScreenBoundary key={view} language={language}>
+              <Suspense
+                fallback={
+                  <div className="grid min-h-[40vh] place-items-center">
+                    <div className="size-8 animate-spin rounded-full border-4 border-border border-t-primary" />
+                  </div>
+                }
               >
-                {tr(
-                  "لا تملك صلاحية الوصول إلى هذه الصفحة.",
-                  "You do not have permission to access this page.",
+                {!allowed ? (
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive"
+                  >
+                    {tr(
+                      "لا تملك صلاحية الوصول إلى هذه الصفحة.",
+                      "You do not have permission to access this page.",
+                    )}
+                  </p>
+                ) : view === "pos" ? (
+                  <PosSection
+                    language={language}
+                    kiosk={kiosk}
+                    permissions={permissions}
+                    cashierName={displayName}
+                  />
+                ) : view === "kitchen" ? (
+                  <KitchenSection language={language} />
+                ) : view === "inventory" ? (
+                  <InventorySection
+                    language={language}
+                    permissions={permissions}
+                  />
+                ) : view === "inventoryAdvanced" ? (
+                  <AdvancedInventorySection
+                    language={language}
+                    permissions={permissions}
+                  />
+                ) : view === "procurement" ? (
+                  <ProcurementSection language={language} />
+                ) : view === "reports" ? (
+                  <ReportsSection language={language} />
+                ) : view === "integrations" ? (
+                  <IntegrationsSection language={language} />
+                ) : view === "sync" ? (
+                  <SyncSection language={language} />
+                ) : view === "cancellations" ? (
+                  <CancellationSection language={language} />
+                ) : view === "orderHistory" ? (
+                  <OrderHistorySection language={language} />
+                ) : view === "categories" ? (
+                  <CatalogScreen language={language} mode="categories" />
+                ) : view === "products" ? (
+                  <CatalogScreen language={language} mode="products" />
+                ) : view === "selectionGroups" ? (
+                  <SelectionGroupsSection language={language} />
+                ) : view === "shifts" ? (
+                  <ShiftsSection language={language} />
+                ) : view === "printing" ? (
+                  <PrintingSection language={language} />
+                ) : view === "pricing" ? (
+                  <PricingSection language={language} />
+                ) : view === "qr" ? (
+                  <QrAdminSection language={language} />
+                ) : (
+                  <AdminSection
+                    language={language}
+                    view={view as "branches" | "devices" | "users"}
+                  />
                 )}
-              </p>
-            ) : view === "pos" ? (
-              <PosSection
-                language={language}
-                kiosk={kiosk}
-                permissions={permissions}
-                cashierName={displayName}
-              />
-            ) : view === "kitchen" ? (
-              <KitchenSection language={language} />
-            ) : view === "inventory" ? (
-              <InventorySection language={language} permissions={permissions} />
-            ) : view === "inventoryAdvanced" ? (
-              <AdvancedInventorySection
-                language={language}
-                permissions={permissions}
-              />
-            ) : view === "procurement" ? (
-              <ProcurementSection language={language} />
-            ) : view === "reports" ? (
-              <ReportsSection language={language} />
-            ) : view === "integrations" ? (
-              <IntegrationsSection language={language} />
-            ) : view === "sync" ? (
-              <SyncSection language={language} />
-            ) : view === "cancellations" ? (
-              <CancellationSection language={language} />
-            ) : view === "orderHistory" ? (
-              <OrderHistorySection language={language} />
-            ) : view === "categories" ? (
-              <CatalogScreen language={language} mode="categories" />
-            ) : view === "products" ? (
-              <CatalogScreen language={language} mode="products" />
-            ) : view === "selectionGroups" ? (
-              <SelectionGroupsSection language={language} />
-            ) : view === "shifts" ? (
-              <ShiftsSection language={language} />
-            ) : view === "printing" ? (
-              <PrintingSection language={language} />
-            ) : view === "pricing" ? (
-              <PricingSection language={language} />
-            ) : view === "qr" ? (
-              <QrAdminSection language={language} />
-            ) : (
-              <AdminSection
-                language={language}
-                view={view as "branches" | "devices" | "users"}
-              />
-            )}
+              </Suspense>
+            </ScreenBoundary>
           </main>
         </div>
       </div>
