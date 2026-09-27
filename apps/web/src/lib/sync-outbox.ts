@@ -1,3 +1,4 @@
+import Dexie, { type Table } from "dexie";
 import { createId, store } from "@/lib/local-store";
 
 export type SyncStatus = "applied" | "duplicate" | "conflict" | "failed";
@@ -69,97 +70,205 @@ export function lastSyncedAt(): string | null {
   return store.get<string>(LastSyncedAt);
 }
 
-export function enqueue(
+// ---------------------------------------------------------------------------------------------------
+// Offline queue storage (SRS §4 "IndexedDB / Dexie.js"). Queued sales and their conflicts live in
+// IndexedDB: far larger than localStorage and transactional, so a full store can no longer drop a sale
+// silently. Every write is awaited and throws on failure, so the register only says "saved offline"
+// once the sale really is stored. Small metadata (device, branch, last version) stays in localStorage
+// because it is read synchronously at startup.
+
+type OutboxRow = OutboxOperation & { seq?: number };
+
+class OfflineDb extends Dexie {
+  outbox!: Table<OutboxRow, number>;
+  conflicts!: Table<SyncConflict, string>;
+  constructor() {
+    super("ofc-offline");
+    this.version(1).stores({
+      // seq keeps the original order of sales; the idempotency key is unique.
+      outbox: "++seq, &idempotencyKey",
+      conflicts: "&idempotencyKey",
+    });
+  }
+}
+
+let database: Promise<OfflineDb | null> | null = null;
+
+// Opens IndexedDB once and moves anything still queued in localStorage (from before this change) into it.
+// The old copy is removed only after the move succeeded, so an interrupted migration loses nothing.
+function db(): Promise<OfflineDb | null> {
+  database ??= (async () => {
+    if (typeof indexedDB === "undefined") return null;
+    try {
+      const instance = new OfflineDb();
+      await instance.open();
+      const legacyOutbox = store.get<OutboxOperation[]>(Outbox);
+      const legacyConflicts = store.get<SyncConflict[]>(Conflicts);
+      if (legacyOutbox?.length || legacyConflicts?.length) {
+        await instance.transaction(
+          "rw",
+          instance.outbox,
+          instance.conflicts,
+          async () => {
+            for (const operation of legacyOutbox ?? []) {
+              const exists = await instance.outbox
+                .where("idempotencyKey")
+                .equals(operation.idempotencyKey)
+                .count();
+              if (!exists) await instance.outbox.add({ ...operation });
+            }
+            if (legacyConflicts?.length)
+              await instance.conflicts.bulkPut(legacyConflicts);
+          },
+        );
+      }
+      store.remove(Outbox);
+      store.remove(Conflicts);
+      return instance;
+    } catch {
+      // IndexedDB can be unavailable (restricted/private contexts): fall back to localStorage below.
+      return null;
+    }
+  })();
+  return database;
+}
+
+function writeLegacy<T>(name: string, value: T) {
+  if (!store.set(name, value))
+    throw new Error("Local storage is full or unavailable.");
+}
+
+export async function enqueue(
   operation: Omit<OutboxOperation, "idempotencyKey"> & {
     idempotencyKey?: string;
   },
-): OutboxOperation {
+): Promise<OutboxOperation> {
   const full: OutboxOperation = {
     ...operation,
     idempotencyKey: operation.idempotencyKey ?? createId(),
   };
-  const queue = pending();
-  if (!queue.some((item) => item.idempotencyKey === full.idempotencyKey)) {
-    store.set(Outbox, [...queue, full]);
+  const instance = await db();
+  if (instance) {
+    await instance.transaction("rw", instance.outbox, async () => {
+      const exists = await instance.outbox
+        .where("idempotencyKey")
+        .equals(full.idempotencyKey)
+        .count();
+      if (!exists) await instance.outbox.add({ ...full });
+    });
+    return full;
   }
+  const queue = store.get<OutboxOperation[]>(Outbox) ?? [];
+  if (!queue.some((item) => item.idempotencyKey === full.idempotencyKey))
+    writeLegacy(Outbox, [...queue, full]);
   return full;
 }
 
-export function pending(): OutboxOperation[] {
+const stripSeq = ({ seq: _seq, ...operation }: OutboxRow): OutboxOperation =>
+  operation;
+
+export async function pending(): Promise<OutboxOperation[]> {
+  const instance = await db();
+  if (instance)
+    return (await instance.outbox.orderBy("seq").toArray()).map(stripSeq);
   return store.get<OutboxOperation[]>(Outbox) ?? [];
 }
 
-export function pendingCount(): number {
-  return pending().length;
+export async function pendingCount(): Promise<number> {
+  const instance = await db();
+  return instance
+    ? instance.outbox.count()
+    : (store.get<OutboxOperation[]>(Outbox) ?? []).length;
 }
 
-export function remove(key: string): void {
-  store.set(
+async function removeFromOutbox(keys: string[]) {
+  const instance = await db();
+  if (instance) {
+    await instance.outbox.where("idempotencyKey").anyOf(keys).delete();
+    return;
+  }
+  writeLegacy(
     Outbox,
-    pending().filter((item) => item.idempotencyKey !== key),
+    (store.get<OutboxOperation[]>(Outbox) ?? []).filter(
+      (item) => !keys.includes(item.idempotencyKey),
+    ),
   );
 }
 
-export function clearPending(): void {
-  store.set(Outbox, []);
+export async function remove(key: string): Promise<void> {
+  await removeFromOutbox([key]);
 }
 
-export function conflicts(): SyncConflict[] {
+export async function clearPending(): Promise<void> {
+  const instance = await db();
+  if (instance) await instance.outbox.clear();
+  else writeLegacy(Outbox, []);
+}
+
+export async function conflicts(): Promise<SyncConflict[]> {
+  const instance = await db();
+  if (instance) return instance.conflicts.toArray();
   return store.get<SyncConflict[]>(Conflicts) ?? [];
 }
 
-export function conflictCount(): number {
-  return conflicts().length;
+export async function conflictCount(): Promise<number> {
+  return (await conflicts()).length;
 }
 
-export function storeConflicts(items: SyncConflict[]): void {
-  const merged = conflicts().filter(
+async function replaceConflicts(items: SyncConflict[]) {
+  const instance = await db();
+  if (instance) {
+    await instance.transaction("rw", instance.conflicts, async () => {
+      await instance.conflicts.clear();
+      if (items.length) await instance.conflicts.bulkPut(items);
+    });
+    return;
+  }
+  writeLegacy(Conflicts, items);
+}
+
+export async function storeConflicts(items: SyncConflict[]): Promise<void> {
+  const merged = (await conflicts()).filter(
     (existing) =>
       !items.some((item) => item.idempotencyKey === existing.idempotencyKey),
   );
-  store.set(Conflicts, [...merged, ...items]);
+  await replaceConflicts([...merged, ...items]);
 }
 
 // Clears the conflict banner only. A genuine conflict/failed operation is never removed from the
 // outbox by applyResults (only "applied"/"duplicate" results are — see below), so its real payload is
 // still queued and will be resent on the next flush; an already-*applied*-but-flagged operation
 // (stale-pricing/negative-stock) has nothing left in the outbox to touch either way.
-export function dismissConflicts(keys: string[]): void {
-  store.set(
-    Conflicts,
-    conflicts().filter((item) => !keys.includes(item.idempotencyKey)),
+export async function dismissConflicts(keys: string[]): Promise<void> {
+  await replaceConflicts(
+    (await conflicts()).filter((item) => !keys.includes(item.idempotencyKey)),
   );
 }
 
 // Abandons an operation entirely: clears the banner AND removes it from the outbox so it stops being
 // resent. Use this for a conflict/failed operation the user has decided not to retry (e.g. stale data
 // that can't resolve itself) — dismissConflicts alone would leave it silently retrying forever.
-export function cancelPending(keys: string[]): void {
-  dismissConflicts(keys);
-  store.set(
-    Outbox,
-    pending().filter((item) => !keys.includes(item.idempotencyKey)),
-  );
+export async function cancelPending(keys: string[]): Promise<void> {
+  await dismissConflicts(keys);
+  await removeFromOutbox(keys);
 }
 
 // The original payload was never lost (see dismissConflicts) — retrying just needs to clear the
 // conflict banner and let the next flush resend the real, unmodified operation still sitting in the
-// outbox. Building a fresh empty-payload operation here used to be dead code anyway: enqueue()'s
-// idempotency-key dedup silently dropped it, since the original operation with the same key was
-// already queued.
-export function retryConflict(key: string): void {
-  dismissConflicts([key]);
+// outbox.
+export async function retryConflict(key: string): Promise<void> {
+  await dismissConflicts([key]);
 }
 
-export function flush(token: string): Promise<SyncBatchResponse> {
-  const queue = pending();
+export async function flush(token: string): Promise<SyncBatchResponse> {
+  const queue = await pending();
   if (queue.length === 0)
-    return Promise.resolve({
+    return {
       serverVersion: lastSyncVersion(),
       currentCatalogVersion: 0,
-      pendingConflicts: conflictCount(),
+      pendingConflicts: await conflictCount(),
       results: [],
-    });
+    };
   const batch = {
     branchId: getBranchId(),
     deviceId: getDeviceId(),
@@ -175,27 +284,26 @@ export function flush(token: string): Promise<SyncBatchResponse> {
     })),
   };
 
-  return fetch("/api/v1/sync", {
+  const response = await fetch("/api/v1/sync", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(batch),
-  }).then(async (response) => {
-    if (!response.ok) throw new Error("Sync failed");
-    const data = (await response.json()) as SyncBatchResponse;
-    applyResults(queue, data);
-    return data;
   });
+  if (!response.ok) throw new Error("Sync failed");
+  const data = (await response.json()) as SyncBatchResponse;
+  await applyResults(queue, data);
+  return data;
 }
 
-export function applyResults(
+export async function applyResults(
   queue: OutboxOperation[],
   data: SyncBatchResponse,
-): void {
+): Promise<void> {
   const settled: string[] = [];
-  const pendingFlagged = conflicts();
+  const pendingFlagged = await conflicts();
   for (const result of data.results) {
     if (result.status === "applied") {
       settled.push(result.idempotencyKey);
@@ -235,11 +343,17 @@ export function applyResults(
       });
     }
   }
-  const remaining = queue.filter(
-    (operation) => !settled.includes(operation.idempotencyKey),
+  // Only operations that were part of this batch and settled leave the queue; sales queued while the
+  // request was in flight stay untouched.
+  const settledInBatch = queue
+    .map((operation) => operation.idempotencyKey)
+    .filter((key) => settled.includes(key));
+  if (settledInBatch.length) await removeFromOutbox(settledInBatch);
+  // A flagged key can appear more than once (earlier banner + this batch); keep the latest.
+  const byKey = new Map(
+    pendingFlagged.map((item) => [item.idempotencyKey, item]),
   );
-  store.set(Outbox, remaining);
-  store.set(Conflicts, pendingFlagged);
+  await replaceConflicts([...byKey.values()]);
   store.set(LastVersion, data.serverVersion);
   store.set(LastSyncedAt, new Date().toISOString());
 }

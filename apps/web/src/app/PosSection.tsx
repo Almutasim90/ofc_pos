@@ -152,6 +152,8 @@ const words = {
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
     cashier: "الكاشير",
+    offlineSaveFailed:
+      "تعذر حفظ الطلب على هذا الجهاز. لم يُسجَّل شيء؛ لا تُفرغ السلة وأعد المحاولة.",
     customerDisplay: "شاشة العميل",
     customerDisplayBlocked: "اسمح بالنوافذ المنبثقة لفتح شاشة العميل.",
     shiftOpenSince: "الوردية مفتوحة منذ",
@@ -250,6 +252,8 @@ const words = {
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
     cashier: "Cashier",
+    offlineSaveFailed:
+      "Could not store the order on this device. Nothing was recorded; keep the cart and try again.",
     customerDisplay: "Customer display",
     customerDisplayBlocked: "Allow pop-ups to open the customer display.",
     shiftOpenSince: "Shift open since",
@@ -1504,13 +1508,22 @@ export function PosSection({
     if (!online) {
       persistBranch(branchId);
       if (status === "Draft") {
-        enqueue({
-          operationType: "order.create",
-          baseVersion: null,
-          baseCatalogVersion: null,
-          occurredAt: new Date().toISOString(),
-          payload: buildOfflineOrder(channelId, cart, "Draft"),
-        });
+        // Only clear the cart once the sale is really stored on this device (busy blocks a double tap).
+        setBusy(true);
+        try {
+          await enqueue({
+            operationType: "order.create",
+            baseVersion: null,
+            baseCatalogVersion: null,
+            occurredAt: new Date().toISOString(),
+            payload: buildOfflineOrder(channelId, cart, "Draft"),
+          });
+        } catch {
+          setMessage(t.offlineSaveFailed);
+          return;
+        } finally {
+          setBusy(false);
+        }
         setCart([]);
         setMessage(t.offline);
         return;
@@ -1717,8 +1730,8 @@ export function PosSection({
       void refreshOrders();
     }
   }
-  function confirmOfflinePayment() {
-    if (!offlinePay) return;
+  async function confirmOfflinePayment() {
+    if (!offlinePay || busy) return;
     const method = offlineMethods.find((m) => m.id === offlinePay.methodId);
     if (!method) return;
     const isCash = method.kind === "Cash";
@@ -1731,18 +1744,28 @@ export function PosSection({
       return;
     }
     persistBranch(branchId);
-    enqueue({
-      operationType: "order.create",
-      baseVersion: null,
-      baseCatalogVersion: null,
-      occurredAt: new Date().toISOString(),
-      payload: buildOfflineOrder(channelId, cart, "Paid", {
-        clientRequestId: createId(),
-        paymentMethodId: method.id,
-        amount: total,
-        tenderedAmount: tendered,
-      }),
-    });
+    // Busy while storing, so a double tap cannot queue the same sale twice.
+    setBusy(true);
+    try {
+      await enqueue({
+        operationType: "order.create",
+        baseVersion: null,
+        baseCatalogVersion: null,
+        occurredAt: new Date().toISOString(),
+        payload: buildOfflineOrder(channelId, cart, "Paid", {
+          clientRequestId: createId(),
+          paymentMethodId: method.id,
+          amount: total,
+          tenderedAmount: tendered,
+        }),
+      });
+    } catch {
+      // The sale is not stored: keep the cart and the payment dialog so nothing is lost.
+      setMessage(t.offlineSaveFailed);
+      return;
+    } finally {
+      setBusy(false);
+    }
     announcePaid(total);
     setCart([]);
     setOfflinePay(null);
@@ -2176,7 +2199,7 @@ export function PosSection({
             {t.offlinePayCancel}
           </Button>
           <Button
-            disabled={selectableOfflineMethods.length === 0}
+            disabled={busy || selectableOfflineMethods.length === 0}
             onClick={confirmOfflinePayment}
             className="min-h-12 rounded-lg bg-primary font-semibold text-primary-foreground disabled:opacity-60"
           >

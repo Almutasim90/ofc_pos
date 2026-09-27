@@ -466,3 +466,64 @@ test('customer display mirrors the cart and thanks the customer after payment', 
   await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
   await expect(display.getByRole('heading',{name:'Thank you'})).toBeVisible();
 });
+
+const offlineOp = (key: string) => ({idempotencyKey:key,operationType:'order.create',baseVersion:null,baseCatalogVersion:null,occurredAt:new Date().toISOString(),payload:{status:'Paid',lines:[]}});
+const idbOutbox = (page: Page) => page.evaluate(() => new Promise<string[]>((resolve, reject) => {
+  const open = indexedDB.open('ofc-offline');
+  open.onerror = () => reject(open.error);
+  open.onsuccess = () => {
+    const request = open.result.transaction('outbox').objectStore('outbox').getAll();
+    request.onsuccess = () => { resolve((request.result as Array<{idempotencyKey:string}>).map(x => x.idempotencyKey)); open.result.close(); };
+  };
+}));
+
+test('offline queue left in localStorage moves into IndexedDB without losing a sale', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.addInitScript((ops) => {
+    if (!localStorage.getItem('seeded')) {
+      localStorage.setItem('ofc:sync:outbox', JSON.stringify(ops));
+      localStorage.setItem('seeded', '1');
+    }
+  }, [offlineOp('legacy-1'), offlineOp('legacy-2')]);
+  await page.route('**/api/v1/sync**', route => route.abort());
+  await page.goto('/#/sync');
+  await expect(page.getByText('(2)').first()).toBeVisible();
+  await expect.poll(() => idbOutbox(page)).toEqual(['legacy-1','legacy-2']);
+  expect(await page.evaluate(() => localStorage.getItem('ofc:sync:outbox'))).toBeNull();
+});
+
+test('a sale queued while a sync is in flight is not dropped when the sync settles', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  let release: () => void = () => {};
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/v1/sync', async route => {
+    await gate;
+    await route.fulfill({json:{serverVersion:5,currentCatalogVersion:1,pendingConflicts:0,results:[{idempotencyKey:'first',operationType:'order.create',status:'applied',flags:[],conflictReason:null,error:null,serverVersion:5}]}});
+  });
+  await page.goto('/#/users');
+  const remaining = page.evaluate(async (op) => {
+    const outbox = await import('/src/lib/sync-outbox.ts');
+    await outbox.enqueue(op);
+    const inFlight = outbox.flush('t');
+    await new Promise(r => setTimeout(r, 200));
+    await outbox.enqueue({...op, idempotencyKey:'second'});
+    (window as unknown as {releaseSync?: boolean}).releaseSync = true;
+    await inFlight;
+    return (await outbox.pending()).map(x => x.idempotencyKey);
+  }, offlineOp('first'));
+  await page.waitForFunction(() => (window as unknown as {releaseSync?: boolean}).releaseSync === true);
+  release();
+  expect(await remaining).toEqual(['second']);
+});
+
+test('an offline hold is stored in IndexedDB before the cart is cleared', async ({page, context}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await context.setOffline(true);
+  await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await page.locator('.pos-ticket-desktop').getByRole('button',{name:'Hold',exact:true}).click();
+  await expect(page.locator('.pos-ticket-desktop').getByRole('listitem')).toHaveCount(0);
+  await expect.poll(async () => (await idbOutbox(page)).length).toBe(1);
+  await context.setOffline(false);
+});

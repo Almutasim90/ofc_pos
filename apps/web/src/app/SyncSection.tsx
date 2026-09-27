@@ -14,6 +14,7 @@ import {
   pendingCount,
   retryConflict,
   setBranchId,
+  type OutboxOperation,
 } from "@/lib/sync-outbox";
 import { Button } from "@/components/ui/button";
 
@@ -111,8 +112,8 @@ const reasonLabel = {
 export function SyncSection({ language }: { language: Language }) {
   const t = copy[language];
   const [online, setOnline] = useState(navigator.onLine);
-  const [pendingItems, setPendingItems] = useState(pending());
-  const [conflictItems, setConflictItems] = useState<Conflict[]>(conflicts());
+  const [pendingItems, setPendingItems] = useState<OutboxOperation[]>([]);
+  const [conflictItems, setConflictItems] = useState<Conflict[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -132,12 +133,17 @@ export function SyncSection({ language }: { language: Language }) {
       },
     });
 
-  const refresh = () => {
-    setPendingItems(pending());
-    setConflictItems(conflicts());
+  // The offline queue lives in IndexedDB, so it is read asynchronously.
+  const refresh = async () => {
+    const [queue, flagged] = await Promise.all([pending(), conflicts()]);
+    setPendingItems(queue);
+    setConflictItems(flagged);
     setVersion(lastSyncVersion());
     setSyncedAt(lastSyncedAt());
   };
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   useEffect(() => {
     const update = () => {
@@ -176,7 +182,7 @@ export function SyncSection({ language }: { language: Language }) {
     setMessage("");
     try {
       await flush(token);
-      refresh();
+      await refresh();
       setMessage(t.done);
     } catch (e) {
       setIsError(true);
@@ -187,15 +193,15 @@ export function SyncSection({ language }: { language: Language }) {
   }
 
   useEffect(() => {
-    if (!online || pendingCount() === 0 || syncing) return;
+    if (!online || pendingItems.length === 0 || syncing) return;
     let cancelled = false;
     let attempt = 0;
     const run = async () => {
-      if (cancelled) return;
+      if (cancelled || (await pendingCount()) === 0) return;
       try {
         await flush(token);
         if (!cancelled) {
-          refresh();
+          await refresh();
           setMessage(t.done);
         }
       } catch {
@@ -209,7 +215,7 @@ export function SyncSection({ language }: { language: Language }) {
     return () => {
       cancelled = true;
     };
-  }, [online, syncing, token]);
+  }, [online, syncing, token, pendingItems.length]);
 
   async function enqueueTrial() {
     setMessage("");
@@ -270,14 +276,14 @@ export function SyncSection({ language }: { language: Language }) {
         note: null,
         lines: [orderLine],
       };
-      enqueue({
+      await enqueue({
         operationType: "order.create",
         baseVersion: version || null,
         baseCatalogVersion: catalogVersion || null,
         occurredAt: new Date().toISOString(),
         payload,
       });
-      refresh();
+      await refresh();
       setMessage(t.queued);
     } catch (e) {
       setIsError(true);
@@ -399,9 +405,11 @@ export function SyncSection({ language }: { language: Language }) {
             </span>
             {conflictItems.length > 0 && (
               <Button
-                onClick={() => {
-                  cancelPending(conflictItems.map((c) => c.idempotencyKey));
-                  refresh();
+                onClick={async () => {
+                  await cancelPending(
+                    conflictItems.map((c) => c.idempotencyKey),
+                  );
+                  await refresh();
                 }}
                 className="min-h-8 rounded-lg border border-destructive px-2.5 text-xs font-semibold text-destructive"
               >
@@ -449,9 +457,9 @@ export function SyncSection({ language }: { language: Language }) {
                     )}
                     <div className="mt-3 flex gap-2">
                       <Button
-                        onClick={() => {
-                          retryConflict(item.idempotencyKey);
-                          refresh();
+                        onClick={async () => {
+                          await retryConflict(item.idempotencyKey);
+                          await refresh();
                         }}
                         className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary px-3 text-xs font-semibold text-primary"
                       >
@@ -459,9 +467,9 @@ export function SyncSection({ language }: { language: Language }) {
                         {t.retry}
                       </Button>
                       <Button
-                        onClick={() => {
-                          cancelPending([item.idempotencyKey]);
-                          refresh();
+                        onClick={async () => {
+                          await cancelPending([item.idempotencyKey]);
+                          await refresh();
                         }}
                         className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-destructive px-3 text-xs font-semibold text-destructive"
                       >
