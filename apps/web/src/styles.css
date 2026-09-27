@@ -3767,3 +3767,202 @@
     animation: none !important;
   }
 }
+
+/* Customer display (SRS §57): read from a distance — large type, one strong total, calm surfaces. */
+.cd-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(16px, 3vh, 32px);
+  min-height: 100dvh;
+  padding: clamp(16px, 3vw, 40px);
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+.cd-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cd-mark {
+  display: inline-grid;
+  place-items: center;
+  min-width: 64px;
+  height: 52px;
+  padding-inline: 10px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--app-primary), var(--app-brand-2));
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+.cd-mark-large {
+  min-width: 140px;
+  height: 112px;
+  border-radius: 28px;
+  font-size: 44px;
+}
+.cd-brand {
+  color: var(--app-muted);
+  font-size: clamp(16px, 1.6vw, 22px);
+  font-weight: 700;
+}
+.cd-center {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+  animation: cd-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.cd-center h1 {
+  font-size: clamp(40px, 6vw, 84px);
+  font-weight: 900;
+  line-height: 1.1;
+}
+.cd-center p {
+  color: var(--app-muted);
+  font-size: clamp(18px, 2vw, 28px);
+}
+.cd-thanks svg {
+  color: var(--app-success);
+}
+.cd-thanks strong {
+  color: var(--app-text);
+}
+.cd-order {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
+  gap: clamp(16px, 2.5vw, 32px);
+  min-height: 0;
+}
+.cd-lines,
+.cd-totals {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border: 1px solid var(--app-border);
+  border-radius: 24px;
+  background: var(--app-surface);
+  box-shadow: 0 10px 30px -18px var(--app-shadow);
+}
+.cd-lines h2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 20px 24px 12px;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 800;
+}
+.cd-lines h2 span {
+  color: var(--app-muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+.cd-lines ol {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+  scroll-behavior: smooth;
+}
+.cd-lines li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--app-border);
+  border-radius: 14px;
+  font-size: clamp(18px, 1.8vw, 26px);
+}
+.cd-lines li:last-child {
+  border-bottom: 0;
+}
+.cd-lines li.is-latest {
+  background: var(--app-primary-soft);
+  animation: cd-line-in 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.cd-qty {
+  color: var(--app-primary);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cd-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.cd-name small {
+  display: block;
+  margin-top: 2px;
+  color: var(--app-muted);
+  font-size: 0.7em;
+  font-weight: 500;
+}
+.cd-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cd-totals {
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+}
+.cd-totals dl {
+  display: grid;
+  gap: 12px;
+  font-size: clamp(16px, 1.5vw, 22px);
+}
+.cd-totals dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cd-totals dt {
+  color: var(--app-muted);
+}
+.cd-totals dd {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cd-total {
+  display: grid;
+  gap: 6px;
+  padding-top: 20px;
+  border-top: 2px dashed var(--app-border);
+}
+.cd-total span {
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 800;
+}
+.cd-total strong {
+  color: var(--app-primary);
+  font-size: clamp(40px, 5.5vw, 76px);
+  font-weight: 900;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes cd-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+@keyframes cd-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (max-width: 860px) {
+  .cd-order {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-center,
+  .cd-lines li.is-latest {
+    animation: none;
+  }
+}

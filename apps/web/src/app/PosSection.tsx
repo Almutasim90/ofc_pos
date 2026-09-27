@@ -16,6 +16,7 @@ import {
   Clock,
   Timer,
   UserRound,
+  MonitorSmartphone,
   X,
 } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
@@ -34,6 +35,11 @@ import { ProductPhoto } from "@/app/CatalogScreen";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { FormDialog } from "@/app/FormDialog";
 import { printKitchenSlip, snapshotChoices } from "@/lib/kitchen-slip";
+import {
+  openCustomerDisplayWindow,
+  openDisplayChannel,
+  type DisplayMessage,
+} from "@/lib/customer-display";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { Button } from "@/components/ui/button";
 import {
@@ -146,6 +152,8 @@ const words = {
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
     cashier: "الكاشير",
+    customerDisplay: "شاشة العميل",
+    customerDisplayBlocked: "اسمح بالنوافذ المنبثقة لفتح شاشة العميل.",
     shiftOpenSince: "الوردية مفتوحة منذ",
     noOpenShift: "لا توجد وردية مفتوحة",
     editOrder: "تعديل",
@@ -242,6 +250,8 @@ const words = {
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
     cashier: "Cashier",
+    customerDisplay: "Customer display",
+    customerDisplayBlocked: "Allow pop-ups to open the customer display.",
     shiftOpenSince: "Shift open since",
     noOpenShift: "No open shift",
     editOrder: "Edit",
@@ -434,6 +444,16 @@ function PosSessionInfo({
       <PosClock language={language} />
     </div>
   );
+}
+// Names of the options chosen on a cart line, for the receipt line and the customer display.
+function lineChoiceNames(line: CartLine, language: Language) {
+  return Object.entries(line.selections).flatMap(([groupId, ids]) => {
+    const group = line.product.selectionGroups.find((g) => g.id === groupId);
+    return ids.flatMap((id) => {
+      const option = group?.options.find((o) => o.id === id);
+      return option ? [language === "ar" ? option.nameAr : option.nameEn] : [];
+    });
+  });
 }
 // Orders are identified to staff by their sequential number only (never the internal id).
 function orderLabel(number?: number | null) {
@@ -1247,6 +1267,50 @@ export function PosSection({
     roundMoney(amounts.net) * (total ? payableTotal / total : 0),
   );
   const taxTotal = roundMoney(payableTotal - netTotal);
+  // Customer display (SRS §57): mirror the cart; a newly opened display asks for the current state.
+  const displaySnapshot: DisplayMessage = cart.length
+    ? {
+        kind: "cart",
+        language,
+        lines: cart.map((line) => {
+          const unit = resolveOfflinePricing(
+            line.product.pricing,
+            lineAdjustment(line),
+          ).gross;
+          return {
+            key: line.key,
+            name: language === "ar" ? line.product.nameAr : line.product.nameEn,
+            quantity: line.quantity,
+            unit,
+            amount: roundMoney(unit * line.quantity),
+            details: [
+              ...lineChoiceNames(line, language),
+              ...(line.note ? [line.note] : []),
+            ],
+          };
+        }),
+        subtotal: total,
+        discount: discountEstimate,
+        tax: taxTotal,
+        total: payableTotal,
+      }
+    : { kind: "idle", language };
+  const displayState = useRef(displaySnapshot);
+  displayState.current = displaySnapshot;
+  const display = useRef<ReturnType<typeof openDisplayChannel>>(null);
+  useEffect(() => {
+    display.current = openDisplayChannel((message) => {
+      if (message.kind === "hello") display.current?.post(displayState.current);
+    });
+    return () => display.current?.close();
+  }, []);
+  const displayKey = JSON.stringify(displaySnapshot);
+  useEffect(() => {
+    display.current?.post(displayState.current);
+  }, [displayKey]);
+  function announcePaid(amount: number) {
+    display.current?.post({ kind: "paid", language, total: amount });
+  }
   // Falls back to whichever tender the branch actually has configured, so a branch with only one of
   // cash/card (payMethod still defaulting to "Cash") doesn't silently build a payment for a tender
   // that isn't available there.
@@ -1581,6 +1645,7 @@ export function PosSection({
               ? "تم حفظ الطلب، لكن تعذر تسجيل الدفع الخارجي."
               : "Order saved, but its external payment could not be recorded.",
           );
+        announcePaid(order.grossAmount);
         await dispatchOrder(order.id);
         setDiscountOpen(false);
         setDiscountValue("");
@@ -1638,6 +1703,7 @@ export function PosSection({
         throw new Error(problem?.errors?.payments?.[0] ?? t.payFailed);
       }
       setCartOpen(false);
+      announcePaid(order.grossAmount);
       await dispatchOrder(order.id);
       setPayCash("");
       setPayCard("");
@@ -1677,6 +1743,7 @@ export function PosSection({
         tenderedAmount: tendered,
       }),
     });
+    announcePaid(total);
     setCart([]);
     setOfflinePay(null);
     setMessage(t.offline);
@@ -2323,6 +2390,17 @@ export function PosSection({
           >
             {t.heldOrders} ({heldOrders.length})
           </Button>
+          <Button
+            onClick={() => {
+              if (!openCustomerDisplayWindow())
+                setMessage(t.customerDisplayBlocked);
+            }}
+            title={t.customerDisplay}
+            className="inline-flex min-h-12 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-muted-foreground"
+          >
+            <MonitorSmartphone size={16} aria-hidden="true" />
+            {t.customerDisplay}
+          </Button>
         </div>
         {isExternallyPaidChannel && (
           <div
@@ -2942,13 +3020,7 @@ const TicketLine = memo(function TicketLine({
     lineAdjustment(line),
   ).gross;
   // Unit price, quantity and chosen modifiers so the cashier can verify a line at a glance.
-  const choices = Object.entries(line.selections).flatMap(([groupId, ids]) => {
-    const group = line.product.selectionGroups.find((g) => g.id === groupId);
-    return ids.flatMap((id) => {
-      const option = group?.options.find((o) => o.id === id);
-      return option ? [language === "ar" ? option.nameAr : option.nameEn] : [];
-    });
-  });
+  const choices = lineChoiceNames(line, language);
   const details = [
     `${unit.toFixed(3)} × ${line.quantity}`,
     ...choices,

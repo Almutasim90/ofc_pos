@@ -45,6 +45,7 @@ import { SyncSection } from "@/app/SyncSection";
 import { ReportsSection } from "@/app/ReportsSection";
 import { QrAdminSection } from "@/app/QrAdminSection";
 import { QrCustomerPage } from "@/app/QrCustomerPage";
+import { CustomerDisplay } from "@/app/CustomerDisplay";
 import { IntegrationsSection } from "@/app/IntegrationsSection";
 import { AdminSection } from "@/app/AdminSection";
 import { LoginScreen } from "@/app/LoginScreen";
@@ -275,7 +276,12 @@ export function App() {
     return () => window.removeEventListener("hashchange", update);
   }, []);
   useEffect(() => {
-    if (permissions === null || hash.startsWith("#/qr/")) return;
+    if (
+      permissions === null ||
+      hash.startsWith("#/qr/") ||
+      hash === "#/customer-display"
+    )
+      return;
     const target = hash.slice(2);
     // Select known forbidden routes so the guard renders Access Denied without mounting their page.
     if (navigation.some(([key]) => key === target)) {
@@ -432,6 +438,7 @@ export function App() {
       setLoggingIn(false);
     }
   }
+  if (hash === "#/customer-display") return <CustomerDisplay />;
   if (hash.startsWith("#/qr/")) {
     const [encodedCode, route, trackingId] = hash.slice(5).split("/");
     return (

@@ -448,3 +448,21 @@ test('every configured non-cash method can take the payment', async ({page}) => 
   await page.getByRole('button',{name:'Confirm payment',exact:true}).click();
   await expect.poll(() => paidWith).toBe('apple');
 });
+
+test('customer display mirrors the cart and thanks the customer after payment', async ({page, context}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.goto('/#/pos');
+  const display = await context.newPage();
+  await display.goto('/#/customer-display');
+  await expect(display.getByRole('heading',{name:'Welcome'})).toBeVisible();
+  // A delivery-company order is paid externally, so it completes in one step.
+  await page.getByRole('radio',{name:'Electronic',exact:true}).click();
+  await page.getByRole('radio',{name:'Talabat',exact:true}).click();
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await expect(display.locator('.cd-lines li')).toHaveCount(2);
+  await expect(display.locator('.cd-lines li.is-latest')).toContainText('Crispy chicken family meal 1');
+  await expect(display.locator('.cd-total strong')).toContainText('5.000');
+  await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
+  await expect(display.getByRole('heading',{name:'Thank you'})).toBeVisible();
+});
