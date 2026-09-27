@@ -19,6 +19,7 @@ builder.Services.AddHealthChecks()
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IKitchenBroadcaster, KitchenBroadcaster>();
+builder.Services.AddSingleton<KitchenPresence>();
 builder.Services.AddSingleton<IOrdersBroadcaster, OrdersBroadcaster>();
 builder.Services.AddHostedService<KitchenFallbackWatcher>();
 builder.Services.AddHostedService<EInvoiceWorker>();

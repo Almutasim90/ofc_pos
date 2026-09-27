@@ -38,7 +38,7 @@ import "@/app/pos-register.css";
 import { ProductPhoto } from "@/app/ProductPhoto";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { FormDialog } from "@/app/FormDialog";
-import { printKitchenSlip, snapshotChoices } from "@/lib/kitchen-slip";
+import { printKitchenSlips, snapshotChoices } from "@/lib/kitchen-slip";
 import {
   openCustomerDisplayWindow,
   openDisplayChannel,
@@ -156,6 +156,12 @@ const words = {
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
     cashier: "الكاشير",
+    notReceivedCount: "طلبات لم تُستلم في المطبخ",
+    printAllKitchen: "طباعة الكل للمطبخ",
+    kitchenScreenOffline: "شاشة المطبخ غير متصلة منذ",
+    kitchenScreenOfflineNote:
+      "الطلبات الجديدة لن تظهر في المطبخ؛ اطبعها أو أبلغ المطبخ.",
+    hide: "إخفاء",
     sentToKitchen: "تم إرسال الطلب للمطبخ.",
     closeMessage: "إغلاق الرسالة",
     offlineSaveFailed:
@@ -258,6 +264,12 @@ const words = {
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
     cashier: "Cashier",
+    notReceivedCount: "orders not received in the kitchen",
+    printAllKitchen: "Print all for kitchen",
+    kitchenScreenOffline: "Kitchen screen disconnected since",
+    kitchenScreenOfflineNote:
+      "New orders will not appear in the kitchen; print them or tell the kitchen.",
+    hide: "Hide",
     sentToKitchen: "Order sent to kitchen.",
     closeMessage: "Dismiss message",
     offlineSaveFailed:
@@ -1083,32 +1095,79 @@ export function PosSection({
     }, 5000);
     return () => clearInterval(timer);
   }, [kitchenWatch.length, branchId, online]);
-  async function printForKitchen(orderId: string) {
+  // Prints one or several orders as a single print job (one dialog, one slip per order).
+  // Kitchen screen presence: warn once when the kitchen tablet drops, instead of per unacknowledged
+  // order. Shown only if a screen was connected earlier (a branch without a tablet never sees it) and has
+  // been gone for more than 20 seconds (a brief network blip is ignored).
+  const [kdsPresence, setKdsPresence] = useState<{
+    screens: number;
+    lastSeenAt: string | null;
+  } | null>(null);
+  const [kdsDismissed, setKdsDismissed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!branchId || !online) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const response = await auth(
+          `/api/v1/kitchen/presence?branchId=${branchId}`,
+        );
+        if (response.ok && !cancelled) setKdsPresence(await response.json());
+      } catch {
+        /* Best effort; the next check retries. */
+      }
+    };
+    void check();
+    const timer = setInterval(() => void check(), 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [branchId, online]);
+  const kdsOfflineSince =
+    kdsPresence &&
+    kdsPresence.screens === 0 &&
+    kdsPresence.lastSeenAt &&
+    kdsDismissed !== kdsPresence.lastSeenAt &&
+    Date.now() - new Date(kdsPresence.lastSeenAt).getTime() > 20_000 &&
+    Date.now() - new Date(kdsPresence.lastSeenAt).getTime() < 12 * 3_600_000
+      ? kdsPresence.lastSeenAt
+      : null;
+  async function printForKitchen(orderIds: string | string[]) {
+    const ids = Array.isArray(orderIds) ? orderIds : [orderIds];
     try {
-      const response = await auth(`/api/v1/orders/${orderId}`);
-      if (handleAuthFailure(response)) return;
-      if (!response.ok) {
+      const responses = await Promise.all(
+        ids.map((id) => auth(`/api/v1/orders/${id}`)),
+      );
+      if (responses.some((response) => handleAuthFailure(response))) return;
+      if (responses.some((response) => !response.ok)) {
         setMessage(t.unavailable);
         return;
       }
-      const detail = (await response.json()) as OrderDetail;
-      const held = heldOrders.find((order) => order.id === orderId);
-      const printed = printKitchenSlip({
-        title: t.kitchenSlip,
-        reference: orderLabel(detail.number),
-        table: held?.table ? name(held.table) : null,
-        createdAt: detail.createdAt,
-        note: detail.note,
-        language,
-        lines: detail.lines.map((line) => ({
-          quantity: line.quantity,
-          name: language === "ar" ? line.productNameAr : line.productNameEn,
-          choices: snapshotChoices(line.selectionsSnapshot, language),
-          note: line.note,
-        })),
-      });
+      const details = (await Promise.all(
+        responses.map((response) => response.json()),
+      )) as OrderDetail[];
+      const printed = printKitchenSlips(
+        details.map((detail) => {
+          const held = heldOrders.find((order) => order.id === detail.id);
+          return {
+            title: t.kitchenSlip,
+            reference: orderLabel(detail.number),
+            table: held?.table ? name(held.table) : null,
+            createdAt: detail.createdAt,
+            note: detail.note,
+            language,
+            lines: detail.lines.map((line) => ({
+              quantity: line.quantity,
+              name: language === "ar" ? line.productNameAr : line.productNameEn,
+              choices: snapshotChoices(line.selectionsSnapshot, language),
+              note: line.note,
+            })),
+          };
+        }),
+      );
       if (!printed) setMessage(t.unavailable);
-      setKitchenWatch((watch) => watch.filter((x) => x.orderId !== orderId));
+      setKitchenWatch((watch) => watch.filter((x) => !ids.includes(x.orderId)));
     } catch {
       setMessage(t.unavailable);
     }
@@ -2458,10 +2517,11 @@ export function PosSection({
                 setMessage(t.customerDisplayBlocked);
             }}
             title={t.customerDisplay}
+            aria-label={t.customerDisplay}
             className="inline-flex min-h-12 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-xs font-semibold text-muted-foreground"
           >
             <MonitorSmartphone size={16} aria-hidden="true" />
-            {t.customerDisplay}
+            <span className="pos-display-label">{t.customerDisplay}</span>
           </Button>
         </div>
         {isExternallyPaidChannel && (
@@ -2971,27 +3031,66 @@ export function PosSection({
       {qrToastsNode}
       {offlinePayModal}
       {heldOrdersModal}
-      {kitchenWatch.some((entry) => entry.late) && (
+      {(kdsOfflineSince || kitchenWatch.some((entry) => entry.late)) && (
         <div role="alert" className="pos-kitchen-alerts">
-          {kitchenWatch
-            .filter((entry) => entry.late)
-            .map((entry) => (
-              <div key={entry.orderId} className="pos-kitchen-alert">
+          {kdsOfflineSince && (
+            <div className="pos-kitchen-alert is-offline">
+              <span>
+                <strong>
+                  {t.kitchenScreenOffline}{" "}
+                  {new Date(kdsOfflineSince).toLocaleTimeString(language, {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </strong>
+                <small>{t.kitchenScreenOfflineNote}</small>
+              </span>
+              <Button
+                type="button"
+                onClick={() => setKdsDismissed(kdsOfflineSince)}
+                className="pos-kitchen-dismiss"
+              >
+                {t.hide}
+              </Button>
+            </div>
+          )}
+          {(() => {
+            const late = kitchenWatch.filter((entry) => entry.late);
+            if (!late.length) return null;
+            const ids = late.map((entry) => entry.orderId);
+            return (
+              <div className="pos-kitchen-alert">
                 <span>
-                  <strong>{orderLabel(entry.number)}</strong> · {t.notReceived}
+                  {late.length === 1 ? (
+                    <>
+                      <strong>{orderLabel(late[0].number)}</strong> ·{" "}
+                      {t.notReceived}
+                    </>
+                  ) : (
+                    <>
+                      <strong>
+                        {late.length} {t.notReceivedCount}
+                      </strong>
+                      <small>
+                        {late
+                          .map((entry) => orderLabel(entry.number))
+                          .join(" · ")}
+                      </small>
+                    </>
+                  )}
                 </span>
                 <Button
                   type="button"
-                  onClick={() => void printForKitchen(entry.orderId)}
+                  onClick={() => void printForKitchen(ids)}
                   className="pos-kitchen-print"
                 >
-                  {t.printKitchen}
+                  {late.length === 1 ? t.printKitchen : t.printAllKitchen}
                 </Button>
                 <Button
                   type="button"
                   onClick={() =>
                     setKitchenWatch((watch) =>
-                      watch.filter((x) => x.orderId !== entry.orderId),
+                      watch.filter((x) => !ids.includes(x.orderId)),
                     )
                   }
                   className="pos-kitchen-dismiss"
@@ -2999,7 +3098,8 @@ export function PosSection({
                   {t.kitchenInformed}
                 </Button>
               </div>
-            ))}
+            );
+          })()}
         </div>
       )}
       {message && (

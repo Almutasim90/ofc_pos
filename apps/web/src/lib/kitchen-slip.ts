@@ -65,7 +65,7 @@ const escape = (value: string) =>
       ]!,
   );
 
-export function printKitchenSlip(slip: KitchenSlip) {
+function slipBody(slip: KitchenSlip) {
   const ar = slip.language === "ar";
   const time = new Date(slip.createdAt).toLocaleString(ar ? "ar-OM" : "en-GB", {
     hour: "2-digit",
@@ -82,12 +82,31 @@ export function printKitchenSlip(slip: KitchenSlip) {
       </li>`,
     )
     .join("");
-  const html = `<!doctype html><html lang="${slip.language}" dir="${ar ? "rtl" : "ltr"}"><head><meta charset="utf-8">
-<title>${escape(slip.reference)}</title>
+  return `<section class="slip">
+  <h1>${escape(slip.title)}</h1>
+  <div class="ref">${escape(slip.reference)}</div>
+  <div class="meta"><span>${slip.table ? escape(slip.table) : ""}</span><span>${escape(time)}</span></div>
+  <ul>${lines}</ul>
+  ${slip.note ? `<div class="order-note">✎ ${escape(slip.note)}</div>` : ""}
+</section>`;
+}
+
+export function printKitchenSlip(slip: KitchenSlip) {
+  return printKitchenSlips([slip]);
+}
+
+// Several slips go out as ONE print job (one dialog), each on its own page/cut.
+export function printKitchenSlips(slips: KitchenSlip[]) {
+  if (!slips.length) return false;
+  const first = slips[0];
+  const ar = first.language === "ar";
+  const html = `<!doctype html><html lang="${first.language}" dir="${ar ? "rtl" : "ltr"}"><head><meta charset="utf-8">
+<title>${escape(slips.map((slip) => slip.reference).join(" "))}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: Tahoma, Arial, sans-serif; color: #000; font-size: 14px; }
+  .slip + .slip { break-before: page; page-break-before: always; }
   h1 { margin: 0; font-size: 16px; text-align: center; }
   .ref { margin: 4px 0; font-size: 28px; font-weight: 900; text-align: center; }
   .meta { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 2px dashed #000; padding-bottom: 6px; }
@@ -99,11 +118,7 @@ export function printKitchenSlip(slip: KitchenSlip) {
   .note { font-weight: 700; }
   .order-note { margin-top: 6px; font-weight: 700; }
 </style></head><body>
-  <h1>${escape(slip.title)}</h1>
-  <div class="ref">${escape(slip.reference)}</div>
-  <div class="meta"><span>${slip.table ? escape(slip.table) : ""}</span><span>${escape(time)}</span></div>
-  <ul>${lines}</ul>
-  ${slip.note ? `<div class="order-note">✎ ${escape(slip.note)}</div>` : ""}
+${slips.map(slipBody).join("\n")}
 </body></html>`;
 
   const frame = document.createElement("iframe");

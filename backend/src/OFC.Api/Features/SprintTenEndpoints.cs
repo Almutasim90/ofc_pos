@@ -20,6 +20,7 @@ public static class SprintTenEndpoints
         api.MapGet("/kitchen/stations", ListStations).RequireAuthorization();
         api.MapPost("/kitchen/tickets", Dispatch).RequireAuthorization();
         api.MapGet("/kitchen/tickets", ListTickets).RequireAuthorization();
+        api.MapGet("/kitchen/presence", Presence).RequireAuthorization();
         api.MapGet("/kitchen/tickets/{id:guid}", GetTicket).RequireAuthorization();
         api.MapPost("/kitchen/tickets/{id:guid}/send", SendToKds).RequireAuthorization();
         api.MapPost("/kitchen/tickets/{id:guid}/ack", Acknowledge).RequireAuthorization();
@@ -167,6 +168,15 @@ public static class SprintTenEndpoints
         if (!await CanOperate(db, user, ticket.BranchId, ct, "kitchen.view")) return Forbidden();
         var station = ticket.StationId is Guid sid ? await db.PreparationStations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == sid, ct) : null;
         return Results.Ok(TicketResponse(ticket, station, DateTimeOffset.UtcNow));
+    }
+
+    // Whether a kitchen screen is connected for the branch; the register polls this to warn once when the
+    // kitchen screen drops instead of per unacknowledged order.
+    private static async Task<IResult> Presence(Guid branchId, OFCDbContext db, KitchenPresence presence, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (!await CanOperate(db, user, branchId, ct, "orders.manage") && !await CanOperate(db, user, branchId, ct, "kitchen.view")) return Forbidden();
+        var (screens, lastSeenAt) = presence.Snapshot(branchId);
+        return Results.Ok(new { screens, lastSeenAt });
     }
 
     private static async Task<IResult> SendToKds(Guid id, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)

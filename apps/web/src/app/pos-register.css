@@ -982,3 +982,22 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
     animation: none;
   }
 }
+
+/* Grouped kitchen alerts: a second line lists the order numbers; the kitchen-screen alert is red. */
+.pos-kitchen-alert > span small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.pos-kitchen-alert.is-offline {
+  border-color: var(--destructive);
+  background: var(--app-danger-soft);
+}
+
+/* Keep the register toolbar on one row: the customer-display button is icon-only below 1440px. */
+@media (max-width: 1439px) {
+  .pos-display-label {
+    display: none;
+  }
+}

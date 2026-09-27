@@ -567,3 +567,64 @@ test('adding the same item again raises its quantity instead of opening a new li
   await expect(ticket.getByRole('listitem')).toHaveCount(2);
   await expect(ticket.getByTestId('ticket-total')).toContainText('10.000');
 });
+
+test('several unacknowledged orders collapse into one alert that prints them in one job', async ({page}) => {
+  await page.clock.install();
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  let next = 0;
+  await page.route('**/api/v1/orders', async route => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    next += 1;
+    await route.fulfill({json:{id:`k${next}`,grossAmount:2.5}});
+  });
+  await page.route('**/api/v1/orders?**', async route => {
+    if (route.request().method() !== 'GET' || new URL(route.request().url()).pathname !== '/api/v1/orders') return route.fallback();
+    await route.fulfill({json:[1,2].map(n=>({id:`k${n}`,number:500+n,status:'SentToKitchen',grossAmount:2.5,note:'',createdAt:new Date().toISOString(),table:null}))});
+  });
+  await page.route(/\/api\/v1\/orders\/k\d$/, route => {
+    const id = new URL(route.request().url()).pathname.split('/').pop()!;
+    return route.fulfill({json:{id,number:500+Number(id.slice(1)),status:'SentToKitchen',note:null,netAmount:2.5,taxAmount:0,grossAmount:2.5,createdAt:new Date().toISOString(),lines:[{id:'l',productId:'p0',productNameAr:'وجبة',productNameEn:`Meal for ${id}`,quantity:1,note:null,unitGrossAmount:2.5,selectionsSnapshot:'[]'}]}});
+  });
+  await page.goto('/#/pos');
+  await page.getByRole('radio',{name:'Electronic',exact:true}).click();
+  await page.getByRole('radio',{name:'Talabat',exact:true}).click();
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+    await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
+    await expect(page.locator('.pos-ticket-desktop').getByRole('listitem')).toHaveCount(0);
+  }
+  await page.clock.fastForward(26_000);
+  const alerts = page.locator('.pos-kitchen-alert');
+  await expect(alerts).toHaveCount(1);
+  await expect(alerts).toContainText('2 orders not received in the kitchen');
+  await expect(alerts).toContainText('#501 · #502');
+  const frames: string[] = [];
+  page.on('frameattached', frame => frames.push(frame.url()));
+  const printed = page.waitForEvent('frameattached');
+  await alerts.getByRole('button',{name:'Print all for kitchen'}).click();
+  const frame = await printed;
+  await expect.poll(async () => { const html = await frame.content(); return html.includes('Meal for k1') && html.includes('Meal for k2'); }).toBe(true);
+  expect(frames).toHaveLength(1);
+  await expect(alerts).toHaveCount(0);
+});
+
+test('the register warns once when the kitchen screen drops, and only if one was connected', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  let presence: {screens:number; lastSeenAt:string|null} = {screens:0,lastSeenAt:null};
+  await page.route('**/api/v1/kitchen/presence?**', route => route.fulfill({json:presence}));
+  await page.goto('/#/pos');
+  await expect(page.locator('.pos-ticket-desktop')).toBeVisible();
+  await expect(page.locator('.pos-kitchen-alert.is-offline')).toHaveCount(0);
+
+  presence = {screens:0,lastSeenAt:new Date(Date.now() - 120_000).toISOString()};
+  await page.reload();
+  const offline = page.locator('.pos-kitchen-alert.is-offline');
+  await expect(offline).toContainText('Kitchen screen disconnected since');
+  await offline.getByRole('button',{name:'Hide',exact:true}).click();
+  await expect(offline).toHaveCount(0);
+
+  presence = {screens:1,lastSeenAt:new Date().toISOString()};
+  await page.reload();
+  await expect(page.locator('.pos-ticket-desktop')).toBeVisible();
+  await expect(page.locator('.pos-kitchen-alert.is-offline')).toHaveCount(0);
+});
