@@ -460,8 +460,8 @@ test('customer display mirrors the cart and thanks the customer after payment', 
   await page.getByRole('radio',{name:'Talabat',exact:true}).click();
   await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
   await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
-  await expect(display.locator('.cd-lines li')).toHaveCount(2);
-  await expect(display.locator('.cd-lines li.is-latest')).toContainText('Crispy chicken family meal 1');
+  await expect(display.locator('.cd-lines li')).toHaveCount(1);
+  await expect(display.locator('.cd-qty')).toHaveText('2×');
   await expect(display.locator('.cd-total strong')).toContainText('5.000');
   await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
   await expect(display.getByRole('heading',{name:'Thank you'})).toBeVisible();
@@ -526,4 +526,44 @@ test('an offline hold is stored in IndexedDB before the cart is cleared', async 
   await expect(page.locator('.pos-ticket-desktop').getByRole('listitem')).toHaveCount(0);
   await expect.poll(async () => (await idbOutbox(page)).length).toBe(1);
   await context.setOffline(false);
+});
+
+test('register messages dismiss themselves and can be closed', async ({page}) => {
+  await page.clock.install();
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.goto('/#/pos');
+  await page.getByRole('radio',{name:'Electronic',exact:true}).click();
+  await page.getByRole('radio',{name:'Talabat',exact:true}).click();
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
+  const toast = page.locator('.pos-message');
+  await expect(toast).toContainText('Order sent to kitchen.');
+  await expect(toast).toHaveClass(/is-success/);
+  await page.clock.fastForward(4500);
+  await expect(toast).toHaveCount(0);
+
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:'Confirm & send to kitchen',exact:true}).click();
+  await expect(toast).toBeVisible();
+  await page.getByRole('button',{name:'Dismiss message'}).click();
+  await expect(toast).toHaveCount(0);
+});
+
+
+test('adding the same item again raises its quantity instead of opening a new line', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  await page.goto('/#/pos');
+  const item = page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first();
+  const ticket = page.locator('.pos-ticket-desktop');
+  await item.click();
+  await item.click();
+  await item.click();
+  await expect(ticket.getByRole('listitem')).toHaveCount(1);
+  await expect(ticket.locator('.pos-quantity > span')).toHaveText('3');
+  await expect(ticket.getByTestId('ticket-total')).toContainText('7.500');
+  // A line with its own instruction stays separate from new plain units.
+  await ticket.getByRole('textbox',{name:/Crispy chicken family meal 1/}).fill('No onion');
+  await item.click();
+  await expect(ticket.getByRole('listitem')).toHaveCount(2);
+  await expect(ticket.getByTestId('ticket-total')).toContainText('10.000');
 });

@@ -152,6 +152,8 @@ const words = {
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
     cashier: "الكاشير",
+    sentToKitchen: "تم إرسال الطلب للمطبخ.",
+    closeMessage: "إغلاق الرسالة",
     offlineSaveFailed:
       "تعذر حفظ الطلب على هذا الجهاز. لم يُسجَّل شيء؛ لا تُفرغ السلة وأعد المحاولة.",
     customerDisplay: "شاشة العميل",
@@ -252,6 +254,8 @@ const words = {
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
     cashier: "Cashier",
+    sentToKitchen: "Order sent to kitchen.",
+    closeMessage: "Dismiss message",
     offlineSaveFailed:
       "Could not store the order on this device. Nothing was recorded; keep the cart and try again.",
     customerDisplay: "Customer display",
@@ -449,6 +453,42 @@ function PosSessionInfo({
     </div>
   );
 }
+// Adding an item that is already in the cart with the same options raises that line's quantity instead
+// of opening a second line. A line that carries a note ("no onion") stays separate, so the new unit does
+// not silently inherit an instruction meant for another one.
+function sameSelections(
+  a: Record<string, string[]>,
+  b: Record<string, string[]>,
+) {
+  const normalize = (value: Record<string, string[]>) =>
+    JSON.stringify(
+      Object.entries(value)
+        .filter(([, ids]) => ids.length > 0)
+        .map(([group, ids]) => [group, [...ids].sort()])
+        .sort(([x], [y]) => String(x).localeCompare(String(y))),
+    );
+  return normalize(a) === normalize(b);
+}
+function addToCart(
+  current: CartLine[],
+  product: Product,
+  selections: Record<string, string[]>,
+): CartLine[] {
+  const match = current.find(
+    (line) =>
+      line.product.id === product.id &&
+      !line.note.trim() &&
+      sameSelections(line.selections, selections),
+  );
+  if (match)
+    return current.map((line) =>
+      line === match ? { ...line, quantity: line.quantity + 1 } : line,
+    );
+  return [
+    ...current,
+    { key: createId(), product, quantity: 1, note: "", selections },
+  ];
+}
 // Names of the options chosen on a cart line, for the receipt line and the customer display.
 function lineChoiceNames(line: CartLine, language: Language) {
   return Object.entries(line.selections).flatMap(([groupId, ids]) => {
@@ -528,6 +568,17 @@ export function PosSection({
   const [selections, setSelections] = useState<Record<string, string[]>>({});
   const [online, setOnline] = useState(navigator.onLine);
   const [message, setMessage] = useState("");
+  const messageIsSuccess = (
+    [t.sentToKitchen, t.paidAndSent, t.saved, t.offline] as string[]
+  ).includes(message);
+  useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(
+      () => setMessage(""),
+      messageIsSuccess ? 4000 : 8000,
+    );
+    return () => clearTimeout(timer);
+  }, [message, messageIsSuccess]);
   const [cartOpen, setCartOpen] = useState(false);
   const [payment, setPayment] = useState<{
     orderId: string;
@@ -1079,9 +1130,7 @@ export function PosSection({
       ...watch.filter((x) => x.orderId !== orderId),
       { orderId, number: null, sentAt: Date.now(), late: false },
     ]);
-    setMessage(
-      language === "ar" ? "تم إرسال الطلب للمطبخ." : "Order sent to kitchen.",
-    );
+    setMessage(t.sentToKitchen);
   }
   async function startEdit(order: HeldOrder) {
     if (busy) return;
@@ -1405,14 +1454,7 @@ export function PosSection({
   }
   const add = useCallback((product: Product) => {
     if (!product.selectionGroups.length) {
-      const line = {
-        key: createId(),
-        product,
-        quantity: 1,
-        note: "",
-        selections: {},
-      };
-      setCart((current) => [...current, line]);
+      setCart((current) => addToCart(current, product, {}));
       return;
     }
     setCustomizing(product);
@@ -1468,16 +1510,8 @@ export function PosSection({
       })
     )
       return;
-    setCart((current) => [
-      ...current,
-      {
-        key: createId(),
-        product: customizing,
-        quantity: 1,
-        note: "",
-        selections,
-      },
-    ]);
+    const chosen = customizing;
+    setCart((current) => addToCart(current, chosen, selections));
     setCustomizing(null);
   }
   const quantity = useCallback((key: string, delta: number) => {
@@ -2964,9 +2998,21 @@ export function PosSection({
         </div>
       )}
       {message && (
-        <p role="status" className="pos-message">
-          {message}
-        </p>
+        <div
+          key={message}
+          role={messageIsSuccess ? "status" : "alert"}
+          className={`pos-message ${messageIsSuccess ? "is-success" : "is-error"}`}
+        >
+          <span>{message}</span>
+          <Button
+            type="button"
+            onClick={() => setMessage("")}
+            aria-label={t.closeMessage}
+            className="pos-message-close"
+          >
+            <X size={16} aria-hidden="true" />
+          </Button>
+        </div>
       )}
     </div>
   );
