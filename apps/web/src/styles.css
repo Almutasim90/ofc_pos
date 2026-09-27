@@ -2146,7 +2146,9 @@
     [data-slot="dropdown-menu-content"],
     [data-slot="select-content"]
   )
-  button[class~="border"]:not([class*="bg-[#"]):not([class~="bg-primary"]):hover:not(:disabled) {
+  button[class~="border"]:not([class*="bg-[#"]):not(
+    [class~="bg-primary"]
+  ):hover:not(:disabled) {
   border-color: color-mix(
     in srgb,
     var(--app-primary) 45%,
@@ -3409,7 +3411,11 @@
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--viz-meter-color) 16%, var(--app-surface));
+  background: color-mix(
+    in srgb,
+    var(--viz-meter-color) 16%,
+    var(--app-surface)
+  );
 }
 .viz-meter-fill {
   height: 100%;
@@ -3634,4 +3640,130 @@
 .viz-gauge-caption {
   margin-top: 10px;
   text-align: center;
+}
+
+/* Entrance animations: marks grow from their baseline, lines draw in, arcs sweep; staggered by --i.
+   Values and labels fade in once their mark has arrived. Disabled for reduced motion. */
+@keyframes viz-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes viz-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes viz-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes viz-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes viz-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes viz-sweep {
+  from {
+    stroke-dasharray: 0 200;
+  }
+}
+@keyframes viz-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.viz-card {
+  animation: viz-card-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.viz-grid-layout > .viz-card:nth-child(2) {
+  animation-delay: 60ms;
+}
+.viz-grid-layout > .viz-card:nth-child(3) {
+  animation-delay: 120ms;
+}
+.viz-grid-layout > .viz-card:nth-child(4) {
+  animation-delay: 160ms;
+}
+.viz-grid-layout > .viz-card:nth-child(5) {
+  animation-delay: 200ms;
+}
+.viz-grid-layout > .viz-card:nth-child(n + 6) {
+  animation-delay: 240ms;
+}
+.viz-column {
+  transform-origin: bottom;
+  animation: viz-grow-y 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--i, 0) * 45ms);
+}
+.viz-peak,
+.viz-cap,
+.viz-bar-value,
+.viz-line-end {
+  animation: viz-fade 300ms ease-out both;
+  animation-delay: 750ms;
+}
+.viz-bar {
+  transform-origin: left;
+  animation: viz-grow-x 650ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--i, 0) * 70ms);
+}
+[dir="rtl"] .viz-bar {
+  transform-origin: right;
+}
+.viz-share-segment {
+  transform-origin: left;
+  animation: viz-grow-x 550ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--i, 0) * 90ms);
+}
+[dir="rtl"] .viz-share-segment {
+  transform-origin: right;
+}
+.viz-legend li {
+  animation: viz-fade-up 350ms ease-out both;
+  animation-delay: 450ms;
+}
+/* The line is revealed left to right (clip), leaving the stroke itself untouched. */
+.viz-line-plot svg {
+  animation: viz-reveal 1100ms cubic-bezier(0.45, 0, 0.2, 1) 150ms both;
+}
+.viz-line-area,
+.viz-line-plot > .viz-line-dot:not(.is-active) {
+  animation: viz-fade 500ms ease-out 900ms both;
+}
+.viz-donut-segment {
+  animation: viz-sweep 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--i, 0) * 120ms);
+}
+.viz-donut-center,
+.viz-gauge-center,
+.viz-meter-head {
+  animation: viz-fade-up 400ms ease-out 350ms both;
+}
+.viz-gauge-fill {
+  animation: viz-sweep 1000ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+}
+.viz-meter-fill {
+  transform-origin: left;
+  animation: viz-grow-x 900ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+}
+[dir="rtl"] .viz-meter-fill {
+  transform-origin: right;
+}
+@media (prefers-reduced-motion: reduce) {
+  .viz-card,
+  .viz-card * {
+    animation: none !important;
+  }
 }

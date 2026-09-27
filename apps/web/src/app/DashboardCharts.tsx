@@ -169,7 +169,12 @@ export function ColumnChart({
           <div key={point.key} className="viz-column-slot">
             <div
               className={`viz-column ${categorical ? slotClass(point.key, i) : ""}`}
-              style={{ height: `${(point.value / max) * 100}%` }}
+              style={
+                {
+                  height: `${(point.value / max) * 100}%`,
+                  "--i": i,
+                } as React.CSSProperties
+              }
               {...markHandlers(show, hide, format(point.value), point.label)}
             >
               {categorical ? (
@@ -219,7 +224,12 @@ export function BarList({
           <div className="viz-bar-track">
             <div
               className={`viz-bar ${categorical ? slotClass(item.key, i) : ""}`}
-              style={{ width: `${Math.max(2, (item.value / max) * 100)}%` }}
+              style={
+                {
+                  width: `${Math.max(2, (item.value / max) * 100)}%`,
+                  "--i": i,
+                } as React.CSSProperties
+              }
               {...markHandlers(show, hide, format(item.value), item.label)}
             />
             <span className="viz-bar-value">{format(item.value)}</span>
@@ -249,7 +259,7 @@ export function ShareBar({
           <div
             key={item.key}
             className={`viz-share-segment ${slotClass(item.key, i)}`}
-            style={{ flexGrow: item.value }}
+            style={{ flexGrow: item.value, "--i": i } as React.CSSProperties}
             {...markHandlers(
               show,
               hide,
@@ -481,6 +491,7 @@ export function DonutChart({
                 cy="21"
                 r="15.9155"
                 className={`viz-donut-segment ${slotClass(item.key, i)}`}
+                style={{ "--i": i } as React.CSSProperties}
                 strokeDasharray={`${dash} ${100 - dash}`}
                 strokeDashoffset={25 - offset}
                 {...markHandlers(
