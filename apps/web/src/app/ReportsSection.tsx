@@ -9,7 +9,10 @@ import {
   BarList,
   ChartCard,
   ColumnChart,
+  DonutChart,
   EmptyChart,
+  Gauge,
+  LineChart,
   Meter,
   ShareBar,
 } from "@/app/DashboardCharts";
@@ -75,6 +78,18 @@ const copy = {
     salesByDay: "إجمالي المبيعات لكل يوم",
     salesByChannel: "المبيعات حسب القناة",
     salesByCategory: "المبيعات حسب التصنيف",
+    ordersTrend: "اتجاه عدد الطلبات",
+    ordersTrendNote: "عدد الطلبات المدفوعة خلال الفترة",
+    ordersByChannel: "توزيع الطلبات حسب القناة",
+    ordersByChannelNote: "حصة كل قناة من عدد الطلبات",
+    ordersUnit: "طلب",
+    prepGauge: "سرعة المطبخ",
+    prepGaugeNote: "متوسط وقت التحضير مقابل الهدف",
+    prepTarget: "الهدف",
+    onTarget: "ضمن الهدف",
+    nearTarget: "أبطأ قليلاً",
+    overTarget: "بطيء",
+    noPrepData: "لا توجد طلبات مكتملة في المطبخ بعد",
     category: "التصنيف",
     salesByCategoryNote: "إجمالي المبيعات لكل تصنيف في القائمة",
     topProducts: "الأصناف الأكثر مبيعاً",
@@ -196,6 +211,18 @@ const copy = {
     salesByDay: "Gross sales per day",
     salesByChannel: "Sales by channel",
     salesByCategory: "Sales by category",
+    ordersTrend: "Orders trend",
+    ordersTrendNote: "Paid orders over the period",
+    ordersByChannel: "Orders by channel",
+    ordersByChannelNote: "Each channel's share of orders",
+    ordersUnit: "orders",
+    prepGauge: "Kitchen speed",
+    prepGaugeNote: "Average preparation time against the target",
+    prepTarget: "Target",
+    onTarget: "On target",
+    nearTarget: "A little slow",
+    overTarget: "Slow",
+    noPrepData: "No completed kitchen orders yet",
     category: "Category",
     salesByCategoryNote: "Gross sales per menu category",
     topProducts: "Top-selling items",
@@ -886,45 +913,76 @@ function DashboardCharts({
   // Within one day: hourly buckets (local time) with empty hours filled; longer ranges: one column per day.
   const singleDay = from === to;
   let points: Array<{ key: string; label: string; value: number }> = [];
+  let orderPoints: Array<{ key: string; label: string; value: number }> = [];
   if (sales && singleDay) {
     const byHour = new Map<number, number>();
-    for (const row of sales.hourly ?? [])
+    const ordersByHour = new Map<number, number>();
+    for (const row of sales.hourly ?? []) {
       byHour.set(new Date(row.hour).getTime(), row.grossSales);
+      ordersByHour.set(new Date(row.hour).getTime(), row.orderCount);
+    }
     const hours = [...byHour.keys()];
     if (hours.length) {
       const first = Math.min(...hours);
       const last = Math.max(...hours);
-      for (let at = first; at <= last; at += 3_600_000)
-        points.push({
-          key: String(at),
-          label: new Date(at).toLocaleTimeString(language, {
-            hour: "numeric",
-          }),
-          value: byHour.get(at) ?? 0,
+      for (let at = first; at <= last; at += 3_600_000) {
+        const label = new Date(at).toLocaleTimeString(language, {
+          hour: "numeric",
         });
+        points.push({ key: String(at), label, value: byHour.get(at) ?? 0 });
+        orderPoints.push({
+          key: String(at),
+          label,
+          value: ordersByHour.get(at) ?? 0,
+        });
+      }
     }
   } else if (sales) {
     const byDay = new Map<string, number>();
-    for (const row of sales.daily ?? [])
+    const ordersByDay = new Map<string, number>();
+    for (const row of sales.daily ?? []) {
       byDay.set(String(row.date).slice(0, 10), row.grossSales);
+      ordersByDay.set(String(row.date).slice(0, 10), row.orderCount);
+    }
     const day = new Date(`${from}T00:00:00Z`);
     const end = new Date(`${to}T00:00:00Z`);
     for (let i = 0; day <= end && i < 400; i++) {
       const key = day.toISOString().slice(0, 10);
-      points.push({
-        key,
-        label: day.toLocaleDateString(language, {
-          day: "numeric",
-          month: "numeric",
-          timeZone: "UTC",
-        }),
-        value: byDay.get(key) ?? 0,
+      const label = day.toLocaleDateString(language, {
+        day: "numeric",
+        month: "numeric",
+        timeZone: "UTC",
       });
+      points.push({ key, label, value: byDay.get(key) ?? 0 });
+      orderPoints.push({ key, label, value: ordersByDay.get(key) ?? 0 });
       day.setUTCDate(day.getUTCDate() + 1);
     }
   }
   const hasSales = points.some((p) => p.value > 0);
 
+  // Donut: up to five channels, the rest folded into "Other" (part-to-whole reads at a glance only <= 6).
+  const channelOrderRows = [...(sales?.byChannel ?? [])]
+    .sort((a: any, b: any) => b.orderCount - a.orderCount)
+    .map((row: any) => ({
+      key: String(row.channelId),
+      label: name(row.channelNameAr, row.channelNameEn),
+      value: row.orderCount,
+    }));
+  const channelOrders =
+    channelOrderRows.length > 6
+      ? [
+          ...channelOrderRows.slice(0, 5),
+          {
+            key: "other",
+            label: t.other,
+            value: channelOrderRows
+              .slice(5)
+              .reduce((sum: number, x: { value: number }) => sum + x.value, 0),
+          },
+        ]
+      : channelOrderRows;
+  const prepMinutes: number | null = data.kitchen?.avgPrepMinutes ?? null;
+  const prepTarget = 15;
   const channels = [...(sales?.byChannel ?? [])]
     .sort((a: any, b: any) => b.grossSales - a.grossSales)
     .map((row: any) => ({
@@ -1008,6 +1066,27 @@ function DashboardCharts({
       </ChartCard>
       <ChartCard
         wide
+        title={t.ordersTrend}
+        subtitle={t.ordersTrendNote}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.period, t.orders],
+          rows: orderPoints.map((p) => [p.label, num(p.value)]),
+        }}
+      >
+        {orderPoints.some((p) => p.value > 0) ? (
+          <LineChart
+            points={orderPoints}
+            format={(v) => `${num(v)} ${t.ordersUnit}`}
+            formatAxis={axis}
+            label={t.ordersTrend}
+          />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        wide
         title={t.salesByCategory}
         subtitle={t.salesByCategoryNote}
         tableLabel={t.showTable}
@@ -1040,6 +1119,48 @@ function DashboardCharts({
           <BarList items={channels} format={amount} categorical />
         ) : (
           <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        title={t.ordersByChannel}
+        subtitle={t.ordersByChannelNote}
+        tableLabel={t.showTable}
+        table={{
+          head: [t.channel, t.orders],
+          rows: channelOrders.map((c: any) => [c.label, num(c.value)]),
+        }}
+      >
+        {channelOrders.length ? (
+          <DonutChart
+            items={channelOrders}
+            format={(v) => num(v)}
+            centerLabel={t.ordersUnit}
+          />
+        ) : (
+          <EmptyChart text={t.noChartData} />
+        )}
+      </ChartCard>
+      <ChartCard
+        title={t.prepGauge}
+        subtitle={t.prepGaugeNote}
+        tableLabel={t.showTable}
+      >
+        {prepMinutes == null ? (
+          <EmptyChart text={t.noPrepData} />
+        ) : (
+          <Gauge
+            value={prepMinutes}
+            max={prepTarget * 2}
+            target={prepTarget}
+            warnAt={prepTarget * 1.33}
+            display={`${num(prepMinutes)} ${t.minutes}`}
+            caption={`${t.prepTarget}: ${prepTarget} ${t.minutes}`}
+            states={{
+              good: t.onTarget,
+              warn: t.nearTarget,
+              danger: t.overTarget,
+            }}
+          />
         )}
       </ChartCard>
       <ChartCard

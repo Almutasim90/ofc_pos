@@ -413,7 +413,12 @@ test('reports dashboard charts the period with a table view for every chart', as
   await expect(page.locator('.viz-share-segment')).toHaveCount(2);
   await expect(page.locator('.viz-meter-danger')).toBeVisible();
   await expect(page.getByText('Very high')).toBeVisible();
-  await expect(page.locator('details.viz-table')).toHaveCount(5);
+  await expect(page.locator('details.viz-table')).toHaveCount(7);
+  await expect(page.locator('.viz-line-path')).toHaveCount(1);
+  await expect(page.locator('.viz-donut-segment')).toHaveCount(1);
+  await expect(page.locator('.viz-gauge.viz-meter-good')).toContainText('On target');
+  await page.locator('.viz-line-plot').focus();
+  await expect(page.locator('.viz-line-plot .viz-tooltip')).toContainText('4 orders');
   await page.locator('.viz-share-segment').first().focus();
   await expect(page.locator('.viz-tooltip')).toContainText('67%');
   await noOverflow(page);

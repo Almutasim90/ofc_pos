@@ -3396,6 +3396,9 @@
 .viz-meter {
   --viz-meter-color: var(--app-success);
 }
+.viz-meter-good {
+  --viz-meter-color: var(--app-success);
+}
 .viz-meter-warn {
   --viz-meter-color: var(--app-warning);
 }
@@ -3442,4 +3445,193 @@
   .viz-columns-categories .viz-cap {
     display: none;
   }
+}
+
+/* Line (trend): 2px line, ~10% area wash, end dot with a 2px surface ring, snapping crosshair. */
+.viz-line {
+  --viz-c: var(--viz-cat-1);
+}
+.viz-line-plot {
+  cursor: crosshair;
+  outline: none;
+}
+.viz-line-plot:focus-visible {
+  box-shadow: 0 0 0 2px var(--app-text);
+  border-radius: 4px;
+}
+.viz-line-plot svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.viz-line-area {
+  fill: var(--viz-c);
+  fill-opacity: 0.1;
+}
+.viz-line-path {
+  fill: none;
+  stroke: var(--viz-c);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.viz-line-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--app-surface);
+  border-radius: 999px;
+  background: var(--viz-c);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.viz-line-dot.is-active {
+  width: 12px;
+  height: 12px;
+}
+.viz-line-end {
+  position: absolute;
+  color: var(--app-text);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translate(-100%, calc(-100% - 8px));
+  pointer-events: none;
+}
+.viz-crosshair {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--app-text) 35%, transparent);
+  pointer-events: none;
+}
+.viz-line-x {
+  position: relative;
+}
+.viz-line-x span {
+  position: absolute;
+  top: 5px;
+  color: var(--app-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+}
+
+/* Donut (part-to-whole at a glance) */
+.viz-donut {
+  position: relative;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+}
+.viz-donut .viz-legend {
+  margin-top: 0;
+}
+.viz-donut-figure {
+  position: relative;
+  width: 150px;
+  height: 150px;
+}
+.viz-donut-figure svg {
+  width: 100%;
+  height: 100%;
+  transform: scaleX(-1);
+}
+[dir="ltr"] .viz-donut-figure svg {
+  transform: none;
+}
+.viz-donut-track {
+  fill: none;
+  stroke: var(--app-hover);
+  stroke-width: 6;
+}
+.viz-donut-segment {
+  fill: none;
+  stroke: var(--viz-c, var(--viz-accent));
+  stroke-width: 6;
+  cursor: default;
+  outline: none;
+  transition: stroke-width 0.12s ease;
+}
+.viz-donut-segment:hover,
+.viz-donut-segment:focus-visible {
+  stroke-width: 7.5;
+}
+.viz-donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+.viz-donut-center strong {
+  font-size: 22px;
+  font-weight: 800;
+}
+.viz-donut-center span {
+  color: var(--app-muted);
+  font-size: 11.5px;
+}
+@media (max-width: 480px) {
+  .viz-donut {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .viz-donut .viz-legend {
+    width: 100%;
+  }
+}
+
+/* Gauge (value against a target) */
+.viz-gauge {
+  display: grid;
+  justify-items: center;
+}
+.viz-gauge-dial {
+  position: relative;
+  width: min(100%, 260px);
+}
+.viz-gauge-dial svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.viz-gauge-track,
+.viz-gauge-fill {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+.viz-gauge-track {
+  stroke: color-mix(in srgb, var(--viz-meter-color) 16%, var(--app-surface));
+}
+.viz-gauge-fill {
+  stroke: var(--viz-meter-color);
+}
+.viz-gauge-target {
+  stroke: var(--app-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.viz-gauge-center {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.viz-gauge-center strong {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.viz-gauge-caption {
+  margin-top: 10px;
+  text-align: center;
 }
