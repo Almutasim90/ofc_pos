@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
+import { redactingSignalRLogger } from "@/lib/signalr-logger";
 import { store } from "@/lib/local-store";
 
 type ConfigureHub = (connection: signalR.HubConnection) => void;
@@ -40,6 +41,7 @@ export function useReliableBranchHub(
         accessTokenFactory: () => store.get<string>("session-token") ?? "",
       })
       .withAutomaticReconnect(retryPolicy)
+      .configureLogging(redactingSignalRLogger)
       .build();
 
     configureRef.current(connection);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
+import { redactingSignalRLogger } from "@/lib/signalr-logger";
 import { useReliableBranchHub } from "@/lib/reliable-hub";
 
 export type QrOrderReceivedEvent = {
@@ -79,6 +80,7 @@ export function useCustomerOrderLive(
     const connection = new signalR.HubConnectionBuilder()
       .withUrl("/hubs/customer-orders")
       .withAutomaticReconnect()
+      .configureLogging(redactingSignalRLogger)
       .build();
     let disposed = false;
     connection.on("orderChanged", () => changedRef.current());
