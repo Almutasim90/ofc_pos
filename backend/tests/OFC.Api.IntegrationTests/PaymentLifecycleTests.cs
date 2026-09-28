@@ -15,6 +15,35 @@ namespace OFC.Api.IntegrationTests;
 // becomes Paid), then reverse (a correction distinct from a customer refund).
 public class PaymentLifecycleTests
 {
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("Branch Manager")]
+    public async Task Manager_can_sell_electronic_orders_after_login(string roleName)
+    {
+        using var factory = new ApiFactory();
+        var (admin, branchId, productId, _, _) = await Seed(factory);
+        var roles = await admin.GetFromJsonAsync<JsonElement>("/api/v1/roles");
+        var roleId = roles.EnumerateArray().Single(x => x.GetProperty("name").GetString() == roleName).GetProperty("id").GetGuid();
+        var created = await admin.PostAsJsonAsync("/api/v1/users", new { username = "selling-manager", displayName = roleName, password = "password1234", roleIds = new[] { roleId }, branchIds = new[] { branchId } });
+        created.EnsureSuccessStatusCode();
+        var channelResponse = await admin.PostAsJsonAsync("/api/v1/sales-channels", new { code = "TALABAT", nameAr = "طلبات", nameEn = "Talabat", kind = "Electronic", isActive = true });
+        channelResponse.EnsureSuccessStatusCode();
+        var channelId = (await channelResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var methodResponse = await admin.PostAsJsonAsync("/api/v1/payment-methods", new { branchId, code = "EXTERNAL", nameAr = "دفع خارجي", nameEn = "External payment", kind = "External", sortOrder = 1 });
+        methodResponse.EnsureSuccessStatusCode();
+        var methodId = (await methodResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var (manager, _) = await factory.AuthenticatedClientAsync("selling-manager", "password1234");
+        (await manager.GetAsync("/api/v1/pos/context")).EnsureSuccessStatusCode();
+        (await manager.GetAsync($"/api/v1/pos/catalog?branchId={branchId}&salesChannelId={channelId}")).EnsureSuccessStatusCode();
+        (await manager.GetAsync($"/api/v1/payment-methods?branchId={branchId}")).EnsureSuccessStatusCode();
+        var orderId = await CreatePendingOrder(manager, branchId, channelId, productId);
+        var payment = await manager.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = methodId, amount = 5m, tenderedAmount = 5m, status = "Captured", providerReference = "TALABAT-TEST" } } });
+        Assert.True(payment.IsSuccessStatusCode, await payment.Content.ReadAsStringAsync());
+        var order = await manager.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{orderId}");
+        Assert.Equal("Paid", order.GetProperty("status").GetString());
+    }
+
     private static async Task<(System.Net.Http.HttpClient Client, Guid BranchId, Guid ProductId, Guid ChannelId, Guid CardMethodId)> Seed(ApiFactory factory)
     {
         var client = factory.AnonymousClient();
