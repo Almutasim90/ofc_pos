@@ -73,7 +73,7 @@ public static class SprintThirteenEndpoints
         branchId = NormalizeBranch(user, branchId);
         if (RequiredBranch(branchId) is { } branchError) return branchError;
         var (start, end) = ResolveRange(from, to);
-        var salesOrders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var salesOrders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).Include(x => x.Lines).ToListAsync(ct);
         var lines = salesOrders.SelectMany(x => x.Lines).ToList();
         var grossSales = salesOrders.Sum(x => x.GrossAmount);
         var netSales = salesOrders.Sum(x => x.NetAmount);
@@ -147,7 +147,7 @@ public static class SprintThirteenEndpoints
         var channels = channelIds.Count == 0 ? new Dictionary<Guid, SalesChannel>() : await db.SalesChannels.AsNoTracking().Where(x => channelIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var userIds = cancellations.Select(x => x.CancelledByUserId).Concat(voids.Select(x => x.VoidedByUserId)).Concat(refunds.Select(x => x.RefundedByUserId)).Distinct().ToList();
         var users = userIds.Count == 0 ? new Dictionary<Guid, User>() : await db.Users.AsNoTracking().Where(x => userIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
-        var salesCount = await db.Orders.AsNoTracking().CountAsync(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status), ct);
+        var salesCount = await db.Orders.AsNoTracking().CountAsync(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null, ct);
         var cancelledCount = cancellations.Count;
         var voidCount = voids.Count;
         var refundCount = refunds.Count;
@@ -236,7 +236,7 @@ public static class SprintThirteenEndpoints
         branchId = NormalizeBranch(user, branchId);
         if (RequiredBranch(branchId) is { } branchError) return branchError;
         var (start, end) = ResolveRange(from, to);
-        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).Include(x => x.Lines).ToListAsync(ct);
         var channelIds = orders.Select(x => x.SalesChannelId).Distinct().ToList();
         var channels = channelIds.Count == 0 ? new Dictionary<Guid, SalesChannel>() : await db.SalesChannels.AsNoTracking().Where(x => channelIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var lines = orders.SelectMany(x => x.Lines).ToList();
@@ -252,7 +252,7 @@ public static class SprintThirteenEndpoints
         branchId = NormalizeBranch(user, branchId);
         if (RequiredBranch(branchId) is { } branchError) return branchError;
         var (start, end) = ResolveRange(from, to);
-        var salesOrders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).ToListAsync(ct);
+        var salesOrders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).ToListAsync(ct);
         var cancellations = await db.OrderCancellations.AsNoTracking().Where(x => x.BranchId == branchId && x.CancelledAt >= start && x.CancelledAt < end).ToListAsync(ct);
         var refunds = await db.Refunds.AsNoTracking().Where(x => x.BranchId == branchId && x.RefundedAt >= start && x.RefundedAt < end).ToListAsync(ct);
         var openShifts = await db.Shifts.AsNoTracking().CountAsync(x => x.BranchId == branchId && x.Status == ShiftStatus.Open, ct);
@@ -331,7 +331,7 @@ public static class SprintThirteenEndpoints
 
     private static async Task<(string[] Header, List<string[]> Rows, string Summary)> SalesCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new { x.BranchId, x.SalesChannelId, x.CreatedByUserId, x.CreatedAt, x.NetAmount, x.TaxAmount, x.GrossAmount }).ToListAsync(ct);
+        var rows = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).OrderBy(x => x.CreatedAt).Select(x => new { x.BranchId, x.SalesChannelId, x.CreatedByUserId, x.CreatedAt, x.NetAmount, x.TaxAmount, x.GrossAmount }).ToListAsync(ct);
         var lines = rows.Select(x => new string[] { x.BranchId.ToString(), x.SalesChannelId.ToString(), x.CreatedByUserId?.ToString() ?? "", DateStr(x.CreatedAt), Money(x.NetAmount), Money(x.TaxAmount), Money(x.GrossAmount) }).ToList();
         return (["BranchId", "ChannelId", "CashierId", "CreatedAt", "Net", "Tax", "Gross"], lines, $"{rows.Count} orders");
     }

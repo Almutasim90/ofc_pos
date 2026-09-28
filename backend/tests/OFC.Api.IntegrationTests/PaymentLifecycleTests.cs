@@ -44,6 +44,40 @@ public class PaymentLifecycleTests
         Assert.Equal("Paid", order.GetProperty("status").GetString());
     }
 
+    // Pay later (e.g. a VIP guest): the order goes to the kitchen unpaid, is not a sale until it is paid,
+    // stays in "current orders", and paying it keeps the kitchen's progress.
+    [Fact]
+    public async Task A_pay_later_order_goes_to_the_kitchen_unpaid_and_is_paid_afterwards()
+    {
+        using var factory = new ApiFactory();
+        var (client, branchId, productId, channelId, cardMethodId) = await Seed(factory);
+        var orderId = await CreatePendingOrder(client, branchId, channelId, productId);
+        var dispatch = await client.PostAsJsonAsync("/api/v1/kitchen/tickets", new { branchId, orderId, clientDispatchId = Guid.NewGuid(), orderNumber = (string?)null, note = (string?)null, targetMinutes = (int?)null });
+        Assert.True(dispatch.StatusCode == HttpStatusCode.Created, await dispatch.Content.ReadAsStringAsync());
+        var ticketId = (await dispatch.Content.ReadFromJsonAsync<JsonElement>())[0].GetProperty("id").GetGuid();
+        (await client.PostAsync($"/api/v1/kitchen/tickets/{ticketId}/ready", null)).EnsureSuccessStatusCode();
+
+        var order = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{orderId}");
+        Assert.Equal("Ready", order.GetProperty("status").GetString());
+        Assert.Equal(JsonValueKind.Null, order.GetProperty("paidAt").ValueKind);
+        var sales = await client.GetFromJsonAsync<JsonElement>($"/api/v1/reports/sales?branchId={branchId}");
+        Assert.Equal(0, sales.GetProperty("summary").GetProperty("orderCount").GetInt32());
+        var current = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?branchId={branchId}&scope=shift");
+        Assert.Contains(current.EnumerateArray(), x => x.GetProperty("id").GetGuid() == orderId);
+
+        var paid = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = cardMethodId, amount = 5m, tenderedAmount = 5m, status = "Captured", providerReference = "POS-LATER" } } });
+        Assert.True(paid.IsSuccessStatusCode, await paid.Content.ReadAsStringAsync());
+        order = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/{orderId}");
+        Assert.Equal("Ready", order.GetProperty("status").GetString());
+        Assert.NotEqual(JsonValueKind.Null, order.GetProperty("paidAt").ValueKind);
+        sales = await client.GetFromJsonAsync<JsonElement>($"/api/v1/reports/sales?branchId={branchId}");
+        Assert.Equal(1, sales.GetProperty("summary").GetProperty("orderCount").GetInt32());
+        var again = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = cardMethodId, amount = 5m, tenderedAmount = 5m, status = "Captured", providerReference = "POS-TWICE" } } });
+        Assert.Equal(HttpStatusCode.BadRequest, again.StatusCode);
+        current = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?branchId={branchId}&scope=shift");
+        Assert.DoesNotContain(current.EnumerateArray(), x => x.GetProperty("id").GetGuid() == orderId);
+    }
+
     private static async Task<(System.Net.Http.HttpClient Client, Guid BranchId, Guid ProductId, Guid ChannelId, Guid CardMethodId)> Seed(ApiFactory factory)
     {
         var client = factory.AnonymousClient();

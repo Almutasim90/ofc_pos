@@ -83,7 +83,9 @@ public static class SprintFiveEndpoints
         {
             var openedAt = await db.Shifts.AsNoTracking().Where(s => s.BranchId == branchId && s.Status == ShiftStatus.Open)
                 .Select(s => (DateTimeOffset?)s.OpenedAt).FirstOrDefaultAsync(ct);
+            // A pay-later order in the kitchen is unfinished too until it is paid.
             query = query.Where(x => x.Status == OrderStatus.Draft || x.Status == OrderStatus.Pending || x.Status == OrderStatus.Confirmed
+                || (x.PaidAt == null && (x.Status == OrderStatus.SentToKitchen || x.Status == OrderStatus.Preparing || x.Status == OrderStatus.Ready || x.Status == OrderStatus.Completed))
                 || (openedAt != null && x.CreatedAt >= openedAt));
         }
         // The table code/name lets the cashier find a held order by table from the payment picker
@@ -91,7 +93,7 @@ public static class SprintFiveEndpoints
         return Results.Ok(await query.OrderByDescending(x => x.CreatedAt).Take(100)
             .Select(x => new
             {
-                x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt,
+                x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt, x.PaidAt,
                 table = db.QrOrderApprovals.Where(a => a.OrderId == x.Id)
                     .Join(db.QrContexts, a => a.QrContextId, c => c.Id, (a, c) => new { c.Code, c.NameAr, c.NameEn })
                     .FirstOrDefault()
@@ -114,7 +116,7 @@ public static class SprintFiveEndpoints
         var pageIndex = ReportingRules.NormalizePage(page);
         var size = ReportingRules.NormalizePageSize(pageSize);
         var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageIndex - 1) * size).Take(size)
-            .Select(x => new { x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, lineCount = x.Lines.Count })
+            .Select(x => new { x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, x.PaidAt, lineCount = x.Lines.Count })
             .ToListAsync(ct);
         return Results.Ok(new { total, page = pageIndex, pageSize = size, items });
     }
@@ -201,7 +203,7 @@ public static class SprintFiveEndpoints
     }
 
     private static async Task<bool> CanOperate(OFCDbContext db, ClaimsPrincipal user, Guid branchId, CancellationToken ct) => user.HasClaim("permission", "orders.manage") && (user.FindFirstValue("branch_id") == branchId.ToString() || await db.UserBranches.AnyAsync(x => x.UserId == UserId(user) && x.BranchId == branchId, ct));
-    private static object OrderResponse(Order order) => new { order.Id, order.Number, order.BranchId, order.SalesChannelId, order.ClientRequestId, order.Source, order.Status, order.Note, order.NetAmount, order.TaxAmount, order.GrossAmount, order.ManualDiscountAmount, order.CreatedAt, lines = order.Lines.Select(x => new { x.Id, x.ProductId, x.ProductNameAr, x.ProductNameEn, x.Quantity, x.Note, x.SelectionsSnapshot, x.UnitGrossAmount, x.UnitNetAmount, x.UnitTaxAmount, x.UnitDiscountAmount }), history = order.StatusHistory.OrderBy(x => x.ChangedAt).Select(x => new { x.FromStatus, x.ToStatus, x.ChangedAt, x.Note }) };
+    private static object OrderResponse(Order order) => new { order.Id, order.Number, order.BranchId, order.SalesChannelId, order.ClientRequestId, order.Source, order.Status, order.PaidAt, order.Note, order.NetAmount, order.TaxAmount, order.GrossAmount, order.ManualDiscountAmount, order.CreatedAt, lines = order.Lines.Select(x => new { x.Id, x.ProductId, x.ProductNameAr, x.ProductNameEn, x.Quantity, x.Note, x.SelectionsSnapshot, x.UnitGrossAmount, x.UnitNetAmount, x.UnitTaxAmount, x.UnitDiscountAmount }), history = order.StatusHistory.OrderBy(x => x.ChangedAt).Select(x => new { x.FromStatus, x.ToStatus, x.ChangedAt, x.Note }) };
     private static Guid UserId(ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private static Guid? DeviceId(ClaimsPrincipal user) => Guid.TryParse(user.FindFirstValue("device_id"), out var id) ? id : null;
     private static IResult Forbidden() => Results.Problem(statusCode: 403, title: "Forbidden", detail: "You do not have permission to perform this operation.");

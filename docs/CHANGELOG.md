@@ -4,6 +4,14 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Pay later, redesigned kitchen screen (2026-09-28)
+
+- **Pay first or pay later.** Payment is now tracked apart from the kitchen status (`orders.PaidAt`). Pay first stays the default; the new POS "Pay later" button (e.g. for a VIP guest) sends the order to the kitchen unpaid, and it stays in Current Orders marked "Unpaid" until it is paid there — even across shifts. Paying an order already in the kitchen keeps its kitchen progress.
+- Sales reports now count an order only once it is paid. The migration backfills `PaidAt` for every order a report already counted, so historical figures are unchanged. Going forward a QR order that was never paid no longer counts as a sale until it is paid in the POS.
+- **Kitchen screen redesign.** One card per order with a coloured header by type (green dine-in, orange takeaway, black delivery apps), a live timer that turns red when late, large item text with choices and notes, a Print button (80mm slip) and a one-tap Ready that removes the order so the next one moves up. New orders play a fast-food style bell (generated in the browser; the screen must be tapped once to allow sound).
+- **Kitchen connection.** The screen keeps the tablet awake (sleep dropped the live connection), reconnects within ~5 seconds instead of up to 30, and shows "Connecting…" rather than "Offline" unless the connection stays down for 10 seconds. Orders still refresh every 10 seconds while offline.
+- Fixed: marking an order ready straight from "sent to kitchen" left the order's status at SentToKitchen.
+
 ### Fix: searchable dropdowns showed raw IDs instead of names (2026-09-16)
 
 - `SearchableSelect` mishandled any `<option>` whose label is built from more than one JSX child (e.g. `{sku} · {name}` — three children: a string, the literal " · ", and another string), silently falling back to displaying the option's raw id instead of that label. This affected most dropdowns across the app that combine a code/SKU with a name (products, branches, stations, etc.), making them look empty of recognizable data and the popup look cramped with long id strings. Now joins all primitive text in an option's children, however they're nested.

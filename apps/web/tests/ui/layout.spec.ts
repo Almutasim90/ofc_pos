@@ -53,6 +53,23 @@ test('cash payment dispatches once only after payment', async ({page}) => {
   await expect.poll(()=>kitchen.length).toBe(1);
 });
 
+test('pay later sends the order to the kitchen without taking a payment', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  const kitchen: string[] = []; const payments: string[] = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (request.method()!=='POST') return;
+    if (path.endsWith('/kitchen/tickets')) kitchen.push(path);
+    if (path.endsWith('/payments')) payments.push(path);
+  });
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
+  await page.getByRole('button',{name:'Pay later',exact:true}).click();
+  await expect.poll(()=>kitchen.length).toBe(1);
+  expect(payments).toHaveLength(0);
+  await expect(page.getByText('Order sent to the kitchen. Take payment later from Current orders.')).toBeVisible();
+});
+
 test('electronic checkout remains visible on a short Arabic desktop', async ({page}) => {
   await page.setViewportSize({width:1920,height:850});
   await setup(page,'ar','light');
@@ -328,10 +345,14 @@ test('kitchen tablet shows the order type and marks it ready in one tap, without
   let readyCalled = false;
   await page.route('**/api/v1/kitchen/tickets/t1/ready', route => { readyCalled = true; return route.fulfill({json:kdsTicket('t1')}); });
   await expect(page.getByText('Takeaway',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Ready',exact:true}).click();
-  await expect.poll(() => readyCalled).toBe(true);
   await expect(page.getByText('New',{exact:true}).first()).toBeVisible();
+  await expect(page.getByRole('button',{name:'Print',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Send to KDS'})).toHaveCount(0);
+  // Ready takes the order off the screen at once so the next one moves up.
+  await page.getByRole('button',{name:'Ready',exact:true}).click();
+  await expect(page.getByText('#21')).toHaveCount(0);
+  await expect.poll(() => readyCalled).toBe(true);
+  await expect(page.getByText('No orders right now')).toBeVisible();
 });
 
 test('cashier is warned when the kitchen does not acknowledge and can print the slip', async ({page}) => {

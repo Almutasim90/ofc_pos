@@ -39,7 +39,7 @@ public static class SprintSeventeenEndpoints
         if (branchIds.Count == 0) return Forbidden("You have no branch access for this report.");
         var (start, end) = ResolveRange(from, to);
         var branches = await db.Branches.AsNoTracking().Where(x => branchIds.Contains(x.Id)).OrderBy(x => x.Code).ToListAsync(ct);
-        var salesOrders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var salesOrders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).Include(x => x.Lines).ToListAsync(ct);
         var salesByBranch = salesOrders.GroupBy(x => x.BranchId).ToDictionary(g => g.Key, g => g.ToList());
         var cancellations = await db.OrderCancellations.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CancelledAt >= start && x.CancelledAt < end).ToListAsync(ct);
         var refunds = await db.Refunds.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.RefundedAt >= start && x.RefundedAt < end).ToListAsync(ct);
@@ -126,7 +126,7 @@ public static class SprintSeventeenEndpoints
         var cancellations = await db.OrderCancellations.AsNoTracking().Where(x => x.BranchId == branchId && x.CancelledAt >= start && x.CancelledAt < end).ToListAsync(ct);
         var voids = await db.OrderLineVoids.AsNoTracking().Where(x => x.BranchId == branchId && x.VoidedAt >= start && x.VoidedAt < end).ToListAsync(ct);
         var refunds = await db.Refunds.AsNoTracking().Where(x => x.BranchId == branchId && x.RefundedAt >= start && x.RefundedAt < end).ToListAsync(ct);
-        var salesOrders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).ToListAsync(ct);
+        var salesOrders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).ToListAsync(ct);
         var reasonIds = cancellations.Select(x => x.CancellationReasonId).Concat(voids.Select(x => x.CancellationReasonId)).Concat(refunds.Select(x => x.CancellationReasonId)).Distinct().ToList();
         var reasons = await db.CancellationReasons.AsNoTracking().Where(x => reasonIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var orderIds = cancellations.Select(x => x.OrderId).Distinct().ToList();
@@ -204,7 +204,7 @@ public static class SprintSeventeenEndpoints
         branchId = NormalizeBranch(user, branchId);
         if (RequiredBranch(branchId) is { } branchError) return branchError;
         var (start, end) = ResolveRange(from, to);
-        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).Include(x => x.Lines).ToListAsync(ct);
         var lines = orders.SelectMany(x => x.Lines).Where(x => EffectiveQty(x) > 0).ToList();
         var productIds = lines.Select(x => x.ProductId).Distinct().ToList();
         var products = productIds.Count == 0 ? new Dictionary<Guid, Product>() : await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
@@ -284,7 +284,7 @@ public static class SprintSeventeenEndpoints
         branchId = NormalizeBranch(user, branchId);
         if (RequiredBranch(branchId) is { } branchError) return branchError;
         var (start, end) = ResolveRange(from, to);
-        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).Include(x => x.Lines).ToListAsync(ct);
         var lines = orders.SelectMany(x => x.Lines).Where(x => EffectiveQty(x) > 0).ToList();
         var cancellations = await db.OrderCancellations.AsNoTracking().Where(x => x.BranchId == branchId && x.CancelledAt >= start && x.CancelledAt < end).ToListAsync(ct);
         var refunds = await db.Refunds.AsNoTracking().Where(x => x.BranchId == branchId && x.RefundedAt >= start && x.RefundedAt < end).ToListAsync(ct);
@@ -387,14 +387,14 @@ public static class SprintSeventeenEndpoints
             var closedShifts = await db.Shifts.AsNoTracking().Where(x => alertBranches.Contains(x.BranchId) && (x.ClosedAt >= start || x.ClosedAt == null && x.Status != ShiftStatus.Open)).ToListAsync(ct);
             var varianceShifts = closedShifts.Where(x => ReportingRules.IsSignificantShiftVariance(x.CashVariance)).Take(20).ToList();
             foreach (var shift in varianceShifts) alerts.Add(new { code = "cash-variance", level = "warning", branchId = shift.BranchId, @params = new { shiftId = shift.Id, variance = Round(shift.CashVariance ?? 0m) } });
-            var orders = await db.Orders.AsNoTracking().CountAsync(x => alertBranches.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status), ct);
+            var orders = await db.Orders.AsNoTracking().CountAsync(x => alertBranches.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null, ct);
             var cancellations = await db.OrderCancellations.AsNoTracking().CountAsync(x => alertBranches.Contains(x.BranchId) && x.CancelledAt >= start && x.CancelledAt < end, ct);
             var rate = ReportingRules.SafeRate(cancellations, orders + cancellations);
             if (ReportingRules.IsCautionRate(rate)) alerts.Add(new { code = "cancellation-rate", level = "info", branchId = (Guid?)null, @params = new { rate = rate } });
             var waste = await db.InventoryMovements.AsNoTracking().Where(x => alertBranches.Contains(x.BranchId) && x.OccurredAt >= start && x.OccurredAt < end && x.Type == InventoryMovementType.Waste).ToListAsync(ct);
             if (waste.Count > 0)
             {
-                var salesOfRange = await db.Orders.AsNoTracking().Where(x => alertBranches.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).ToListAsync(ct);
+                var salesOfRange = await db.Orders.AsNoTracking().Where(x => alertBranches.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).ToListAsync(ct);
                 var wastePercent = ReportingRules.Percent(waste.Count, salesOfRange.Count);
                 if (ReportingRules.ExceedsWasteCaution(wastePercent)) alerts.Add(new { code = "high-waste", level = "warning", branchId = (Guid?)null, @params = new { rate = wastePercent } });
             }
@@ -452,7 +452,7 @@ public static class SprintSeventeenEndpoints
 
     private static async Task<(string[], List<string[]>, string)> BranchComparisonCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var orders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).GroupBy(x => x.BranchId).Select(g => new { BranchId = g.Key, Count = g.Count(), Net = g.Sum(x => x.NetAmount), Gross = g.Sum(x => x.GrossAmount) }).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).GroupBy(x => x.BranchId).Select(g => new { BranchId = g.Key, Count = g.Count(), Net = g.Sum(x => x.NetAmount), Gross = g.Sum(x => x.GrossAmount) }).ToListAsync(ct);
         var rows = orders.OrderBy(x => x.BranchId).Select(x => new string[] { x.BranchId.ToString(), x.Count.ToString(), Money(x.Net), Money(x.Gross) }).ToList();
         return (["BranchId", "Orders", "Net", "Gross"], rows, $"{rows.Count} branches");
     }
@@ -471,7 +471,7 @@ public static class SprintSeventeenEndpoints
 
     private static async Task<(string[], List<string[]>, string)> FoodCostCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var orders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).Include(x => x.Lines).ToListAsync(ct);
+        var orders = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).Include(x => x.Lines).ToListAsync(ct);
         var lines = orders.SelectMany(x => x.Lines).Where(x => EffectiveQty(x) > 0).GroupBy(x => x.ProductId).ToList();
         var recipes = await db.RecipeVersions.AsNoTracking().Include(x => x.Lines).Where(x => x.Status == RecipeStatus.Active && lines.Select(g => g.Key).Contains(x.ProductId)).ToListAsync(ct);
         var latest = recipes.GroupBy(x => x.ProductId).Select(g => g.OrderByDescending(x => x.VersionNumber).First()).ToList();
@@ -500,7 +500,7 @@ public static class SprintSeventeenEndpoints
 
     private static async Task<(string[], List<string[]>, string)> ProfitLossCsv(OFCDbContext db, List<Guid> branchIds, DateTimeOffset start, DateTimeOffset end, CancellationToken ct)
     {
-        var rows = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status)).OrderBy(x => x.CreatedAt).Select(x => new string[] { DateStr(x.CreatedAt), x.Status.ToString(), Money(x.NetAmount), Money(x.GrossAmount) }).ToListAsync(ct);
+        var rows = await db.Orders.AsNoTracking().Where(x => branchIds.Contains(x.BranchId) && x.CreatedAt >= start && x.CreatedAt < end && SalesStatuses.Contains(x.Status) && x.PaidAt != null).OrderBy(x => x.CreatedAt).Select(x => new string[] { DateStr(x.CreatedAt), x.Status.ToString(), Money(x.NetAmount), Money(x.GrossAmount) }).ToListAsync(ct);
         return (["CreatedAt", "Status", "Net", "Gross"], rows, $"{rows.Count} orders");
     }
 

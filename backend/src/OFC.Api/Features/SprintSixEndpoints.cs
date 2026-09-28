@@ -60,8 +60,8 @@ public static class SprintSixEndpoints
         var requestIds = request.Payments.Select(x => x.ClientRequestId).ToList();
         var existing = await db.Payments.Where(x => x.OrderId == id && requestIds.Contains(x.ClientRequestId)).ToListAsync(ct);
         if (existing.Count == requestIds.Count) return Results.Ok(PaymentResponse(existing));
-        if (existing.Count > 0 || order.Status == OrderStatus.Paid || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Authorized, ct)) return Validation("payments", "This order already has a payment attempt.");
-        if (order.Status is not (OrderStatus.Pending or OrderStatus.Confirmed)) return Validation("order", "Only pending or confirmed orders can be paid.");
+        if (existing.Count > 0 || order.PaidAt is not null || order.Status == OrderStatus.Paid || await db.Payments.AnyAsync(x => x.OrderId == id && x.Status == PaymentStatus.Authorized, ct)) return Validation("payments", "This order already has a payment attempt.");
+        if (!OrderRules.CanTakePayment(order)) return Validation("order", "Only a submitted, unpaid order can be paid.");
 
         var methodIds = request.Payments.Select(x => x.PaymentMethodId).Distinct().ToList();
         var methods = await db.PaymentMethods.Where(x => x.BranchId == order.BranchId && x.IsActive && methodIds.Contains(x.Id)).ToListAsync(ct);
@@ -117,7 +117,7 @@ public static class SprintSixEndpoints
         if (!await CanOperate(db, user, order.BranchId, ct)) return Forbidden();
         var payment = await db.Payments.Include(x => x.StatusHistory).SingleOrDefaultAsync(x => x.Id == paymentId && x.OrderId == id, ct);
         if (payment is null) return Results.NotFound();
-        if (order.Status is not (OrderStatus.Pending or OrderStatus.Confirmed)) return Validation("order", "Only pending or confirmed orders can be captured.");
+        if (!OrderRules.CanTakePayment(order)) return Validation("order", "Only a submitted, unpaid order can be captured.");
         if (payment.Status != PaymentStatus.Authorized) return Validation("payment", "Only an authorized payment can be captured.");
         payment.Status = PaymentStatus.Captured;
         db.PaymentStatusHistory.Add(new PaymentStatusHistory { PaymentId = payment.Id, FromStatus = PaymentStatus.Authorized, ToStatus = PaymentStatus.Captured, ChangedByUserId = UserId(user), Note = "Captured by terminal" });
@@ -151,6 +151,7 @@ public static class SprintSixEndpoints
         if (original is null) return Validation("payment", "The original sale transaction is missing.");
         payment.Status = PaymentStatus.Reversed;
         db.PaymentStatusHistory.Add(new PaymentStatusHistory { PaymentId = payment.Id, FromStatus = PaymentStatus.Captured, ToStatus = PaymentStatus.Reversed, ChangedByUserId = UserId(user), Note = request.Reason.Trim() });
+        order.PaidAt = null;
         if (order.Status == OrderStatus.Paid)
         {
             order.Status = OrderStatus.Pending;
@@ -167,7 +168,7 @@ public static class SprintSixEndpoints
 
     private static async Task ApplyPaidIfFullyCaptured(OFCDbContext db, Order order, Guid userId, Guid? deviceId, string note, CancellationToken ct)
     {
-        if (order.Status == OrderStatus.Paid) return;
+        if (order.PaidAt is not null || order.Status == OrderStatus.Paid) return;
         // Tracked entities include authorizations captured during this request, before saving.
         var payments = await db.Payments.Where(x => x.OrderId == order.Id).ToListAsync(ct);
         var added = db.ChangeTracker.Entries<Payment>().Where(e => e.State == EntityState.Added && e.Entity.OrderId == order.Id).Select(e => e.Entity);
@@ -175,9 +176,12 @@ public static class SprintSixEndpoints
         var captured = allPayments.Where(x => x.Status == PaymentStatus.Captured).Sum(x => x.Amount);
         if (Math.Abs(PaymentRules.RoundMoney(captured) - order.GrossAmount) > PaymentRules.MoneyTolerance) return;
         var from = order.Status;
-        order.Status = OrderStatus.Paid;
-        order.UpdatedAt = DateTimeOffset.UtcNow;
-        db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = from, ToStatus = OrderStatus.Paid, ChangedByUserId = userId, Note = note });
+        order.PaidAt = DateTimeOffset.UtcNow;
+        order.UpdatedAt = order.PaidAt.Value;
+        // A pay-later order is already in the kitchen: it keeps its kitchen status and is only marked paid.
+        var to = from is OrderStatus.Pending or OrderStatus.Confirmed ? OrderStatus.Paid : from;
+        order.Status = to;
+        db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, FromStatus = from, ToStatus = to, ChangedByUserId = userId, Note = note });
         await EnqueueReceiptPrintJob(db, order, allPayments.Where(x => x.Status == PaymentStatus.Captured).ToList(), userId, deviceId, ct);
     }
 

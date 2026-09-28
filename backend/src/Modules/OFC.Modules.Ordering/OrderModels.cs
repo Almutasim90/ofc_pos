@@ -22,6 +22,9 @@ public sealed class Order
     public decimal TaxAmount { get; set; }
     public decimal GrossAmount { get; set; }
     public decimal ManualDiscountAmount { get; set; }
+    // Payment is tracked apart from Status, which follows the kitchen: a pay-later order (e.g. a VIP
+    // guest) goes to the kitchen unpaid and is settled afterwards. Null = not fully paid yet.
+    public DateTimeOffset? PaidAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<OrderLine> Lines { get; set; } = [];
@@ -73,6 +76,10 @@ public static class OrderRules
     // Gated behind the "orders.discount" permission; this cap is enforced server-side and is the actual
     // authority — the POS client mirrors it only to show an estimate before submitting.
     public const decimal ManualDiscountMaxPercent = 20m;
+    // An order can take its payment before the kitchen (pay first) or while/after the kitchen works on it (pay later).
+    public static bool CanTakePayment(Order order) => order.PaidAt is null
+        && order.Status is OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.SentToKitchen or OrderStatus.Preparing or OrderStatus.Ready or OrderStatus.Completed;
+
     public static bool CanTransition(OrderStatus from, OrderStatus to) => from == to || (from, to) switch
     {
         (OrderStatus.Draft, OrderStatus.Pending or OrderStatus.Cancelled) => true,

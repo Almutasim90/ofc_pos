@@ -152,6 +152,9 @@ const words = {
     cart: "السلة",
     empty: "أضف أصنافًا للبدء",
     hold: "تعليق",
+    payLater: "دفع لاحقاً",
+    sentPayLater: "أُرسل الطلب للمطبخ. ادفعه لاحقاً من الطلبات الحالية.",
+    payLaterOffline: "الدفع لاحقاً يحتاج اتصالاً بالإنترنت.",
     send: "الدفع",
     confirmPay: "تأكيد الدفع",
     clearOrder: "إفراغ",
@@ -260,6 +263,9 @@ const words = {
     cart: "Cart",
     empty: "Add products to begin",
     hold: "Hold",
+    payLater: "Pay later",
+    sentPayLater: "Order sent to the kitchen. Take payment later from Current orders.",
+    payLaterOffline: "Pay later needs an internet connection.",
     send: "Pay",
     confirmPay: "Confirm payment",
     clearOrder: "Clear",
@@ -373,7 +379,17 @@ type HeldOrder = {
   createdAt: string;
   table: { code: string; nameAr: string; nameEn: string } | null;
   salesChannelId?: string;
+  paidAt?: string | null;
 };
+const payableStatuses = [
+  "Draft",
+  "Pending",
+  "Confirmed",
+  "SentToKitchen",
+  "Preparing",
+  "Ready",
+  "Completed",
+];
 type OrderDetailLine = {
   id: string;
   productId: string;
@@ -1590,8 +1606,13 @@ export function PosSection({
   // Every order the cashier places is sent to the kitchen immediately — the cashier is trusted
   // staff, so there is no separate manual "send to kitchen" confirmation step for a normal order.
   // Hold saves a draft; Pay captures the selected inline tender before kitchen dispatch.
-  async function submit(status: "Draft" | "Pending") {
+  // payLater: the order goes to the kitchen now and is paid afterwards from Current orders (e.g. a VIP guest).
+  async function submit(status: "Draft" | "Pending", payLater = false) {
     if (!cart.length || !branchId || !channelId || busy) return;
+    if (!online && payLater) {
+      setMessage(t.payLaterOffline);
+      return;
+    }
     if (!online && editing) {
       setMessage(t.editOffline);
       return;
@@ -1629,7 +1650,7 @@ export function PosSection({
       setMessage(t.discountTooHigh);
       return;
     }
-    if (status === "Pending" && !isExternallyPaidChannel) {
+    if (status === "Pending" && !isExternallyPaidChannel && !payLater) {
       if (offlineMethods.length === 0) {
         setMessage(t.payNoMethods);
         return;
@@ -1716,6 +1737,13 @@ export function PosSection({
             ? "تم حفظ الطلب. أكمل من الطلبات الحالية."
             : "Order saved. Continue from Current orders.",
         );
+      if (payLater) {
+        await dispatchOrder(order.id);
+        setDiscountOpen(false);
+        setDiscountValue("");
+        setMessage(t.sentPayLater);
+        return;
+      }
       if (isExternallyPaidChannel) {
         const externalMethod = offlineMethods.find(
           (method) =>
@@ -1868,6 +1896,19 @@ export function PosSection({
     Confirmed: language === "ar" ? "مؤكد" : "Confirmed",
     Paid: language === "ar" ? "مدفوع" : "Paid",
   } as Record<string, string>;
+  // Payment is separate from the kitchen status: a pay-later order can be in the kitchen and still unpaid.
+  const isPaid = (order: HeldOrder) =>
+    !!order.paidAt || order.status === "Paid";
+  const canPay = (order: HeldOrder) =>
+    !isPaid(order) && payableStatuses.includes(order.status);
+  const orderStateLabel = (order: HeldOrder) =>
+    isPaid(order)
+      ? statusLabels.Paid
+      : order.status === "Draft"
+        ? statusLabels.Draft
+        : language === "ar"
+          ? "غير مدفوع"
+          : "Unpaid";
   function closeHeldOrders() {
     setHeldOpen(false);
     setDetailOrderId(null);
@@ -2051,9 +2092,9 @@ export function PosSection({
                             </p>
                           </div>
                           <span
-                            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${order.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${isPaid(order) ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
                           >
-                            {statusLabels[order.status] ?? order.status}
+                            {orderStateLabel(order)}
                           </span>
                         </div>
                         {order.note && (
@@ -2089,7 +2130,7 @@ export function PosSection({
                                 {t.editOrder}
                               </Button>
                             )}
-                            {order.status === "Paid" && (
+                            {isPaid(order) && (
                               <Button
                                 disabled={busy}
                                 onClick={() => startAddOn(order)}
@@ -2098,7 +2139,7 @@ export function PosSection({
                                 {t.addOnOrder}
                               </Button>
                             )}
-                            {order.status !== "Paid" && (
+                            {canPay(order) && (
                               <Button
                                 disabled={busy}
                                 onClick={() => void resumeHeld(order)}
@@ -2158,9 +2199,9 @@ export function PosSection({
                           </TableCell>
                           <TableCell className="px-4 py-3">
                             <span
-                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.status === "Paid" ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${isPaid(order) ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
                             >
-                              {statusLabels[order.status] ?? order.status}
+                              {orderStateLabel(order)}
                             </span>
                           </TableCell>
                           <TableCell className="px-4 py-3 text-muted-foreground">
@@ -2203,7 +2244,7 @@ export function PosSection({
                                   {t.editOrder}
                                 </Button>
                               )}
-                              {order.status === "Paid" && (
+                              {isPaid(order) && (
                                 <Button
                                   disabled={busy}
                                   onClick={() => startAddOn(order)}
@@ -2212,7 +2253,7 @@ export function PosSection({
                                   {t.addOnOrder}
                                 </Button>
                               )}
-                              {order.status !== "Paid" && (
+                              {canPay(order) && (
                                 <Button
                                   disabled={busy}
                                   onClick={() => void resumeHeld(order)}
@@ -2406,6 +2447,17 @@ export function PosSection({
             >
               {t.hold}
             </Button>
+            {!isExternallyPaidChannel && (
+              <Button
+                disabled={
+                  busy || !cart.length || discountExceedsMax || !online
+                }
+                onClick={() => void submit("Pending", true)}
+                className="pos-hold"
+              >
+                {t.payLater}
+              </Button>
+            )}
             <Button
               disabled={busy || !cart.length || discountExceedsMax}
               onClick={() => {

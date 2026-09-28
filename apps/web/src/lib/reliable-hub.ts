@@ -5,10 +5,11 @@ import { store } from "@/lib/local-store";
 
 type ConfigureHub = (connection: signalR.HubConnection) => void;
 
+// Screens like the kitchen must come back quickly after a network blip, so retries stay within ~5 seconds.
 const retryPolicy: signalR.IRetryPolicy = {
   nextRetryDelayInMilliseconds: ({ previousRetryCount }) => {
     const backoff = Math.min(
-      30_000,
+      5_000,
       1_000 * 2 ** Math.min(previousRetryCount, 5),
     );
     return backoff + Math.floor(Math.random() * 1_000);
@@ -56,7 +57,7 @@ export function useReliableBranchHub(
     const scheduleStart = (attempt: number) => {
       if (disposed || startTimer !== null) return;
       const delay =
-        Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5)) +
+        Math.min(5_000, 1_000 * 2 ** Math.min(attempt, 3)) +
         Math.floor(Math.random() * 1_000);
       startTimer = window.setTimeout(() => {
         startTimer = null;

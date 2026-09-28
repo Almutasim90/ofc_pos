@@ -1,33 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  ChefHat,
+  Bell,
+  BellOff,
   CheckCircle2,
+  ChefHat,
   Clock3,
-  Flame,
-  LayoutGrid,
+  Printer,
   RefreshCw,
-  Send,
-  UtensilsCrossed,
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
-import { createId, store } from "@/lib/local-store";
+import { store } from "@/lib/local-store";
+import { printKitchenSlip, snapshotChoices } from "@/lib/kitchen-slip";
 import { useReliableBranchHub } from "@/lib/reliable-hub";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
 type Branch = { id: string; nameAr: string; nameEn: string };
 type Station = { id: string; code: string; nameAr: string; nameEn: string };
-type Order = {
-  id: string;
-  status: string;
-  grossAmount: number;
-  createdAt: string;
-};
 type DispatchStatus =
   | "Pending"
   | "SentToKds"
@@ -36,196 +27,85 @@ type DispatchStatus =
   | "PrintedFallback"
   | "Failed"
   | "Cancelled";
-type Channel = "Kds" | "PrintFallback" | "ManualFallback";
 type ItemStatus = "New" | "Preparing" | "Ready" | "Completed" | "Cancelled";
 type TicketStatus = "New" | "Preparing" | "Ready" | "Completed" | "Cancelled";
 type TicketItem = {
   id: string;
-  orderLineId: string | null;
-  productId: string;
   productNameAr: string;
   productNameEn: string;
   quantity: number;
   note: string | null;
   selections: string;
   status: ItemStatus;
-  startedAt: string | null;
-  readyAt: string | null;
-  completedAt: string | null;
 };
 type Ticket = {
   id: string;
-  branchId: string;
-  orderId: string;
-  dispatchId: string;
   orderNumber: string;
-  stationId: string | null;
   orderType: string | null;
   orderTypeNameAr: string | null;
   orderTypeNameEn: string | null;
-  stationCode: string | null;
-  stationNameAr: string | null;
-  stationNameEn: string | null;
   dispatchStatus: DispatchStatus;
-  channel: Channel;
   status: TicketStatus;
-  targetMinutes: number | null;
-  kdsAttempts: number;
-  fallbackPrinted: boolean;
-  lastError: string | null;
   note: string | null;
-  wasPrepStartedBeforeCancellation: boolean;
-  cancellationNotified: boolean;
   createdAt: string;
-  startedAt: string | null;
-  readyAt: string | null;
-  completedAt: string | null;
-  cancelledAt: string | null;
-  acknowledgedAt: string | null;
-  fallbackPrintedAt: string | null;
-  updatedAt: string;
   overdue: boolean;
   items: TicketItem[];
 };
 
 const copy = {
   ar: {
-    title: "مطبخ KDS",
-    intro:
-      "عرض طلبات المطبخ حسب محطة التحضير، مع تتبع الحالة وأوقات التحضير والطباعة الاحتياطية عند تعذر KDS.",
-    isolated: "المطبخ يستمر حتى مع انقطاع الخدمة",
-    fallbackNote: "OFFLINE / FALLBACK TICKET",
+    title: "المطبخ",
     branch: "الفرع",
-    station: "محطة التحضير",
     allStations: "كل المحطات",
-    kdsOn: "KDS متصل",
-    kdsOff: "KDS غير متصل",
-    loading: "جارٍ التحميل",
+    connected: "متصل",
+    connecting: "جارٍ الاتصال…",
+    disconnected: "غير متصل — تتحدث الطلبات كل 10 ثوانٍ",
     reload: "تحديث",
-    empty: "لا توجد تذاكر مطبخ لهذه المحطة.",
-    dispatch: "إرسال طلب للمطبخ",
-    order: "الطلب",
-    targetMinutes: "الوقت المستهدف (دقيقة)",
-    dispatchAction: "إرسال",
-    dispatchNote:
-      "أرسل الطلب من نقطة البيع بزر «إرسال للمطبخ». تظهر أصناف الشواية للشواية والمشروبات لقسم المشروبات، حسب مكان التحضير المحدد عند تعديل المنتج. المنتج دون مكان محدد يظهر في المطبخ العام.",
-    send: "إرسال إلى KDS",
-    ack: "استلام",
+    orders: "طلب",
+    late: "متأخر",
     newTicket: "جديد",
-    fallback: "طباعة احتياطية",
-    fail: "فشل",
-    printed: "تمت الطباعة",
-    cancel: "إلغاء",
-    confirmCancel: "تأكيد الإلغاء",
-    cancelPrompt: "هل أنت متأكد من إلغاء طلب المطبخ؟",
-    start: "بدء",
-    ready: "جاهز",
-    complete: "اكتمل",
-    cancelled: "ملغى",
-    overdue: "متأخر",
-    fallbackBadge: "احتياطي",
-    note: "ملاحظة",
-    quantity: "كمية",
-    orderNo: "طلب",
     dineIn: "محلي",
     takeaway: "سفري",
-    served: "تم التسليم",
-    dispatched: "تم الإرسال",
-    saved: "تم الحفظ.",
+    ready: "جاهز",
+    print: "طباعة",
+    printed: "تمت الطباعة",
+    fallbackNote: "الطلب بانتظار الطباعة الاحتياطية",
+    cancel: "إلغاء الطلب",
+    confirmCancel: "تأكيد الإلغاء",
+    keep: "تراجع",
+    kitchenSlip: "طلب مطبخ",
+    soundOn: "صوت الطلبات مفعّل",
+    soundOff: "اضغط لتفعيل صوت الطلبات",
     failed: "تعذر تنفيذ العملية.",
-    stPending: "قيد الإنشاء",
-    stSentToKds: "مرسل إلى KDS",
-    stKdsAcknowledged: "مستلم",
-    stPrintFallbackPending: "طباعة احتياطية...",
-    stPrintedFallback: "مطبوع احتياطيًا",
-    stFailed: "فاشل",
-    stCancelled: "ملغى",
-    itNew: "جديد",
-    itPreparing: "قيد التحضير",
-    itReady: "جاهز",
-    itCompleted: "مكتمل",
-    itCancelled: "ملغى",
-    queue: "قائمة التحضير",
-    activeOrders: "الطلبات النشطة",
-    preparingNow: "قيد التحضير",
-    readyNow: "جاهزة للتسليم",
-    lateOrders: "طلبات متأخرة",
-    stationsLabel: "تصفية حسب المحطة",
-    items: "أصناف",
-    elapsed: "مضت",
-    min: "د",
-    progress: "تقدم الطلب",
-    noTicketsTitle: "المطبخ هادئ الآن",
-    noTicketsHint: "ستظهر الطلبات الجديدة هنا فور إرسالها من نقطة البيع.",
+    emptyTitle: "لا توجد طلبات الآن",
+    emptyHint: "الطلبات الجديدة تظهر هنا تلقائياً مع صوت تنبيه.",
   },
   en: {
-    title: "Kitchen KDS",
-    intro:
-      "Review kitchen tickets by preparation station, track status and prep times, and print a fallback ticket when the KDS is unavailable.",
-    isolated: "Kitchen keeps working even when the service is offline",
-    fallbackNote: "OFFLINE / FALLBACK TICKET",
+    title: "Kitchen",
     branch: "Branch",
-    station: "Preparation station",
     allStations: "All stations",
-    kdsOn: "KDS online",
-    kdsOff: "KDS offline",
-    loading: "Loading",
+    connected: "Connected",
+    connecting: "Connecting…",
+    disconnected: "Offline — orders refresh every 10 seconds",
     reload: "Refresh",
-    empty: "No kitchen tickets for this station.",
-    dispatch: "Dispatch an order to the kitchen",
-    order: "Order",
-    targetMinutes: "Target time (min)",
-    dispatchAction: "Dispatch",
-    dispatchNote: "Items route to their station automatically via the product.",
-    send: "Send to KDS",
-    ack: "Received",
+    orders: "orders",
+    late: "late",
     newTicket: "New",
-    fallback: "Print fallback",
-    fail: "Fail",
-    printed: "Mark printed",
-    cancel: "Cancel",
-    confirmCancel: "Confirm cancel",
-    cancelPrompt: "Are you sure you want to cancel this kitchen order?",
-    start: "Start",
-    ready: "Ready",
-    complete: "Complete",
-    cancelled: "Cancelled",
-    overdue: "Overdue",
-    fallbackBadge: "Fallback",
-    note: "Note",
-    quantity: "Qty",
-    orderNo: "Order",
     dineIn: "Dine-in",
     takeaway: "Takeaway",
-    served: "Served",
-    dispatched: "Dispatched",
-    saved: "Saved.",
+    ready: "Ready",
+    print: "Print",
+    printed: "Mark printed",
+    fallbackNote: "Waiting for the fallback print",
+    cancel: "Cancel order",
+    confirmCancel: "Confirm cancel",
+    keep: "Keep",
+    kitchenSlip: "Kitchen order",
+    soundOn: "Order sound on",
+    soundOff: "Tap to turn on the order sound",
     failed: "Unable to complete the operation.",
-    stPending: "Pending",
-    stSentToKds: "Sent to KDS",
-    stKdsAcknowledged: "Acknowledged",
-    stPrintFallbackPending: "Fallback printing…",
-    stPrintedFallback: "Printed fallback",
-    stFailed: "Failed",
-    stCancelled: "Cancelled",
-    itNew: "New",
-    itPreparing: "Preparing",
-    itReady: "Ready",
-    itCompleted: "Completed",
-    itCancelled: "Cancelled",
-    queue: "Preparation queue",
-    activeOrders: "Active orders",
-    preparingNow: "Preparing",
-    readyNow: "Ready to serve",
-    lateOrders: "Overdue orders",
-    stationsLabel: "Filter by station",
-    items: "Items",
-    elapsed: "Elapsed",
-    min: "m",
-    progress: "Order progress",
-    noTicketsTitle: "The kitchen is clear",
-    noTicketsHint:
-      "New tickets will appear here as soon as they are sent from POS.",
+    emptyTitle: "No orders right now",
+    emptyHint: "New orders appear here automatically, with a sound alert.",
   },
 } as const;
 
@@ -233,39 +113,6 @@ export function KitchenSection({ language }: { language: Language }) {
   const t = copy[language];
   const name = (x: { nameAr: string; nameEn: string }) =>
     language === "ar" ? x.nameAr : x.nameEn;
-  const dispatchLabel = (s: DispatchStatus) =>
-    s === "Pending"
-      ? t.stPending
-      : s === "SentToKds"
-        ? t.stSentToKds
-        : s === "KdsAcknowledged"
-          ? t.stKdsAcknowledged
-          : s === "PrintFallbackPending"
-            ? t.stPrintFallbackPending
-            : s === "PrintedFallback"
-              ? t.stPrintedFallback
-              : s === "Failed"
-                ? t.stFailed
-                : t.stCancelled;
-  const itemLabel = (s: ItemStatus) =>
-    s === "New"
-      ? t.itNew
-      : s === "Preparing"
-        ? t.itPreparing
-        : s === "Ready"
-          ? t.itReady
-          : s === "Completed"
-            ? t.itCompleted
-            : t.itCancelled;
-  const statusPill = (s: DispatchStatus) =>
-    s === "PrintedFallback" || s === "PrintFallbackPending"
-      ? "bg-warning/15 text-warning"
-      : s === "Failed" || s === "Cancelled"
-        ? "bg-destructive/15 text-destructive"
-        : s === "KdsAcknowledged"
-          ? "bg-success/15 text-success"
-          : "bg-muted text-muted-foreground";
-
   const auth = (path: string, init?: RequestInit) =>
     fetch(path, {
       ...init,
@@ -281,23 +128,59 @@ export function KitchenSection({ language }: { language: Language }) {
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useState("");
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [isError, setIsError] = useState(false);
-  const [dispatchForm, setDispatchForm] = useState({
-    orderId: "",
-    targetMinutes: "",
-  });
-  const [showDispatch, setShowDispatch] = useState(false);
+  const [error, setError] = useState("");
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  // Orders marked ready leave the screen at once; the next one moves up without waiting for the server.
+  const [doneIds, setDoneIds] = useState<Set<string>>(() => new Set());
+  const [now, setNow] = useState(() => Date.now());
+  const [soundReady, setSoundReady] = useState(() => audioRunning());
 
-  const setMsg = (value: string, error = false) => {
-    setMessage(value);
-    setIsError(error);
-  };
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  // Tickets already on screen; a new unacknowledged one rings so a busy kitchen notices it.
+  // Browsers only allow sound after the screen has been touched once.
+  useEffect(() => {
+    const unlock = () => {
+      void unlockAudio().then(() => setSoundReady(audioRunning()));
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  // A kitchen tablet that goes to sleep drops its live connection; keep the screen awake.
+  useEffect(() => {
+    type WakeLock = { release: () => Promise<void> };
+    const wakeLock = (
+      navigator as Navigator & {
+        wakeLock?: { request: (type: "screen") => Promise<WakeLock> };
+      }
+    ).wakeLock;
+    if (!wakeLock) return;
+    let lock: WakeLock | null = null;
+    const request = () => {
+      if (document.visibilityState !== "visible") return;
+      wakeLock
+        .request("screen")
+        .then((value) => (lock = value))
+        .catch(() => undefined);
+    };
+    request();
+    document.addEventListener("visibilitychange", request);
+    return () => {
+      document.removeEventListener("visibilitychange", request);
+      void lock?.release().catch(() => undefined);
+    };
+  }, []);
+
+  // Tickets already on screen; a new one rings so a busy kitchen notices it.
   const seenTickets = useRef<Set<string> | null>(null);
   useEffect(() => {
     seenTickets.current = null;
@@ -308,18 +191,19 @@ export function KitchenSection({ language }: { language: Language }) {
     try {
       const url = `/api/v1/kitchen/tickets?branchId=${branchId}${stationId ? `&stationId=${stationId}` : ""}&activeOnly=true`;
       const response = await auth(url);
-      const next = response.ok ? ((await response.json()) as Ticket[]) : [];
+      if (!response.ok) return;
+      const next = (await response.json()) as Ticket[];
       const seen = seenTickets.current;
-      if (
-        seen &&
-        next.some((x) => x.dispatchStatus === "SentToKds" && !seen.has(x.id))
-      )
-        playNewTicketChime();
+      if (seen && next.some((x) => !seen.has(x.id) && isActive(x)))
+        playKitchenBell();
       seenTickets.current = new Set(next.map((x) => x.id));
       setTickets(next);
       acknowledgeShown(next);
+    } catch {
+      /* Keep the current tickets; the next refresh tries again. */
     } finally {
       setLoading(false);
+      setLoaded(true);
     }
   }
 
@@ -348,30 +232,28 @@ export function KitchenSection({ language }: { language: Language }) {
     });
   }
 
-  async function loadContext() {
-    const [branchesResponse, contextResponse] = await Promise.all([
-      auth("/api/v1/pos/context"),
-      auth("/api/v1/kitchen/stations"),
-    ]);
-    if (branchesResponse.ok) {
-      const value = (await branchesResponse.json()) as { branches: Branch[] };
-      setBranches(value.branches);
-      if (value.branches[0]) setBranchId(value.branches[0].id);
-    }
-    if (contextResponse.ok)
-      setStations((await contextResponse.json()) as Station[]);
-  }
-
   useEffect(() => {
-    void loadContext();
+    void (async () => {
+      const [contextResponse, stationsResponse] = await Promise.all([
+        auth("/api/v1/pos/context"),
+        auth("/api/v1/kitchen/stations"),
+      ]);
+      if (contextResponse.ok) {
+        const value = (await contextResponse.json()) as { branches: Branch[] };
+        setBranches(value.branches);
+        if (value.branches[0]) setBranchId(value.branches[0].id);
+      }
+      if (stationsResponse.ok)
+        setStations((await stationsResponse.json()) as Station[]);
+    })();
   }, []);
   useEffect(() => {
-    if (branchId) void refresh();
+    if (branchId) void loadTickets();
   }, [branchId, stationId]);
 
   // SignalR is realtime transport only, not the source of truth (docs/01-ARCHITECTURE-GUARDRAILS.md):
   // the hub just tells this screen something changed for the branch, and it re-fetches the ticket list
-  // over the existing REST endpoint below instead of trusting ticket state carried over the socket.
+  // over the existing REST endpoint instead of trusting ticket state carried over the socket.
   const loadTicketsRef = useRef(loadTickets);
   loadTicketsRef.current = loadTickets;
   const live = useReliableBranchHub(
@@ -385,7 +267,6 @@ export function KitchenSection({ language }: { language: Language }) {
       void loadTicketsRef.current();
     },
   );
-
   useEffect(() => {
     if (!branchId) return;
     const timer = window.setInterval(
@@ -396,627 +277,335 @@ export function KitchenSection({ language }: { language: Language }) {
     );
     return () => window.clearInterval(timer);
   }, [branchId, live]);
-
-  async function refresh() {
-    setMsg("");
-    const queuePromise = loadTickets();
-    if (!branchId) return;
-    const ordersResponse = await auth(`/api/v1/orders?branchId=${branchId}`);
-    if (ordersResponse.ok)
-      setOrders(
-        ((await ordersResponse.json()) as Order[]).filter(
-          (o) => o.status !== "Cancelled" && o.status !== "Rejected",
-        ),
-      );
-    await queuePromise;
-  }
-
-  async function dispatch(event: React.FormEvent) {
-    event.preventDefault();
-    setMsg("");
-    if (!branchId || !dispatchForm.orderId) {
-      setMsg(t.failed, true);
+  // Connecting (on open or after a network blip) is not "offline"; only warn if it stays down.
+  const [offlineLong, setOfflineLong] = useState(false);
+  useEffect(() => {
+    if (live) {
+      setOfflineLong(false);
       return;
     }
-    try {
-      const body = {
-        branchId,
-        orderId: dispatchForm.orderId,
-        clientDispatchId: createId(),
-        orderNumber: null,
-        note: null,
-        targetMinutes:
-          dispatchForm.targetMinutes === ""
-            ? null
-            : Number(dispatchForm.targetMinutes),
-      };
-      const response = await auth("/api/v1/kitchen/tickets", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error(t.failed);
-      setMsg(t.dispatched);
-      setDispatchForm({ orderId: "", targetMinutes: "" });
-      setShowDispatch(false);
-      void refresh();
-    } catch {
-      setMsg(t.failed, true);
+    const timer = window.setTimeout(() => setOfflineLong(true), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [live]);
+
+  async function post(ticket: Ticket, action: "ready" | "printed") {
+    setError("");
+    const response = await auth(
+      `/api/v1/kitchen/tickets/${ticket.id}/${action}`,
+      { method: "POST" },
+    ).catch(() => null);
+    if (!response?.ok) {
+      const problem = await response?.json().catch(() => null);
+      setError(problem?.errors?.ticket?.[0] ?? t.failed);
+      return false;
     }
+    return true;
   }
 
-  async function act(
-    ticket: Ticket,
-    action: "send" | "ack" | "ready" | "fallback" | "printed" | "fail",
-  ) {
-    setMsg("");
-    const id = ticket.id;
-    try {
-      const url =
-        action === "ready"
-          ? `/api/v1/kitchen/tickets/${id}/ready`
-          : action === "printed"
-          ? `/api/v1/kitchen/tickets/${id}/printed`
-          : action === "fail"
-            ? `/api/v1/kitchen/tickets/${id}/fail`
-            : action === "fallback"
-              ? `/api/v1/kitchen/tickets/${id}/fallback`
-              : action === "ack"
-                ? `/api/v1/kitchen/tickets/${id}/ack`
-                : `/api/v1/kitchen/tickets/${id}/send`;
-      const body =
-        action === "fallback"
-          ? { error: "KDS unavailable", manual: false, templateCode: null }
-          : action === "fail"
-            ? { error: t.failed }
-            : undefined;
-      const response = await auth(url, {
-        method: "POST",
-        body: body === undefined ? undefined : JSON.stringify(body),
+  async function ready(ticket: Ticket) {
+    setDoneIds((ids) => new Set(ids).add(ticket.id));
+    if (!(await post(ticket, "ready")))
+      setDoneIds((ids) => {
+        const next = new Set(ids);
+        next.delete(ticket.id);
+        return next;
       });
-      if (!response.ok) {
-        const problem = await response.json().catch(() => null);
-        setMsg(problem?.errors?.ticket?.[0] ?? t.failed, true);
-        return;
-      }
-      void loadTickets();
-    } catch {
-      setMsg(t.failed, true);
-    }
-  }
-
-  // One tap clears a ready order off the screen once it has been handed over.
-  async function served(ticket: Ticket) {
-    setMsg("");
-    try {
-      const results = await Promise.all(
-        ticket.items
-          .filter((item) => item.status === "Ready")
-          .map((item) =>
-            auth(`/api/v1/kitchen/tickets/${ticket.id}/item/${item.id}`, {
-              method: "PUT",
-              body: JSON.stringify({ status: "Completed" }),
-            }),
-          ),
-      );
-      if (results.some((response) => !response.ok)) setMsg(t.failed, true);
-    } catch {
-      setMsg(t.failed, true);
-    }
     void loadTickets();
   }
 
-  async function cancel(id: string) {
-    setMsg("");
-    try {
-      const response = await auth(`/api/v1/kitchen/tickets/${id}/cancel`, {
-        method: "POST",
-        body: JSON.stringify({ note: null, templateCode: null }),
-      });
-      if (!response.ok) {
-        const problem = await response.json().catch(() => null);
-        setMsg(problem?.errors?.ticket?.[0] ?? t.failed, true);
-        return;
-      }
-      setConfirmCancelId(null);
-      await loadTickets();
-    } catch {
-      setMsg(t.failed, true);
+  async function cancel(ticket: Ticket) {
+    setError("");
+    const response = await auth(`/api/v1/kitchen/tickets/${ticket.id}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ note: null, templateCode: null }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      const problem = await response?.json().catch(() => null);
+      setError(problem?.errors?.ticket?.[0] ?? t.failed);
+      return;
     }
+    setConfirmCancelId(null);
+    void loadTickets();
   }
 
-  const elapsedMinutes = (createdAt: string) =>
-    Math.max(
+  const typeLabel = (ticket: Ticket) =>
+    ticket.orderType === "Takeaway"
+      ? t.takeaway
+      : ticket.orderType === "DineIn"
+        ? t.dineIn
+        : (language === "ar" ? ticket.orderTypeNameAr : ticket.orderTypeNameEn) ??
+          "";
+  // Dine-in and takeaway never look alike: each has its own header colour.
+  const headerTone = (ticket: Ticket) =>
+    ticket.orderType === "Takeaway"
+      ? "bg-warning text-warning-foreground"
+      : ticket.orderType === "DineIn" || ticket.orderType === "InStore"
+        ? "bg-success text-success-foreground"
+        : "bg-foreground text-background";
+
+  function print(ticket: Ticket) {
+    printKitchenSlip({
+      title: t.kitchenSlip,
+      reference: `#${ticket.orderNumber}`,
+      table: typeLabel(ticket) || null,
+      createdAt: ticket.createdAt,
+      note: ticket.note,
+      language,
+      lines: ticket.items
+        .filter((item) => item.status !== "Cancelled")
+        .map((item) => ({
+          quantity: item.quantity,
+          name: language === "ar" ? item.productNameAr : item.productNameEn,
+          choices: snapshotChoices(item.selections, language),
+          note: item.note,
+        })),
+    });
+  }
+
+  const visible = tickets.filter((x) => isActive(x) && !doneIds.has(x.id));
+  const lateCount = visible.filter((x) => x.overdue).length;
+  const elapsed = (createdAt: string) => {
+    const seconds = Math.max(
       0,
-      Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000),
+      Math.floor((now - new Date(createdAt).getTime()) / 1000),
     );
-  // Tickets are confirmed the moment they appear, so "new" is the first minute on screen.
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
   const isNew = (ticket: Ticket) =>
-    ticket.dispatchStatus === "SentToKds" ||
-    (elapsedMinutes(ticket.createdAt) < 1 &&
-      (ticket.status === "New" || ticket.status === "Preparing"));
-  const preparingCount = tickets.filter(
-    (ticket) =>
-      ticket.status === "Preparing" ||
-      ticket.items.some((item) => item.status === "Preparing"),
-  ).length;
-  const readyCount = tickets.filter(
-    (ticket) =>
-      ticket.status === "Ready" ||
-      (ticket.items.length > 0 &&
-        ticket.items.every(
-          (item) => item.status === "Ready" || item.status === "Completed",
-        )),
-  ).length;
-  const overdueCount = tickets.filter((ticket) => ticket.overdue).length;
+    now - new Date(ticket.createdAt).getTime() < 60_000;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {t.title}
-          </h1>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${live ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"}`}
-          >
-            {live ? <Wifi size={13} /> : <WifiOff size={13} />}
-            {live ? t.kdsOn : t.kdsOff}
+    <div className="space-y-4">
+      <header className="flex flex-wrap items-center gap-2">
+        <h1 className="me-1 text-2xl font-black tracking-tight">{t.title}</h1>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${live ? "bg-success/15 text-success" : offlineLong ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}
+        >
+          {live || !offlineLong ? <Wifi size={14} /> : <WifiOff size={14} />}
+          {live ? t.connected : offlineLong ? t.disconnected : t.connecting}
+        </span>
+        <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-bold">
+          {visible.length} {t.orders}
+        </span>
+        {lateCount > 0 && (
+          <span className="rounded-full bg-destructive px-3 py-1.5 text-xs font-bold text-destructive-foreground">
+            {lateCount} {t.late}
           </span>
-        </div>
-        <p className="mt-3 max-w-3xl text-muted-foreground">{t.intro}</p>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-accent p-3">
-        <div className="min-w-56">
-          <SearchableSelect
-            label={t.branch}
-            value={branchId}
-            onChange={setBranchId}
-          >
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {name(b)}
-              </option>
-            ))}
-          </SearchableSelect>
-        </div>
-        <Button
-          onClick={() => void refresh()}
-          aria-label={t.reload}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-xs font-semibold text-muted-foreground"
-        >
-          <RefreshCw className={loading ? "animate-spin" : ""} size={15} />
-          {t.reload}
-        </Button>
-        <Button
-          onClick={() => setShowDispatch(true)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary"
-        >
-          <Send size={15} />
-          {t.dispatchAction}
-        </Button>
-      </div>
-
-      <section
-        aria-label={t.activeOrders}
-        className="grid grid-cols-2 gap-3 xl:grid-cols-4"
-      >
-        {[
-          {
-            label: t.activeOrders,
-            value: tickets.length,
-            icon: LayoutGrid,
-            tone: "bg-accent text-primary",
-          },
-          {
-            label: t.preparingNow,
-            value: preparingCount,
-            icon: Flame,
-            tone: "bg-warning/15 text-warning",
-          },
-          {
-            label: t.readyNow,
-            value: readyCount,
-            icon: CheckCircle2,
-            tone: "bg-success/15 text-success",
-          },
-          {
-            label: t.lateOrders,
-            value: overdueCount,
-            icon: AlertTriangle,
-            tone: "bg-destructive/15 text-destructive",
-          },
-        ].map((metric) => (
-          <div
-            key={metric.label}
-            className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 sm:p-5"
-          >
-            <span
-              className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${metric.tone}`}
-            >
-              <metric.icon size={21} />
-            </span>
-            <div>
-              <p className="text-2xl font-semibold leading-none text-muted-foreground">
-                {metric.value}
-              </p>
-              <p className="mt-1.5 text-xs font-medium text-muted-foreground sm:text-sm">
-                {metric.label}
-              </p>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section className="rounded-xl border border-border bg-card p-3 sm:p-4">
-        <div className="mb-3 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <UtensilsCrossed size={15} />
-          {t.stationsLabel}
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        )}
+        <div className="ms-auto flex flex-wrap items-center gap-2">
           <Button
-            onClick={() => setStationId("")}
-            className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-medium transition ${stationId === "" ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground hover:bg-accent"}`}
+            type="button"
+            onClick={() => {
+              void unlockAudio().then(() => {
+                setSoundReady(audioRunning());
+                playKitchenBell();
+              });
+            }}
+            className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-xs font-bold ${soundReady ? "border border-border bg-card" : "animate-pulse bg-warning text-warning-foreground"}`}
           >
-            {t.allStations}
-            <span className="ms-2 rounded-full bg-black/10 px-2 py-0.5 text-[11px]">
-              {tickets.length}
-            </span>
+            {soundReady ? <Bell size={16} /> : <BellOff size={16} />}
+            {soundReady ? t.soundOn : t.soundOff}
           </Button>
-          {stations.map((station) => (
-            <Button
-              key={station.id}
-              onClick={() => setStationId(station.id)}
-              className={`min-h-10 shrink-0 rounded-lg px-4 text-sm font-medium transition ${stationId === station.id ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground hover:bg-accent"}`}
-            >
-              <span className="me-2 text-[11px] opacity-60">
-                {station.code}
-              </span>
-              {name(station)}
-            </Button>
-          ))}
-        </div>
-      </section>
-
-      {message && (
-        <p
-          role={isError ? "alert" : "status"}
-          className={`rounded-xl border px-4 py-3 text-sm font-semibold ${isError ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-border bg-success/15 text-success"}`}
-        >
-          {message}
-        </p>
-      )}
-
-      {showDispatch && (
-        <FormDialog
-          title={t.dispatch}
-          closeLabel={t.cancel}
-          onClose={() => setShowDispatch(false)}
-          width="max-w-xl"
-        >
-          <p className="text-sm text-muted-foreground">{t.dispatchNote}</p>
-          <form onSubmit={dispatch} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+          {branches.length > 1 && (
+            <div className="w-44">
               <SearchableSelect
-                label={t.order}
-                value={dispatchForm.orderId}
-                onChange={(v) =>
-                  setDispatchForm({ ...dispatchForm, orderId: v })
-                }
+                label={t.branch}
+                hideLabel
+                value={branchId}
+                onChange={setBranchId}
               >
-                {orders.length === 0 && <option value="">{t.empty}</option>}
-                {orders.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.status} · {o.grossAmount}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {name(b)}
                   </option>
                 ))}
               </SearchableSelect>
             </div>
-            <label className="block text-sm font-medium">
-              {t.targetMinutes}
-              <Input
-                type="number"
-                value={dispatchForm.targetMinutes}
-                onChange={(e) =>
-                  setDispatchForm({
-                    ...dispatchForm,
-                    targetMinutes: e.target.value,
-                  })
-                }
-                min={1}
-                max={999}
-                className="mt-2 min-h-12 w-full rounded-lg border border-border px-3"
-              />
-            </label>
-            <Button
-              disabled={loading}
-              className="mt-1 inline-flex min-h-11 items-center gap-2 justify-self-start rounded-lg bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary disabled:opacity-60"
-            >
-              <Send size={18} />
-              {t.dispatchAction}
-            </Button>
-          </form>
-        </FormDialog>
-      )}
+          )}
+          <Button
+            type="button"
+            onClick={() => void loadTickets()}
+            aria-label={t.reload}
+            title={t.reload}
+            className="grid size-11 place-items-center rounded-full border border-border bg-card"
+          >
+            <RefreshCw className={loading ? "animate-spin" : ""} size={17} />
+          </Button>
+        </div>
+      </header>
 
-      {loading && (
-        <div className="flex items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card p-10 font-semibold text-muted-foreground">
-          <RefreshCw className="animate-spin text-primary" size={22} />
-          {t.loading}
+      {stations.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[{ id: "", label: t.allStations }, ...stations.map((s) => ({ id: s.id, label: name(s) }))].map(
+            (station) => (
+              <Button
+                key={station.id || "all"}
+                type="button"
+                onClick={() => setStationId(station.id)}
+                className={`min-h-10 shrink-0 rounded-full px-4 text-sm font-semibold ${stationId === station.id ? "bg-primary text-primary-foreground" : "border border-border bg-card"}`}
+              >
+                {station.label}
+              </Button>
+            ),
+          )}
         </div>
       )}
 
-      {!loading && tickets.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-accent text-primary">
-            <ChefHat size={30} />
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive"
+        >
+          {error}
+        </p>
+      )}
+
+      {loaded && visible.length === 0 && (
+        <div className="grid place-items-center rounded-2xl border border-dashed border-border bg-card px-6 py-20 text-center">
+          <span className="grid size-20 place-items-center rounded-3xl bg-accent text-primary">
+            <ChefHat size={38} />
           </span>
-          <h2 className="mt-5 text-xl font-semibold text-muted-foreground">
-            {t.noTicketsTitle}
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-            {t.noTicketsHint}
-          </p>
+          <h2 className="mt-5 text-2xl font-black">{t.emptyTitle}</h2>
+          <p className="mt-2 max-w-md text-muted-foreground">{t.emptyHint}</p>
         </div>
       )}
 
-      {!loading && tickets.length > 0 && (
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
-              {t.queue}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-muted-foreground">
-              {stationId
-                ? name(
-                    stations.find((station) => station.id === stationId) ?? {
-                      nameAr: t.station,
-                      nameEn: t.station,
-                    },
-                  )
-                : t.allStations}
-            </h2>
-          </div>
-          <span className="rounded-full bg-muted px-3 py-1.5 text-xs font-bold text-muted-foreground">
-            {tickets.length} {t.activeOrders}
-          </span>
-        </div>
-      )}
-
-      <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        {tickets.map((ticket) => (
+      <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {visible.map((ticket) => (
           <article
             key={ticket.id}
-            className={`group relative overflow-hidden rounded-xl border bg-card transition hover:-translate-y-0.5 ${isNew(ticket) ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
+            className={`flex flex-col overflow-hidden rounded-2xl border-2 bg-card shadow-sm ${isNew(ticket) ? "border-primary ring-4 ring-primary/25" : ticket.overdue ? "border-destructive" : "border-border"}`}
           >
             <div
-              className={`h-1.5 w-full ${ticket.overdue ? "bg-destructive" : ticket.status === "Ready" ? "bg-success" : ticket.status === "Preparing" ? "bg-warning" : "bg-primary"}`}
-            />
-            <div className="p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                    {t.orderNo}
+              className={`flex items-start justify-between gap-3 px-4 py-3 ${headerTone(ticket)}`}
+            >
+              <div className="min-w-0">
+                <p className="text-3xl font-black leading-none">
+                  #{ticket.orderNumber}
+                </p>
+                {typeLabel(ticket) && (
+                  <p className="mt-1.5 text-base font-black">
+                    {typeLabel(ticket)}
                   </p>
-                  <p className="mt-0.5 flex items-center gap-2 text-2xl font-black tracking-tight text-foreground">
-                    #{ticket.orderNumber}
-                    {ticket.orderType && (
-                      <span
-                        className={`rounded-full px-3 py-0.5 text-sm font-black ${ticket.orderType === "Takeaway" ? "bg-warning text-warning-foreground" : ticket.orderType === "DineIn" || ticket.orderType === "InStore" ? "bg-success text-success-foreground" : "bg-secondary text-secondary-foreground"}`}
-                      >
-                        {ticket.orderType === "Takeaway"
-                          ? t.takeaway
-                          : ticket.orderType === "DineIn"
-                            ? t.dineIn
-                            : language === "ar"
-                              ? ticket.orderTypeNameAr
-                              : ticket.orderTypeNameEn}
-                      </span>
-                    )}
-                    {isNew(ticket) && (
-                      <span className="animate-pulse rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground">
-                        {t.newTicket}
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                  {ticket.fallbackPrinted && (
-                    <span className="rounded-full bg-warning/15 px-2 py-1 text-xs font-semibold text-warning">
-                      {t.fallbackBadge}
-                    </span>
-                  )}
-                  {ticket.overdue && (
-                    <span className="rounded-full bg-destructive/15 px-2 py-1 text-xs font-semibold text-destructive">
-                      {t.overdue}
-                    </span>
-                  )}
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusPill(ticket.dispatchStatus)}`}
-                  >
-                    {dispatchLabel(ticket.dispatchStatus)}
-                  </span>
-                </div>
+                )}
               </div>
-              <div className="mt-4 grid grid-cols-3 divide-x divide-border rounded-xl bg-accent px-2 py-3 text-center rtl:divide-x-reverse">
-                <div>
-                  <Clock3 className="mx-auto text-muted-foreground" size={16} />
-                  <p
-                    className={`mt-1 text-sm font-bold ${ticket.overdue ? "text-destructive" : "text-muted-foreground"}`}
-                  >
-                    {elapsedMinutes(ticket.createdAt)} {t.min}
-                  </p>
-                  <p className="text-[10px] font-semibold text-muted-foreground">
-                    {t.elapsed}
-                  </p>
-                </div>
-                <div>
-                  <UtensilsCrossed
-                    className="mx-auto text-muted-foreground"
-                    size={16}
-                  />
-                  <p className="mt-1 text-sm font-bold text-muted-foreground">
-                    {ticket.items.length}
-                  </p>
-                  <p className="text-[10px] font-semibold text-muted-foreground">
-                    {t.items}
-                  </p>
-                </div>
-                <div>
-                  <ChefHat
-                    className="mx-auto text-muted-foreground"
-                    size={16}
-                  />
-                  <p className="mt-1 truncate px-1 text-sm font-bold text-muted-foreground">
-                    {ticket.stationCode ?? "—"}
-                  </p>
-                  <p className="text-[10px] font-semibold text-muted-foreground">
-                    {t.station}
-                  </p>
-                </div>
-              </div>
-              {ticket.stationNameEn && (
-                <p className="mt-3 text-xs font-bold text-primary">
-                  {language === "ar"
-                    ? ticket.stationNameAr
-                    : ticket.stationNameEn}
-                </p>
-              )}
-              {ticket.dispatchStatus === "PrintFallbackPending" && (
-                <p className="mt-2 rounded-lg bg-warning/15 px-3 py-2 text-xs font-semibold text-warning">
-                  {t.fallbackNote}
-                </p>
-              )}
-              {ticket.lastError && (
-                <p className="mt-2 text-xs text-destructive">
-                  {ticket.lastError}
-                </p>
-              )}
-
-              <div className="mt-4 flex items-center justify-between text-[11px] font-bold text-muted-foreground">
-                <span>{t.progress}</span>
-                <span>
-                  {
-                    ticket.items.filter((item) => item.status === "Completed")
-                      .length
-                  }
-                  /{ticket.items.length}
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-sm font-black tabular-nums ${ticket.overdue ? "bg-destructive text-destructive-foreground" : "bg-black/20"}`}
+                  dir="ltr"
+                >
+                  <Clock3 size={14} />
+                  {elapsed(ticket.createdAt)}
                 </span>
+                {isNew(ticket) && (
+                  <span className="animate-pulse rounded-full bg-card px-2.5 py-0.5 text-xs font-black text-foreground">
+                    {t.newTicket}
+                  </span>
+                )}
               </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-success transition-all"
-                  style={{
-                    width: `${ticket.items.length ? (ticket.items.filter((item) => item.status === "Completed").length / ticket.items.length) * 100 : 0}%`,
-                  }}
-                />
-              </div>
+            </div>
 
-              <ul className="mt-4 space-y-2">
-                {ticket.items.map((item) => (
+            <ul className="flex-1 divide-y divide-border px-4 py-2">
+              {ticket.items.map((item) => {
+                const choices = snapshotChoices(item.selections, language);
+                const cancelled = item.status === "Cancelled";
+                return (
                   <li
                     key={item.id}
-                    className={`rounded-xl border border-border p-3 ${item.status === "Completed" ? "bg-success/15" : item.status === "Cancelled" ? "bg-destructive/15" : item.status === "Preparing" ? "bg-warning/15" : "bg-accent"}`}
+                    className={`py-2.5 ${cancelled ? "opacity-50 line-through" : ""}`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="min-w-0 font-bold text-muted-foreground">
-                        {language === "ar"
-                          ? item.productNameAr
-                          : item.productNameEn}
+                    <div className="flex items-start gap-3">
+                      <span className="grid h-9 min-w-9 shrink-0 place-items-center rounded-lg bg-foreground px-2 text-lg font-black text-background">
+                        {item.quantity}
                       </span>
-                      <span className="grid h-7 min-w-7 shrink-0 place-items-center rounded-lg bg-card px-2 text-xs font-bold text-muted-foreground">
-                        ×{item.quantity}
-                      </span>
-                    </div>
-                    {item.note && (
-                      <p className="mt-2 rounded-lg bg-card px-2 py-1.5 text-xs text-warning">
-                        {t.note}: {item.note}
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${item.status === "Completed" ? "bg-success/15 text-success" : item.status === "Preparing" ? "bg-warning/15 text-warning" : item.status === "Cancelled" ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"}`}
-                      >
-                        {itemLabel(item.status)}
-                      </span>
+                      <div className="min-w-0 pt-1">
+                        <p className="text-lg font-bold leading-snug">
+                          {language === "ar"
+                            ? item.productNameAr
+                            : item.productNameEn}
+                        </p>
+                        {choices.map((choice) => (
+                          <p key={choice} className="text-sm font-medium">
+                            + {choice}
+                          </p>
+                        ))}
+                        {item.note && (
+                          <p className="mt-1 rounded-md bg-warning/15 px-2 py-1 text-sm font-bold text-warning">
+                            ✎ {item.note}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </li>
-                ))}
-              </ul>
+                );
+              })}
+            </ul>
 
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                {ticket.dispatchStatus === "Pending" && (
+            {ticket.note && (
+              <p className="mx-4 mb-2 rounded-lg bg-warning/15 px-3 py-2 text-sm font-bold text-warning">
+                ✎ {ticket.note}
+              </p>
+            )}
+
+            <div className="border-t border-border p-3">
+              {ticket.dispatchStatus === "PrintFallbackPending" ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-warning">
+                    {t.fallbackNote}
+                  </p>
                   <Button
-                    onClick={() => void act(ticket, "send")}
-                    className="min-h-10 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"
-                  >
-                    {t.send}
-                  </Button>
-                )}
-                {(ticket.dispatchStatus === "SentToKds" ||
-                  ticket.dispatchStatus === "KdsAcknowledged" ||
-                  ticket.dispatchStatus === "PrintedFallback") &&
-                  (ticket.status === "New" ||
-                    ticket.status === "Preparing") && (
-                    <Button
-                      onClick={() => void act(ticket, "ready")}
-                      className="min-h-14 flex-1 rounded-lg bg-success px-4 text-lg font-black text-success-foreground"
-                    >
-                      <CheckCircle2 size={20} />
-                      {t.ready}
-                    </Button>
-                  )}
-                {ticket.status === "Ready" && (
-                  <Button
-                    onClick={() => void served(ticket)}
-                    className="min-h-14 flex-1 rounded-lg bg-primary px-4 text-lg font-black text-primary-foreground"
-                  >
-                    {t.served}
-                  </Button>
-                )}
-                {ticket.dispatchStatus === "SentToKds" && (
-                  <Button
-                    onClick={() => void act(ticket, "fallback")}
-                    className="min-h-10 rounded-lg border border-border px-3 text-sm font-semibold text-muted-foreground"
-                  >
-                    {t.fallback}
-                  </Button>
-                )}
-                {ticket.dispatchStatus === "PrintFallbackPending" && (
-                  <Button
-                    onClick={() => void act(ticket, "printed")}
-                    className="min-h-10 rounded-lg bg-success px-3 text-sm font-semibold text-primary-foreground"
+                    type="button"
+                    onClick={() =>
+                      void post(ticket, "printed").then(() => loadTickets())
+                    }
+                    className="min-h-12 w-full rounded-xl bg-warning font-bold text-warning-foreground"
                   >
                     {t.printed}
                   </Button>
-                )}
-                {ticket.dispatchStatus === "PrintFallbackPending" && (
+                </div>
+              ) : (
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
                   <Button
-                    onClick={() => void act(ticket, "fail")}
-                    className="min-h-10 rounded-lg border border-destructive px-3 text-sm font-semibold text-destructive"
+                    type="button"
+                    onClick={() => print(ticket)}
+                    className="inline-flex min-h-14 items-center gap-2 rounded-xl border-2 border-border bg-card px-4 font-bold"
                   >
-                    {t.fail}
+                    <Printer size={20} />
+                    {t.print}
                   </Button>
-                )}
+                  <Button
+                    type="button"
+                    onClick={() => void ready(ticket)}
+                    className="inline-flex min-h-14 items-center justify-center gap-2 rounded-xl bg-success text-xl font-black text-success-foreground"
+                  >
+                    <CheckCircle2 size={22} />
+                    {t.ready}
+                  </Button>
+                </div>
+              )}
+              <div className="mt-2 flex justify-end gap-2">
                 {confirmCancelId === ticket.id ? (
                   <>
                     <Button
-                      onClick={() => void cancel(ticket.id)}
-                      className="min-h-10 rounded-lg bg-destructive px-3 text-sm font-semibold text-primary-foreground"
+                      type="button"
+                      onClick={() => setConfirmCancelId(null)}
+                      className="min-h-9 rounded-lg border border-border px-3 text-xs font-semibold"
                     >
-                      {t.confirmCancel}
+                      {t.keep}
                     </Button>
                     <Button
-                      onClick={() => setConfirmCancelId(null)}
-                      className="min-h-10 rounded-lg border border-border px-3 text-sm font-semibold"
+                      type="button"
+                      onClick={() => void cancel(ticket)}
+                      className="min-h-9 rounded-lg bg-destructive px-3 text-xs font-semibold text-destructive-foreground"
                     >
-                      {t.cancel}
+                      {t.confirmCancel}
                     </Button>
                   </>
                 ) : (
                   <Button
+                    type="button"
                     onClick={() => setConfirmCancelId(ticket.id)}
-                    className="min-h-10 rounded-lg border border-destructive px-3 text-sm font-semibold text-destructive"
+                    className="min-h-9 rounded-lg px-3 text-xs font-semibold text-destructive"
                   >
                     {t.cancel}
                   </Button>
@@ -1030,24 +619,59 @@ export function KitchenSection({ language }: { language: Language }) {
   );
 }
 
-// A short two-tone chime generated in the browser, so no audio file has to ship with the app.
-function playNewTicketChime() {
+// Only orders still being made stay on the kitchen screen; a ready order leaves it.
+function isActive(ticket: Ticket) {
+  return (
+    (ticket.status === "New" || ticket.status === "Preparing") &&
+    ticket.dispatchStatus !== "Cancelled" &&
+    ticket.dispatchStatus !== "Failed"
+  );
+}
+
+let audio: AudioContext | null = null;
+function audioContext() {
   try {
-    const context = new AudioContext();
-    [880, 1320].forEach((frequency, index) => {
+    audio ??= new AudioContext();
+  } catch {
+    return null;
+  }
+  return audio;
+}
+function audioRunning() {
+  return audio?.state === "running";
+}
+async function unlockAudio() {
+  const context = audioContext();
+  if (context && context.state !== "running")
+    await context.resume().catch(() => undefined);
+}
+
+// A bright fast-food style order bell (ding-ding-DING, twice), generated in the browser so no audio
+// file ships with the app. Each strike stacks bell-like partials that ring out and decay.
+function playKitchenBell() {
+  const context = audioContext();
+  if (!context || context.state !== "running") return;
+  const strike = (at: number, frequency: number) => {
+    for (const [ratio, level] of [
+      [1, 0.32],
+      [2.76, 0.1],
+      [5.4, 0.04],
+    ]) {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      oscillator.frequency.value = frequency;
-      const start = context.currentTime + index * 0.18;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency * ratio;
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(level, at + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.9);
       oscillator.connect(gain).connect(context.destination);
-      oscillator.start(start);
-      oscillator.stop(start + 0.18);
-    });
-    setTimeout(() => void context.close(), 600);
-  } catch {
-    /* Audio may be blocked until the screen has been tapped once; the visual badge still shows. */
-  }
+      oscillator.start(at);
+      oscillator.stop(at + 0.95);
+    }
+  };
+  const start = context.currentTime + 0.02;
+  for (const round of [0, 1.2])
+    [1319, 1319, 1760].forEach((frequency, index) =>
+      strike(start + round + index * 0.17, frequency),
+    );
 }

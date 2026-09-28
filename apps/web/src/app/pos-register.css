@@ -376,6 +376,10 @@ body:has(.pos-shell) [data-slot="popover-content"] [role="option"] {
   gap: 12px;
   margin-top: 16px;
 }
+/* Hold · Pay later · Pay */
+.pos-checkout-actions:has(> :nth-child(3)) {
+  grid-template-columns: 76px 88px minmax(0, 1fr);
+}
 .pos-register .pos-checkout-actions button {
   min-height: 64px;
   white-space: normal;

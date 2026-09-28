@@ -170,6 +170,7 @@ public static class SyncEndpoints
         if (!built.Succeeded) return OperationResult(key, OrderType, "failed", error: built.Error!);
         var order = built.Order!;
         order.Status = orderRequest.Status;
+        if (order.Status == OrderStatus.Paid) order.PaidAt = DateTimeOffset.UtcNow;
 
         // The client's offline-estimated total is kept only to flag catalog drift for the operator's
         // attention, never to influence the recomputed (authoritative) order total above.

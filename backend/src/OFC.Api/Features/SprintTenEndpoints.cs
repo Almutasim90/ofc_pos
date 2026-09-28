@@ -396,6 +396,10 @@ public static class SprintTenEndpoints
     private static void ApplyOrderStatus(OFCDbContext db, Order order, OrderStatus target, Guid? changedByUserId, string note)
     {
         if (order.Status == target) return;
+        // One tap can move the kitchen several steps (ready straight from sent), so walk through the
+        // skipped steps to keep the status history complete.
+        if (target is OrderStatus.Ready or OrderStatus.Completed && order.Status == OrderStatus.SentToKitchen)
+            ApplyOrderStatus(db, order, OrderStatus.Preparing, changedByUserId, note);
         if (target == OrderStatus.Completed && order.Status == OrderStatus.Preparing)
         {
             ApplyOrderStatus(db, order, OrderStatus.Ready, changedByUserId, note);
