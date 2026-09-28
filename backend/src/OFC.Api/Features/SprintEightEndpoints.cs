@@ -105,7 +105,9 @@ public static class SprintEightEndpoints
         shift.ExpectedCash = expectedCash; shift.CardExpectedTotal = cardExpected; shift.ActualCash = actualCash; shift.ActualCardTotal = ShiftRules.RoundMoney(request.ActualCardTotal);
         shift.CashVariance = cashVariance; shift.CardVariance = cardVariance;
         shift.ClosedByUserId = UserId(user); shift.ClosedAt = DateTimeOffset.UtcNow; shift.Status = ShiftStatus.Closed;
-        foreach (var item in request.Denominations) shift.Denominations.Add(new ShiftDenomination { ShiftId = shift.Id, Denomination = item.Denomination, Count = item.Count, Total = ShiftRules.RoundMoney(item.Denomination * item.Count) });
+        // Added through the context, not the loaded shift's collection: a new row with a client-generated key reached
+        // only via navigation is taken for an existing row and UPDATEd, which failed every close that counted cash.
+        foreach (var item in request.Denominations) db.ShiftDenominations.Add(new ShiftDenomination { ShiftId = shift.Id, Denomination = item.Denomination, Count = item.Count, Total = ShiftRules.RoundMoney(item.Denomination * item.Count) });
 
         identity.Audit(UserId(user), shift.BranchId, DeviceId(user), "shift.blind-close", "shift", shift.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { expectedCash, shift.ActualCash, cashVariance, cardExpected, shift.ActualCardTotal, cardVariance, denominationTotal, movements = shift.Movements.Count }));
         await db.SaveChangesAsync(ct);

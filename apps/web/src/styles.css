@@ -112,8 +112,8 @@
   --login-accent-soft: #fff0e6;
   --login-bg: #f4f5f7;
   --login-surface: #ffffff;
-  --login-text: #1a1a1a;
-  --login-muted: #626a72;
+  --login-text: #000000;
+  --login-muted: #111111;
   --login-border: #ced4da;
   --app-primary: #d9480f;
   --app-primary-hover: #b83d0c;
@@ -130,9 +130,9 @@
   --app-bg: #f4f5f7;
   --app-surface: #ffffff;
   --app-surface-raised: #ffffff;
-  --app-text: #1a1a1a;
+  --app-text: #000000;
   --app-black: #111111;
-  --app-muted: #626a72;
+  --app-muted: #111111;
   --app-border: #ced4da;
   --app-hover: #eef0f3;
   --app-shadow: rgba(20, 20, 30, 0.08);
@@ -1551,7 +1551,8 @@
     [data-slot="select-content"]
   )
   textarea::placeholder {
-  color: var(--app-muted);
+  /* Kept lighter than real text so an empty field never reads as filled in. */
+  color: color-mix(in srgb, var(--app-muted) 55%, transparent);
 }
 :where(
     .app-shell,

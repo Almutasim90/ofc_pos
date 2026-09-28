@@ -28,6 +28,7 @@ public static class SprintTenEndpoints
         api.MapPost("/kitchen/tickets/{id:guid}/printed", MarkPrintedFallback).RequireAuthorization();
         api.MapPost("/kitchen/tickets/{id:guid}/fail", Fail).RequireAuthorization();
         api.MapPut("/kitchen/tickets/{id:guid}/item/{itemId:guid}", SetItemStatus).RequireAuthorization();
+        api.MapPost("/kitchen/tickets/{id:guid}/ready", MarkReady).RequireAuthorization();
         api.MapPost("/kitchen/tickets/{id:guid}/cancel", Cancel).RequireAuthorization();
     }
 
@@ -83,9 +84,12 @@ public static class SprintTenEndpoints
     {
         var resolvedOrderNumber = string.IsNullOrWhiteSpace(orderNumber) ? (order.Number > 0 ? order.Number.ToString() : order.Id.ToString("N")[..8].ToUpperInvariant()) : orderNumber;
         var created = new List<KitchenTicket>();
-        foreach (var group in order.Lines.Where(x => x.VoidedQuantity < x.Quantity).GroupBy(x => products.TryGetValue(x.ProductId, out var product) ? product.PreparationStationId : null))
+        var lines = order.Lines.Where(x => x.VoidedQuantity < x.Quantity).ToList();
+        // One order is one kitchen ticket: the kitchen asked to see the whole order together rather than
+        // split per preparation station. The ticket keeps a station only when every line shares it.
+        var stations = lines.Select(x => products.TryGetValue(x.ProductId, out var product) ? product.PreparationStationId : null).Distinct().ToList();
+        foreach (var group in lines.Take(KitchenRules.MaxItemsPerTicket).GroupBy(_ => stations.Count == 1 ? stations[0] : null))
         {
-            if (created.Count >= KitchenRules.MaxItemsPerTicket) break;
             // Tickets go straight to the kitchen screen: there is no separate "send" step for staff to forget.
             var ticket = new KitchenTicket { BranchId = branchId, OrderId = order.Id, DispatchId = dispatchId, OrderNumber = resolvedOrderNumber, StationId = group.Key, TargetMinutes = targetMinutes, Note = note?.Trim(), CreatedByUserId = createdByUserId, DeviceId = deviceId, DispatchStatus = KitchenDispatchStatus.SentToKds, KdsAttempts = 1 };
             foreach (var line in group)
@@ -147,7 +151,8 @@ public static class SprintTenEndpoints
     {
         if (!await CanOperate(db, user, branchId, ct, "kitchen.view")) return Forbidden();
         IQueryable<KitchenTicket> query = db.KitchenTickets.AsNoTracking().Where(x => x.BranchId == branchId).Include(x => x.Items);
-        if (stationId.HasValue) query = query.Where(x => x.StationId == stationId);
+        // A whole-order ticket spanning several stations has no station, so every station screen shows it.
+        if (stationId.HasValue) query = query.Where(x => x.StationId == stationId || x.StationId == null);
         if (!string.IsNullOrWhiteSpace(status))
         {
             if (!Enum.TryParse<KitchenDispatchStatus>(status, ignoreCase: true, out var parsed)) return Validation("status", "The kitchen dispatch status is invalid.");
@@ -158,7 +163,41 @@ public static class SprintTenEndpoints
         var stationIds = tickets.Select(x => x.StationId).Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToList();
         var stations = stationIds.Count == 0 ? new Dictionary<Guid, PreparationStation>() : await db.PreparationStations.AsNoTracking().Where(x => stationIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var now = DateTimeOffset.UtcNow;
-        return Results.Ok(tickets.Select(x => TicketResponse(x, stations.TryGetValue(x.StationId ?? Guid.Empty, out var station) ? station : null, now)));
+        // The order type (dine-in / takeaway / …) comes from the order's sales channel so the kitchen never mixes them up.
+        var orderIds = tickets.Select(x => x.OrderId).Distinct().ToList();
+        var orderChannels = orderIds.Count == 0 ? new Dictionary<Guid, SalesChannel>() : await (
+            from order in db.Orders.AsNoTracking()
+            join channel in db.SalesChannels.AsNoTracking() on order.SalesChannelId equals channel.Id
+            where orderIds.Contains(order.Id)
+            select new { order.Id, channel }).ToDictionaryAsync(x => x.Id, x => x.channel, ct);
+        return Results.Ok(tickets.Select(x => TicketResponse(x, stations.TryGetValue(x.StationId ?? Guid.Empty, out var station) ? station : null, now, orderChannels.GetValueOrDefault(x.OrderId))));
+    }
+
+    // One tap from the kitchen: the whole order is ready, with no separate receive / start / ready step per item.
+    private static async Task<IResult> MarkReady(Guid id, OFCDbContext db, IdentityService identity, IKitchenBroadcaster broadcaster, IOrdersBroadcaster ordersBroadcaster, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        var ticket = await db.KitchenTickets.Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (ticket is null) return Results.NotFound();
+        if (!await CanOperate(db, user, ticket.BranchId, ct, "kitchen.acknowledge")) return Forbidden();
+        if (ticket.Status is KitchenTicketStatus.Cancelled or KitchenTicketStatus.Completed || ticket.DispatchStatus is not (KitchenDispatchStatus.SentToKds or KitchenDispatchStatus.KdsAcknowledged or KitchenDispatchStatus.PrintedFallback))
+            return Validation("ticket", "This ticket cannot be marked ready in its current state.");
+        var now = DateTimeOffset.UtcNow;
+        if (ticket.DispatchStatus != KitchenDispatchStatus.KdsAcknowledged)
+        {
+            ticket.DispatchStatus = KitchenDispatchStatus.KdsAcknowledged; ticket.AcknowledgedAt ??= now;
+        }
+        foreach (var item in ticket.Items.Where(x => x.Status is KitchenItemStatus.New or KitchenItemStatus.Preparing))
+        {
+            item.Status = KitchenItemStatus.Ready; item.StartedAt ??= now; item.ReadyAt ??= now;
+        }
+        ticket.UpdatedAt = now;
+        ApplyTicketProgress(ticket, now);
+        identity.Audit(UserId(user), ticket.BranchId, DeviceId(user), "kitchen.ticket.ready", "kitchen_ticket", ticket.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { ticket.DispatchStatus, ticket.Status, ticket.ReadyAt }));
+        var order = await SynchronizeOrderStatus(db, ticket.OrderId, UserId(user), ct);
+        await db.SaveChangesAsync(ct);
+        await broadcaster.TicketChanged(ticket.BranchId, ticket.Id, "ready");
+        if (order?.Source == OrderSource.Qr) await ordersBroadcaster.CustomerOrderChanged(order.ClientRequestId, order.Status.ToString());
+        return Results.Ok(TicketResponse(ticket, await Station(db, ticket, ct), now));
     }
 
     private static async Task<IResult> GetTicket(Guid id, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
@@ -425,9 +464,10 @@ public static class SprintTenEndpoints
         items = ticket.Items.Select(x => new { x.ProductNameAr, x.ProductNameEn, x.Quantity })
     };
 
-    private static object TicketResponse(KitchenTicket ticket, PreparationStation? station, DateTimeOffset? now = null) => new
+    private static object TicketResponse(KitchenTicket ticket, PreparationStation? station, DateTimeOffset? now = null, SalesChannel? orderChannel = null) => new
     {
         ticket.Id, ticket.BranchId, ticket.OrderId, ticket.DispatchId, ticket.OrderNumber, ticket.StationId,
+        orderType = orderChannel?.Kind.ToString(), orderTypeNameAr = orderChannel?.NameAr, orderTypeNameEn = orderChannel?.NameEn,
         stationCode = station?.Code, stationNameAr = station?.NameAr, stationNameEn = station?.NameEn,
         dispatchStatus = ticket.DispatchStatus.ToString(), channel = ticket.Channel.ToString(), status = ticket.Status.ToString(),
         ticket.TargetMinutes, ticket.KdsAttempts, ticket.FallbackPrinted, ticket.LastError, ticket.Note,

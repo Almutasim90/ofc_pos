@@ -315,13 +315,21 @@ test('F11 toggles kiosk mode', async ({page}) => {
   await expect(page.locator('.app-header')).not.toHaveClass(/kiosk-header/);
 });
 
-const kdsTicket = (id: string) => ({id,branchId:'b1',orderId:`o-${id}`,dispatchId:`d-${id}`,orderNumber:'21',stationId:null,stationCode:null,stationNameAr:null,stationNameEn:null,dispatchStatus:'SentToKds',channel:'Kds',status:'New',targetMinutes:15,kdsAttempts:1,fallbackPrinted:false,lastError:null,note:null,wasPrepStartedBeforeCancellation:false,cancellationNotified:false,createdAt:new Date().toISOString(),startedAt:null,readyAt:null,completedAt:null,cancelledAt:null,acknowledgedAt:null,fallbackPrintedAt:null,updatedAt:new Date().toISOString(),overdue:false,items:[{id:`i-${id}`,orderLineId:null,productId:'p0',productNameAr:'وجبة',productNameEn:'Chicken meal',quantity:2,note:null,selections:'[]',status:'New',startedAt:null,readyAt:null,completedAt:null}]});
+const kdsTicket = (id: string) => ({id,branchId:'b1',orderId:`o-${id}`,dispatchId:`d-${id}`,orderNumber:'21',stationId:null,orderType:'Takeaway',orderTypeNameAr:'سفري',orderTypeNameEn:'Takeaway',stationCode:null,stationNameAr:null,stationNameEn:null,dispatchStatus:'SentToKds',channel:'Kds',status:'New',targetMinutes:15,kdsAttempts:1,fallbackPrinted:false,lastError:null,note:null,wasPrepStartedBeforeCancellation:false,cancellationNotified:false,createdAt:new Date().toISOString(),startedAt:null,readyAt:null,completedAt:null,cancelledAt:null,acknowledgedAt:null,fallbackPrintedAt:null,updatedAt:new Date().toISOString(),overdue:false,items:[{id:`i-${id}`,orderLineId:null,productId:'p0',productNameAr:'وجبة',productNameEn:'Chicken meal',quantity:2,note:null,selections:'[]',status:'New',startedAt:null,readyAt:null,completedAt:null}]});
 
-test('kitchen tablet shows new tickets ready to acknowledge without a send step', async ({page}) => {
+test('kitchen tablet shows the order type and marks it ready in one tap, without a send step', async ({page}) => {
   await page.setViewportSize({width:1280,height:800}); await setup(page,'en','light');
   await page.route('**/api/v1/kitchen/tickets?**', route => route.fulfill({json:[kdsTicket('t1')]}));
+  // Showing the ticket confirms receipt, so the register never warns "not received" while the cooks work.
+  let ackCalled = false;
+  await page.route('**/api/v1/kitchen/tickets/t1/ack', route => { ackCalled = true; return route.fulfill({json:kdsTicket('t1')}); });
   await page.goto('/#/kitchen');
-  await expect(page.getByRole('button',{name:'Received',exact:true})).toBeVisible();
+  await expect.poll(() => ackCalled).toBe(true);
+  let readyCalled = false;
+  await page.route('**/api/v1/kitchen/tickets/t1/ready', route => { readyCalled = true; return route.fulfill({json:kdsTicket('t1')}); });
+  await expect(page.getByText('Takeaway',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Ready',exact:true}).click();
+  await expect.poll(() => readyCalled).toBe(true);
   await expect(page.getByText('New',{exact:true}).first()).toBeVisible();
   await expect(page.getByRole('button',{name:'Send to KDS'})).toHaveCount(0);
 });
@@ -436,7 +444,7 @@ test('register header shows the cashier, the open shift and the time', async ({p
   await expect(session.locator('time')).toBeVisible();
 });
 
-test('every configured non-cash method can take the payment', async ({page}) => {
+test('the POS offers only cash, card and cash + card, whatever else is configured', async ({page}) => {
   await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
   await page.route('**/api/v1/payment-methods**', route => route.fulfill({json:[{id:'cash',code:'CASH',nameAr:'نقد',nameEn:'Cash',kind:'Cash'},{id:'card',code:'CARD',nameAr:'بطاقة',nameEn:'Card',kind:'Card'},{id:'apple',code:'APPLE',nameAr:'آبل باي',nameEn:'Apple Pay',kind:'ApplePay'}]}));
   let paidWith = '';
@@ -444,9 +452,10 @@ test('every configured non-cash method can take the payment', async ({page}) => 
   await page.goto('/#/pos');
   await page.getByRole('button',{name:/Crispy chicken family meal 1 OMR/}).first().click();
   await page.getByRole('button',{name:'Pay',exact:true}).click();
-  await page.getByRole('button',{name:'Apple Pay',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Apple Pay',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Card',exact:true}).click();
   await page.getByRole('button',{name:'Confirm payment',exact:true}).click();
-  await expect.poll(() => paidWith).toBe('apple');
+  await expect.poll(() => paidWith).toBe('card');
 });
 
 test('customer display mirrors the cart and thanks the customer after payment', async ({page, context}) => {

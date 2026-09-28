@@ -60,6 +60,9 @@ type Ticket = {
   dispatchId: string;
   orderNumber: string;
   stationId: string | null;
+  orderType: string | null;
+  orderTypeNameAr: string | null;
+  orderTypeNameEn: string | null;
   stationCode: string | null;
   stationNameAr: string | null;
   stationNameEn: string | null;
@@ -124,6 +127,9 @@ const copy = {
     note: "ملاحظة",
     quantity: "كمية",
     orderNo: "طلب",
+    dineIn: "محلي",
+    takeaway: "سفري",
+    served: "تم التسليم",
     dispatched: "تم الإرسال",
     saved: "تم الحفظ.",
     failed: "تعذر تنفيذ العملية.",
@@ -189,6 +195,9 @@ const copy = {
     note: "Note",
     quantity: "Qty",
     orderNo: "Order",
+    dineIn: "Dine-in",
+    takeaway: "Takeaway",
+    served: "Served",
     dispatched: "Dispatched",
     saved: "Saved.",
     failed: "Unable to complete the operation.",
@@ -308,9 +317,35 @@ export function KitchenSection({ language }: { language: Language }) {
         playNewTicketChime();
       seenTickets.current = new Set(next.map((x) => x.id));
       setTickets(next);
+      acknowledgeShown(next);
     } finally {
       setLoading(false);
     }
+  }
+
+  // A ticket on this screen has been received: confirm it automatically so the register doesn't warn
+  // "kitchen hasn't received it" and the fallback printer isn't triggered while the cooks work on it.
+  const acknowledging = useRef(new Set<string>());
+  function acknowledgeShown(shown: Ticket[]) {
+    const fresh = shown.filter(
+      (x) =>
+        x.dispatchStatus === "SentToKds" && !acknowledging.current.has(x.id),
+    );
+    if (!fresh.length) return;
+    fresh.forEach((x) => acknowledging.current.add(x.id));
+    void Promise.all(
+      fresh.map((x) =>
+        auth(`/api/v1/kitchen/tickets/${x.id}/ack`, { method: "POST" }).catch(
+          () => null,
+        ),
+      ),
+    ).then((results) => {
+      // Let a failed confirmation be retried on the next refresh.
+      fresh.forEach((x, i) => {
+        if (!results[i]?.ok) acknowledging.current.delete(x.id);
+      });
+      if (results.some((r) => r?.ok)) void loadTickets();
+    });
   }
 
   async function loadContext() {
@@ -411,13 +446,15 @@ export function KitchenSection({ language }: { language: Language }) {
 
   async function act(
     ticket: Ticket,
-    action: "send" | "ack" | "fallback" | "printed" | "fail",
+    action: "send" | "ack" | "ready" | "fallback" | "printed" | "fail",
   ) {
     setMsg("");
     const id = ticket.id;
     try {
       const url =
-        action === "printed"
+        action === "ready"
+          ? `/api/v1/kitchen/tickets/${id}/ready`
+          : action === "printed"
           ? `/api/v1/kitchen/tickets/${id}/printed`
           : action === "fail"
             ? `/api/v1/kitchen/tickets/${id}/fail`
@@ -447,18 +484,25 @@ export function KitchenSection({ language }: { language: Language }) {
     }
   }
 
-  async function setItem(id: string, itemId: string, status: ItemStatus) {
+  // One tap clears a ready order off the screen once it has been handed over.
+  async function served(ticket: Ticket) {
     setMsg("");
     try {
-      const response = await auth(
-        `/api/v1/kitchen/tickets/${id}/item/${itemId}`,
-        { method: "PUT", body: JSON.stringify({ status }) },
+      const results = await Promise.all(
+        ticket.items
+          .filter((item) => item.status === "Ready")
+          .map((item) =>
+            auth(`/api/v1/kitchen/tickets/${ticket.id}/item/${item.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ status: "Completed" }),
+            }),
+          ),
       );
-      if (!response.ok) throw new Error(t.failed);
-      await loadTickets();
+      if (results.some((response) => !response.ok)) setMsg(t.failed, true);
     } catch {
       setMsg(t.failed, true);
     }
+    void loadTickets();
   }
 
   async function cancel(id: string) {
@@ -480,19 +524,16 @@ export function KitchenSection({ language }: { language: Language }) {
     }
   }
 
-  const itemNext = (item: TicketItem): ItemStatus | null =>
-    item.status === "New"
-      ? "Preparing"
-      : item.status === "Preparing"
-        ? "Ready"
-        : item.status === "Ready"
-          ? "Completed"
-          : null;
   const elapsedMinutes = (createdAt: string) =>
     Math.max(
       0,
       Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000),
     );
+  // Tickets are confirmed the moment they appear, so "new" is the first minute on screen.
+  const isNew = (ticket: Ticket) =>
+    ticket.dispatchStatus === "SentToKds" ||
+    (elapsedMinutes(ticket.createdAt) < 1 &&
+      (ticket.status === "New" || ticket.status === "Preparing"));
   const preparingCount = tickets.filter(
     (ticket) =>
       ticket.status === "Preparing" ||
@@ -746,7 +787,7 @@ export function KitchenSection({ language }: { language: Language }) {
         {tickets.map((ticket) => (
           <article
             key={ticket.id}
-            className={`group relative overflow-hidden rounded-xl border bg-card transition hover:-translate-y-0.5 ${ticket.dispatchStatus === "SentToKds" ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
+            className={`group relative overflow-hidden rounded-xl border bg-card transition hover:-translate-y-0.5 ${isNew(ticket) ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
           >
             <div
               className={`h-1.5 w-full ${ticket.overdue ? "bg-destructive" : ticket.status === "Ready" ? "bg-success" : ticket.status === "Preparing" ? "bg-warning" : "bg-primary"}`}
@@ -759,7 +800,20 @@ export function KitchenSection({ language }: { language: Language }) {
                   </p>
                   <p className="mt-0.5 flex items-center gap-2 text-2xl font-black tracking-tight text-foreground">
                     #{ticket.orderNumber}
-                    {ticket.dispatchStatus === "SentToKds" && (
+                    {ticket.orderType && (
+                      <span
+                        className={`rounded-full px-3 py-0.5 text-sm font-black ${ticket.orderType === "Takeaway" ? "bg-warning text-warning-foreground" : ticket.orderType === "DineIn" || ticket.orderType === "InStore" ? "bg-success text-success-foreground" : "bg-secondary text-secondary-foreground"}`}
+                      >
+                        {ticket.orderType === "Takeaway"
+                          ? t.takeaway
+                          : ticket.orderType === "DineIn"
+                            ? t.dineIn
+                            : language === "ar"
+                              ? ticket.orderTypeNameAr
+                              : ticket.orderTypeNameEn}
+                      </span>
+                    )}
+                    {isNew(ticket) && (
                       <span className="animate-pulse rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground">
                         {t.newTicket}
                       </span>
@@ -885,27 +939,6 @@ export function KitchenSection({ language }: { language: Language }) {
                       >
                         {itemLabel(item.status)}
                       </span>
-                      <div className="flex gap-1.5">
-                        {itemNext(item) &&
-                          ticket.dispatchStatus !== "Cancelled" && (
-                            <Button
-                              onClick={() =>
-                                void setItem(
-                                  ticket.id,
-                                  item.id,
-                                  itemNext(item)!,
-                                )
-                              }
-                              className="min-h-8 rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground hover:bg-primary"
-                            >
-                              {itemNext(item) === "Preparing"
-                                ? t.start
-                                : itemNext(item) === "Ready"
-                                  ? t.ready
-                                  : t.complete}
-                            </Button>
-                          )}
-                      </div>
                     </div>
                   </li>
                 ))}
@@ -920,12 +953,25 @@ export function KitchenSection({ language }: { language: Language }) {
                     {t.send}
                   </Button>
                 )}
-                {ticket.dispatchStatus === "SentToKds" && (
+                {(ticket.dispatchStatus === "SentToKds" ||
+                  ticket.dispatchStatus === "KdsAcknowledged" ||
+                  ticket.dispatchStatus === "PrintedFallback") &&
+                  (ticket.status === "New" ||
+                    ticket.status === "Preparing") && (
+                    <Button
+                      onClick={() => void act(ticket, "ready")}
+                      className="min-h-14 flex-1 rounded-lg bg-success px-4 text-lg font-black text-success-foreground"
+                    >
+                      <CheckCircle2 size={20} />
+                      {t.ready}
+                    </Button>
+                  )}
+                {ticket.status === "Ready" && (
                   <Button
-                    onClick={() => void act(ticket, "ack")}
-                    className="min-h-12 flex-1 rounded-lg bg-success px-4 text-base font-bold text-success-foreground"
+                    onClick={() => void served(ticket)}
+                    className="min-h-14 flex-1 rounded-lg bg-primary px-4 text-lg font-black text-primary-foreground"
                   >
-                    {t.ack}
+                    {t.served}
                   </Button>
                 )}
                 {ticket.dispatchStatus === "SentToKds" && (

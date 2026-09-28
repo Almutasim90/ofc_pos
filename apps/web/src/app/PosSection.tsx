@@ -611,8 +611,6 @@ export function PosSection({
   // Payment methods are only shown after the cashier presses Pay, keeping the receipt compact.
   useEffect(() => warmOfflineStore(), []);
   const [payStep, setPayStep] = useState(false);
-  // Which non-cash method (card, Apple Pay, voucher, …) the cashier picked in the payment popup.
-  const [cardMethodId, setCardMethodId] = useState<string | null>(null);
   // Opening time of the branch's open shift (null = none open, undefined = not known yet / offline).
   const [shiftOpenedAt, setShiftOpenedAt] = useState<string | null | undefined>(
     undefined,
@@ -1316,11 +1314,6 @@ export function PosSection({
   useEffect(() => {
     if (cart.length === 0 || isExternallyPaidChannel) setPayStep(false);
   }, [cart.length, isExternallyPaidChannel]);
-  const selectableOfflineMethods = offlineMethods.filter((method) =>
-    isExternallyPaidChannel
-      ? method.kind === "External"
-      : method.kind !== "External",
-  );
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
     return products.filter(
@@ -1350,14 +1343,14 @@ export function PosSection({
     [cart],
   );
   const total = roundMoney(amounts.gross);
+  // The POS offers exactly three tenders (cash, card, cash + card), whatever else the branch has configured.
   const payCashMethod = offlineMethods.find((m) => m.kind === "Cash");
-  const cardMethods = offlineMethods.filter(
-    (m) => m.kind !== "Cash" && m.kind !== "External",
-  );
   const payCardMethod =
-    cardMethods.find((m) => m.id === cardMethodId) ??
-    cardMethods.find((m) => m.kind === "Card") ??
-    cardMethods[0];
+    offlineMethods.find((m) => m.kind === "Card") ??
+    offlineMethods.find((m) => m.kind !== "Cash" && m.kind !== "External");
+  const selectableOfflineMethods = isExternallyPaidChannel
+    ? offlineMethods.filter((method) => method.kind === "External")
+    : [payCashMethod, payCardMethod].filter((m): m is Method => !!m);
   // Mirrors backend OrderRules.ManualDiscountMaxPercent — this is a display estimate only, the server
   // is the authority and re-validates the cap independently when the order is created.
   const discountMaxPercent = 20;
@@ -2909,7 +2902,7 @@ export function PosSection({
             )}
             <div>
               <p className="text-sm font-medium">{t.payMethod}</p>
-              <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(96px,1fr))] gap-2">
+              <div className="mt-2 grid grid-cols-3 gap-2">
                 <Button
                   type="button"
                   disabled={!payCashMethod}
@@ -2919,30 +2912,15 @@ export function PosSection({
                   <Banknote size={14} />
                   {t.cash}
                 </Button>
-                {(cardMethods.length ? cardMethods : [null]).map((method) => {
-                  const selected =
-                    effectivePayMethod === "Card" &&
-                    !!method &&
-                    payCardMethod?.id === method.id;
-                  return (
-                    <Button
-                      key={method?.id ?? "card"}
-                      type="button"
-                      disabled={!method}
-                      onClick={() => {
-                        if (!method) return;
-                        setCardMethodId(method.id);
-                        choosePayMethod("Card");
-                      }}
-                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
-                    >
-                      <CreditCard size={14} />
-                      {method && cardMethods.length > 1
-                        ? paymentMethodName(language, method)
-                        : t.card}
-                    </Button>
-                  );
-                })}
+                <Button
+                  type="button"
+                  disabled={!payCardMethod}
+                  onClick={() => choosePayMethod("Card")}
+                  className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg border text-sm font-semibold disabled:opacity-40 ${effectivePayMethod === "Card" ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                >
+                  <CreditCard size={14} />
+                  {t.card}
+                </Button>
                 <Button
                   type="button"
                   disabled={!payCashMethod || !payCardMethod}

@@ -36,6 +36,27 @@ public class KitchenDispatchFlowTests
         Assert.Equal("7", ticket.OrderNumber);
     }
 
+    // The kitchen receives one order as one ticket, even when its items are prepared at different stations.
+    [Fact]
+    public void An_order_spanning_stations_is_one_ticket()
+    {
+        using var factory = new ApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<OFCDbContext>();
+        var identity = scope.ServiceProvider.GetRequiredService<IdentityService>();
+        var order = new Order { BranchId = Guid.NewGuid(), SalesChannelId = Guid.NewGuid(), Number = 8, Status = OrderStatus.Paid };
+        var grill = new Product { Sku = "G", NameAr = "مشاوي", NameEn = "Grill", CategoryId = Guid.NewGuid(), PreparationStationId = Guid.NewGuid() };
+        var drink = new Product { Sku = "D", NameAr = "عصير", NameEn = "Juice", CategoryId = Guid.NewGuid(), PreparationStationId = Guid.NewGuid() };
+        order.Lines.Add(new OrderLine { OrderId = order.Id, ProductId = grill.Id, ProductNameAr = grill.NameAr, ProductNameEn = grill.NameEn, Quantity = 1 });
+        order.Lines.Add(new OrderLine { OrderId = order.Id, ProductId = drink.Id, ProductNameAr = drink.NameAr, ProductNameEn = drink.NameEn, Quantity = 2 });
+
+        var tickets = SprintTenEndpoints.BuildTickets(db, identity, order.BranchId, order, new Dictionary<Guid, Product> { [grill.Id] = grill, [drink.Id] = drink }, Guid.NewGuid(), null, null, null, null, null, "test");
+
+        var ticket = Assert.Single(tickets);
+        Assert.Null(ticket.StationId);
+        Assert.Equal(2, ticket.Items.Count);
+    }
+
     [Fact]
     public async Task Unacknowledged_ticket_without_a_kitchen_printer_is_not_turned_into_a_print_job()
     {
@@ -89,5 +110,14 @@ public class KitchenDispatchFlowTests
         Assert.True(ack.StatusCode == HttpStatusCode.OK, await ack.Content.ReadAsStringAsync());
         var order = await (await client.GetAsync($"/api/v1/orders/{orderId}")).Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Preparing", order.GetProperty("status").GetString());
+
+        // The kitchen screen shows the order type, and one tap marks the whole order ready.
+        var listed = (await (await client.GetAsync($"/api/v1/kitchen/tickets?branchId={branchId}")).Content.ReadFromJsonAsync<JsonElement>())[0];
+        Assert.Equal("Dine-in", listed.GetProperty("orderTypeNameEn").GetString());
+        var ready = await client.PostAsync($"/api/v1/kitchen/tickets/{ticket.GetProperty("id").GetGuid()}/ready", null);
+        Assert.True(ready.StatusCode == HttpStatusCode.OK, await ready.Content.ReadAsStringAsync());
+        Assert.Equal("Ready", (await ready.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        order = await (await client.GetAsync($"/api/v1/orders/{orderId}")).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Ready", order.GetProperty("status").GetString());
     }
 }

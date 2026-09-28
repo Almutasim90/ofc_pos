@@ -352,10 +352,9 @@ export function ShiftsSection({ language }: { language: Language }) {
     setMsg("");
     setLoading(true);
     try {
-      const counts = denominations.map((d) => ({
-        denomination: d,
-        count: Number(denom[d] ?? 0),
-      }));
+      const counts = denominations
+        .map((d) => ({ denomination: d, count: Number(denom[d] ?? 0) }))
+        .filter((d) => d.count > 0);
       const response = await auth(`/api/v1/shifts/${current.id}/blind-close`, {
         method: "POST",
         body: JSON.stringify({

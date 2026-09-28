@@ -42,4 +42,29 @@ public class BlindCloseTests
         Assert.Equal(HttpStatusCode.OK, byId.StatusCode);
         Assert.Equal(JsonValueKind.Null, (await byId.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("cashSales").ValueKind);
     }
+
+    // Closing with a counted drawer used to fail every time (the denomination rows were UPDATEd instead of
+    // INSERTed), leaving the shift open so the next one could not be opened either.
+    [Fact]
+    public async Task A_shift_closes_with_counted_cash_and_a_new_one_can_then_be_opened()
+    {
+        using var factory = new ApiFactory();
+        var admin = factory.AnonymousClient();
+        await admin.PostAsJsonAsync("/api/v1/auth/bootstrap", new { organizationNameAr = "منظمة", organizationNameEn = "Org", branchNameAr = "الفرع", branchNameEn = "Branch", username = "close-admin", displayName = "Admin", password = "password1234" });
+        var adminLogin = await admin.PostAsJsonAsync("/api/v1/auth/login", new { username = "close-admin", password = "password1234", branchId = (Guid?)null, deviceId = (Guid?)null });
+        admin.DefaultRequestHeaders.Authorization = new("Bearer", (await adminLogin.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        var branchId = (await (await admin.GetAsync("/api/v1/branches")).Content.ReadFromJsonAsync<JsonElement>())[0].GetProperty("id").GetGuid();
+
+        var opened = await admin.PostAsJsonAsync("/api/v1/shifts", new { branchId, openingCash = 20m });
+        Assert.True(opened.IsSuccessStatusCode, await opened.Content.ReadAsStringAsync());
+        var shiftId = (await opened.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var closed = await admin.PostAsJsonAsync($"/api/v1/shifts/{shiftId}/blind-close", new { actualCash = 25m, actualCardTotal = 0m, denominations = new[] { new { denomination = 20m, count = 1 }, new { denomination = 5m, count = 1 } } });
+        Assert.True(closed.IsSuccessStatusCode, await closed.Content.ReadAsStringAsync());
+        var current = (await (await admin.GetAsync($"/api/v1/shifts/current?branchId={branchId}")).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("shift");
+        Assert.Equal(JsonValueKind.Null, current.ValueKind);
+
+        var reopened = await admin.PostAsJsonAsync("/api/v1/shifts", new { branchId, openingCash = 25m });
+        Assert.True(reopened.IsSuccessStatusCode, await reopened.Content.ReadAsStringAsync());
+    }
 }

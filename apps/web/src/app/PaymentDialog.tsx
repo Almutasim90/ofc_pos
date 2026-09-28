@@ -108,9 +108,9 @@ export function PaymentDialog({
   );
 
   const cashMethod = methods.find((m) => m.kind === "Cash");
-  const cardMethod = methods.find(
-    (m) => m.kind !== "Cash" && m.kind !== "External",
-  );
+  const cardMethod =
+    methods.find((m) => m.kind === "Card") ??
+    methods.find((m) => m.kind !== "Cash" && m.kind !== "External");
 
   // Cash stays the canonical split value (either field updates it); the edited field keeps the user's
   // raw text so fractions/decimal points can be typed freely, and the other field shows the remainder.
