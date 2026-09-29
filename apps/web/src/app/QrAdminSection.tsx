@@ -2,7 +2,7 @@ import { QrCodeCard } from "@/app/QrCodeCard";
 import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { useEffect, useRef, useState } from "react";
-import { Check, Plus, Power, RefreshCw, X } from "lucide-react";
+import { Check, Plus, Power, RefreshCw, Trash2, X } from "lucide-react";
 import { store } from "@/lib/local-store";
 import {
   useQrOrdersLive,
@@ -76,6 +76,12 @@ const copy = {
     active: "فعال",
     inactive: "معطل",
     toggle: "تبديل",
+    disable: "تعطيل",
+    enable: "تفعيل",
+    deleteCode: "حذف",
+    confirmDelete: "تأكيد الحذف",
+    keep: "تراجع",
+    deleted: "تم حذف الكود.",
     noContexts: "لا توجد أكواد بعد",
     create: "إنشاء",
     pending: "طلبات بانتظار الاعتماد",
@@ -125,6 +131,12 @@ const copy = {
     active: "Active",
     inactive: "Inactive",
     toggle: "Toggle",
+    disable: "Disable",
+    enable: "Enable",
+    deleteCode: "Delete",
+    confirmDelete: "Confirm delete",
+    keep: "Keep",
+    deleted: "QR code deleted.",
     noContexts: "No QR codes yet",
     create: "Create",
     pending: "Orders awaiting approval",
@@ -175,6 +187,7 @@ export function QrAdminSection({ language }: { language: Language }) {
   );
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({
     code: "",
     nameAr: "",
@@ -316,6 +329,21 @@ export function QrAdminSection({ language }: { language: Language }) {
         text: e instanceof Error ? e.message : t.saveError,
         error: true,
       });
+    }
+  }
+
+  async function deleteContext(id: string) {
+    setNotice(null);
+    try {
+      const response = await auth(`/api/v1/qr/contexts/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok && response.status !== 404) throw new Error();
+      setConfirmDeleteId(null);
+      setNotice({ text: t.deleted, error: false });
+      void loadBranch();
+    } catch {
+      setNotice({ text: t.saveError, error: true });
     }
   }
 
@@ -518,8 +546,33 @@ export function QrAdminSection({ language }: { language: Language }) {
                           className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary px-3 text-xs font-semibold text-primary"
                         >
                           <Power size={14} />
-                          {t.toggle}
+                          {c.isActive ? t.disable : t.enable}
                         </Button>
+                        {confirmDeleteId === c.id ? (
+                          <>
+                            <Button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="min-h-9 rounded-lg border border-border px-3 text-xs font-semibold"
+                            >
+                              {t.keep}
+                            </Button>
+                            <Button
+                              onClick={() => void deleteContext(c.id)}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-destructive px-3 text-xs font-semibold text-destructive-foreground"
+                            >
+                              <Trash2 size={14} />
+                              {t.confirmDelete}
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            onClick={() => setConfirmDeleteId(c.id)}
+                            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-destructive px-3 text-xs font-semibold text-destructive"
+                          >
+                            <Trash2 size={14} />
+                            {t.deleteCode}
+                          </Button>
+                        )}
                       </div>
                       <QrCodeCard
                         code={c.code}

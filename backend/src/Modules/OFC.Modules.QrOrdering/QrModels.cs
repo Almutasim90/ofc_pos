@@ -15,6 +15,9 @@ public sealed class QrContext
     public required string NameEn { get; set; }
     public QrApprovalMode ApprovalMode { get; set; } = QrApprovalMode.AutoApprove;
     public bool IsActive { get; set; } = true;
+    // A deleted QR code that orders were placed from is kept (deactivated) so those orders still show their
+    // table; it no longer appears in the admin list and its code is freed for reuse.
+    public DateTimeOffset? DeletedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 

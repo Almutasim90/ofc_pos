@@ -4,6 +4,11 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### QR: no more stuck earlier order; QR codes can be deleted (2026-09-29)
+
+- The customer QR page restored the order saved on the phone for that code every time, even an old or unfinished one, so the next person (or the next visit) could not order. A saved order is now restored only if it is under 3 hours old and not finished; otherwise the menu opens. "Start a new order" is always available on the order screen, not only after the order finishes.
+- QR codes could only be toggled. `DELETE /api/v1/qr/contexts/{id}` now deletes one: an unused code is removed; a code that orders came from is deactivated and hidden (`qr_contexts.DeletedAt`) so those orders keep their table, and its code is freed for a new table. The admin screen has a Delete button with a confirm step, and the toggle now reads Disable/Enable.
+
 ### Current orders as a sortable table; custom kitchen sound (2026-09-29)
 
 - Current orders is now a searchable, sortable table (order, type, status, payment, time, amount — click a header to sort, again to reverse). It opens on **Current** (unpaid or not yet finished); tabs switch to Unpaid, Ready, Completed, Cancelled or All. Summary cards show how many orders are unpaid and the amount still to collect, how many are current, and how many are ready to hand over. Unpaid rows are highlighted.

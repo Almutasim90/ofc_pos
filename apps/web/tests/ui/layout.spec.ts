@@ -703,3 +703,42 @@ test('the register warns once when the kitchen screen drops, and only if one was
   await expect(page.locator('.pos-ticket-desktop')).toBeVisible();
   await expect(page.locator('.pos-kitchen-alert.is-offline')).toHaveCount(0);
 });
+
+// QR customer page: a phone that ordered earlier must never be stuck on that order.
+async function qrCustomer(page: Page, saved: {clientRequestId: string; savedAt?: number} | null, orderStatus: string) {
+  await page.addInitScript((saved) => {
+    localStorage.setItem('ofc:qr-lang', JSON.stringify('en'));
+    if (saved) localStorage.setItem('ofc:qr-T1-order', JSON.stringify(saved));
+  }, saved);
+  await page.route('**/hubs/**', route => route.abort());
+  await page.route('**/api/v1/qr/**', async route => {
+    const p = new URL(route.request().url()).pathname;
+    if (p.endsWith('/qr/T1')) return route.fulfill({json:{code:'T1',kind:'Table',nameAr:'طاولة 1',nameEn:'Table 1',branchId:'b1',branchCode:'SUW',branchNameAr:'السويق',branchNameEn:'Suwaiq',salesChannelId:'c1',salesChannelCode:'DINEIN',salesChannelNameAr:'محلي',salesChannelNameEn:'Dine in',approvalMode:'AutoApprove',requiresApproval:false}});
+    if (p.endsWith('/qr/T1/menu')) return route.fulfill({json:{products:[]}});
+    if (p.includes('/qr/T1/orders/')) return route.fulfill({json:{id:'o1',number:77,clientRequestId:'r1',status:orderStatus,netAmount:2,taxAmount:0,grossAmount:2,createdAt:new Date().toISOString(),approval:null,lines:[]}});
+    return route.fulfill({json:{}});
+  });
+  await page.goto('/#/qr/T1');
+}
+
+test('qr page forgets a finished earlier order and shows the menu', async ({page}) => {
+  await qrCustomer(page, {clientRequestId:'r1', savedAt: Date.now()}, 'Completed');
+  await expect(page.getByText('No items available right now')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Start a new order'})).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('ofc:qr-T1-order'))).toBeNull();
+});
+
+test('qr page forgets an old earlier order even if it never finished', async ({page}) => {
+  await qrCustomer(page, {clientRequestId:'r1', savedAt: Date.now() - 4 * 60 * 60 * 1000}, 'Preparing');
+  await expect(page.getByText('No items available right now')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Start a new order'})).toHaveCount(0);
+});
+
+test('qr page shows a recent order in progress with a way to start a new one', async ({page}) => {
+  await qrCustomer(page, {clientRequestId:'r1', savedAt: Date.now()}, 'Preparing');
+  const again = page.getByRole('button',{name:'Start a new order'});
+  await expect(again).toBeVisible();
+  await again.click();
+  await expect(page.getByText('No items available right now')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('ofc:qr-T1-order'))).toBeNull();
+});

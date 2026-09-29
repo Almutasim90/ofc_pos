@@ -220,6 +220,10 @@ const copy = {
   } as const,
 };
 
+// A phone reopening the menu is shown its earlier order only while it is recent and not finished.
+const savedOrderMaxAge = 3 * 60 * 60 * 1000;
+const finishedStatuses = ["Completed", "Cancelled", "Rejected", "Refunded"];
+
 const statusEn = {
   Pending: "Pending",
   Confirmed: "Confirmed",
@@ -313,11 +317,17 @@ export function QrCustomerPage({
       setContext(ctx);
       setProducts(menu.products);
       setState("ready");
-      const saved = store.get<{ clientRequestId: string }>(
-        "qr-" + code + "-order",
-      );
-      const clientRequestId = trackingId || saved?.clientRequestId;
-      if (clientRequestId) void refreshOrder(clientRequestId, true);
+      // An order link opens that order. Otherwise a phone that ordered here recently sees its own order again,
+      // but an old or finished one is forgotten so the next customer (or the next visit) gets the menu.
+      if (trackingId) void refreshOrder(trackingId, true);
+      else {
+        const saved = store.get<{ clientRequestId: string; savedAt?: number }>(
+          "qr-" + code + "-order",
+        );
+        if (saved && Date.now() - (saved.savedAt ?? 0) < savedOrderMaxAge)
+          void refreshOrder(saved.clientRequestId, true, true);
+        else if (saved) store.remove("qr-" + code + "-order");
+      }
     } catch {
       setState("error");
     }
@@ -542,6 +552,7 @@ export function QrCustomerPage({
       orderRequestId.current = null;
       store.set("qr-" + code + "-order", {
         clientRequestId: value.clientRequestId,
+        savedAt: Date.now(),
       });
       window.history.replaceState(
         null,
@@ -571,7 +582,11 @@ export function QrCustomerPage({
     }
   }
 
-  async function refreshOrder(clientRequestId: string, restoring = false) {
+  async function refreshOrder(
+    clientRequestId: string,
+    restoring = false,
+    fromStorage = false,
+  ) {
     // Inferred status refresh from the track endpoint; kept lightweight. The SPA updates the visible
     // order state and surfaces a notification toast on meaningful changes — no page refresh is needed.
     try {
@@ -582,6 +597,10 @@ export function QrCustomerPage({
         const value = (await response.json()) as OrderResult & {
           approval: { status: string } | null;
         };
+        if (fromStorage && finishedStatuses.includes(value.status)) {
+          store.remove("qr-" + code + "-order");
+          return;
+        }
         const approvalStatus = value.approval?.status ?? null;
         const nextSig = `${value.status}|${approvalStatus}`;
         if (lastSigRef.current !== nextSig) {
@@ -602,7 +621,15 @@ export function QrCustomerPage({
           approvalStatus,
           lines: value.lines ?? [],
         });
-        store.set("qr-" + code + "-order", { clientRequestId });
+        // Keep when the order was placed: polling must not keep an old order alive on this phone.
+        const saved = store.get<{ clientRequestId: string; savedAt?: number }>(
+          "qr-" + code + "-order",
+        );
+        if (saved?.clientRequestId !== clientRequestId)
+          store.set("qr-" + code + "-order", {
+            clientRequestId,
+            savedAt: Date.now(),
+          });
         if (restoring && !trackingId)
           window.history.replaceState(
             null,
@@ -898,20 +925,19 @@ export function QrCustomerPage({
                 />
               )}
 
-              {(result.status === "Completed" ||
-                result.status === "Cancelled" ||
-                result.status === "Rejected") && (
-                <Button
-                  onClick={() => {
-                    store.remove("qr-" + code + "-order");
-                    window.location.hash = `#/qr/${encodeURIComponent(code)}`;
-                    setResult(null);
-                  }}
-                  className="mt-4 min-h-12 w-full rounded-xl bg-primary px-5 font-bold text-primary-foreground"
-                >
-                  {language === "ar" ? "طلب جديد" : "Start a new order"}
-                </Button>
-              )}
+              {/* Always available: a customer must never be stuck on an earlier (or someone else's) order.
+                  An order still in progress keeps going in the kitchen. */}
+              <Button
+                onClick={() => {
+                  store.remove("qr-" + code + "-order");
+                  window.location.hash = `#/qr/${encodeURIComponent(code)}`;
+                  lastSigRef.current = "";
+                  setResult(null);
+                }}
+                className={`mt-4 min-h-12 w-full rounded-xl px-5 font-bold ${finishedStatuses.includes(result.status) ? "bg-primary text-primary-foreground" : "border border-border bg-card"}`}
+              >
+                {language === "ar" ? "طلب جديد" : "Start a new order"}
+              </Button>
             </div>
           </section>
         </div>

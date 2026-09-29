@@ -26,6 +26,7 @@ public static class SprintSixteenEndpoints
         api.MapGet("/contexts", ListContexts).RequireAuthorization();
         api.MapPost("/contexts", CreateContext).RequireAuthorization();
         api.MapPost("/contexts/{id:guid}/toggle", ToggleContext).RequireAuthorization();
+        api.MapDelete("/contexts/{id:guid}", DeleteContext).RequireAuthorization();
         api.MapGet("/orders", ListOrders).RequireAuthorization();
         api.MapPost("/approvals/{id:guid}/review", ReviewApproval).RequireAuthorization();
     }
@@ -175,7 +176,7 @@ public static class SprintSixteenEndpoints
     private static async Task<IResult> ListContexts(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanOperate(db, user, branchId, "qr.manage", ct)) return Forbidden();
-        var contexts = await db.QrContexts.AsNoTracking().Where(x => x.BranchId == branchId).OrderBy(x => x.Code).ToListAsync(ct);
+        var contexts = await db.QrContexts.AsNoTracking().Where(x => x.BranchId == branchId && x.DeletedAt == null).OrderBy(x => x.Code).ToListAsync(ct);
         var channelIds = contexts.Select(x => x.SalesChannelId).Distinct().ToList();
         var channels = channelIds.Count == 0 ? new Dictionary<Guid, SalesChannel>() : await db.SalesChannels.AsNoTracking().Where(x => channelIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         return Results.Ok(contexts.Select(x => new { x.Id, x.BranchId, x.Code, x.Kind, x.NameAr, x.NameEn, x.ApprovalMode, x.IsActive, x.SalesChannelId, salesChannelCode = channels.TryGetValue(x.SalesChannelId, out var c) ? c.Code : null, salesChannelNameAr = channels.TryGetValue(x.SalesChannelId, out var c2) ? c2.NameAr : null, salesChannelNameEn = channels.TryGetValue(x.SalesChannelId, out var c3) ? c3.NameEn : null, x.CreatedAt }));
@@ -200,13 +201,34 @@ public static class SprintSixteenEndpoints
 
     private static async Task<IResult> ToggleContext(Guid id, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext httpContext, CancellationToken ct)
     {
-        var ctx = await db.QrContexts.SingleOrDefaultAsync(x => x.Id == id, ct);
+        var ctx = await db.QrContexts.SingleOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
         if (ctx is null) return Results.NotFound();
         if (!await CanOperate(db, user, ctx.BranchId, "qr.manage", ct)) return Forbidden();
         ctx.IsActive = !ctx.IsActive;
         identity.Audit(UserId(user), ctx.BranchId, DeviceId(user), "qr.context.toggle", "qr_context", ctx.Id.ToString(), httpContext.TraceIdentifier, oldValue: JsonSerializer.Serialize(!ctx.IsActive), newValue: JsonSerializer.Serialize(ctx.IsActive));
         await db.SaveChangesAsync(ct);
         return Results.Ok(new { ctx.Id, ctx.IsActive });
+    }
+
+    // Deleting a QR code: never used -> removed; used by orders -> deactivated and hidden, with its code
+    // freed so the same table code can be created again.
+    private static async Task<IResult> DeleteContext(Guid id, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext httpContext, CancellationToken ct)
+    {
+        var ctx = await db.QrContexts.SingleOrDefaultAsync(x => x.Id == id && x.DeletedAt == null, ct);
+        if (ctx is null) return Results.NotFound();
+        if (!await CanOperate(db, user, ctx.BranchId, "qr.manage", ct)) return Forbidden();
+        var code = ctx.Code;
+        if (await db.QrOrderApprovals.AnyAsync(x => x.QrContextId == id, ct))
+        {
+            var suffix = "~" + ctx.Id.ToString("N")[..8];
+            ctx.IsActive = false;
+            ctx.DeletedAt = DateTimeOffset.UtcNow;
+            ctx.Code = code[..Math.Min(code.Length, QrRules.CodeMax - suffix.Length)] + suffix;
+        }
+        else db.QrContexts.Remove(ctx);
+        identity.Audit(UserId(user), ctx.BranchId, DeviceId(user), "qr.context.delete", "qr_context", ctx.Id.ToString(), httpContext.TraceIdentifier, oldValue: JsonSerializer.Serialize(new { code, ctx.NameAr, ctx.NameEn }));
+        await db.SaveChangesAsync(ct);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> ListOrders(Guid branchId, OrderStatus? status, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
