@@ -44,7 +44,7 @@ public static class SprintSixteenEndpoints
         var (ctx, branch, channel) = context.Value;
         // Keep temporarily unavailable products visible in the customer menu so guests understand that
         // the item belongs to the menu but is sold out today. Submission still enforces availability.
-        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == ctx.BranchId && a.IsAvailable)).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
+        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && x.BranchAvailability.Any(a => a.BranchId == ctx.BranchId)).Include(x => x.BranchAvailability).Include(x => x.Category).Include(x => x.Images).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.BranchAvailability).Include(x => x.SelectionGroups).ThenInclude(x => x.SelectionGroup).ThenInclude(x => x!.Options).ThenInclude(x => x.Product).ThenInclude(x => x!.BranchAvailability).OrderBy(x => x.CategoryId).ThenBy(x => x.NameAr).ToListAsync(ct);
         var productIds = products.Select(x => x.Id).ToList();
         var prices = await db.PriceRules.AsNoTracking().Where(x => productIds.Contains(x.ProductId)).ToListAsync(ct);
         var promotions = await db.Promotions.AsNoTracking().Where(x => x.ProductId == null || (x.ProductId.HasValue && productIds.Contains(x.ProductId.Value))).ToListAsync(ct);

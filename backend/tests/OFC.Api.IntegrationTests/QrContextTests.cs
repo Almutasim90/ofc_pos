@@ -86,4 +86,33 @@ public class QrContextTests(ITestOutputHelper output)
         await Create("T1");
         Assert.Equal(1, await Listed());
     }
+
+    // The customer menu once showed every item as "currently unavailable": the product's own branch
+    // availability was never loaded, so the flag always came back false. Sold-out items stay listed.
+    [Fact]
+    public async Task Customer_menu_marks_available_items_available_and_keeps_sold_out_items_listed()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.AnonymousClient();
+        await client.PostAsJsonAsync("/api/v1/auth/bootstrap", new { organizationNameAr = "منظمة", organizationNameEn = "Org", branchNameAr = "الفرع", branchNameEn = "Branch", username = "qr-menu", displayName = "Admin", password = "password1234" });
+        var login = await client.PostAsJsonAsync("/api/v1/auth/login", new { username = "qr-menu", password = "password1234", branchId = (Guid?)null, deviceId = (Guid?)null });
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        var branchId = (await (await client.GetAsync("/api/v1/branches")).Content.ReadFromJsonAsync<JsonElement>())[0].GetProperty("id").GetGuid();
+        var channelId = (await (await client.PostAsJsonAsync("/api/v1/sales-channels", new { code = "DINEIN", nameAr = "محلي", nameEn = "Dine in", isActive = true })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var categoryId = (await (await client.PostAsJsonAsync("/api/v1/categories", new { nameAr = "وجبات", nameEn = "Meals", sortOrder = 0 })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        async Task Product(string sku, bool available)
+        {
+            var created = await client.PostAsJsonAsync("/api/v1/products", new { sku, barcode = (string?)null, nameAr = sku, nameEn = sku, categoryId, type = "Simple", basePrice = 2m, isActive = true, images = Array.Empty<object>(), availability = new[] { new { branchId, isAvailable = available } } });
+            Assert.True(created.IsSuccessStatusCode, await created.Content.ReadAsStringAsync());
+        }
+        await Product("BURGER", true);
+        await Product("SOLDOUT", false);
+        var qr = await client.PostAsJsonAsync("/api/v1/qr/contexts", new { branchId, salesChannelId = channelId, kind = "Table", code = "M1", nameAr = "طاولة", nameEn = "Table", approvalMode = "AutoApprove", isActive = true });
+        Assert.True(qr.StatusCode == HttpStatusCode.Created, await qr.Content.ReadAsStringAsync());
+
+        var menu = await factory.AnonymousClient().GetFromJsonAsync<JsonElement>("/api/v1/qr/M1/menu");
+        var available = menu.GetProperty("products").EnumerateArray().ToDictionary(p => p.GetProperty("sku").GetString()!, p => p.GetProperty("isAvailable").GetBoolean());
+        Assert.True(available["BURGER"]);
+        Assert.False(available["SOLDOUT"]);
+    }
 }
