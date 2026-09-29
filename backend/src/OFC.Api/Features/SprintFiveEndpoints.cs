@@ -90,7 +90,7 @@ public static class SprintFiveEndpoints
         }
         // The table code/name lets the cashier find a held order by table from the payment picker
         // (QR dine-in orders link to a table via QrOrderApproval -> QrContext; POS-created orders have none).
-        return Results.Ok(await query.OrderByDescending(x => x.CreatedAt).Take(100)
+        return Results.Ok(await query.OrderByDescending(x => x.CreatedAt).Take(300)
             .Select(x => new
             {
                 x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.GrossAmount, x.Note, x.CreatedAt, x.PaidAt,
@@ -103,7 +103,7 @@ public static class SprintFiveEndpoints
     // Browsable order history: unlike List (last 100 open-ish orders for the POS "current orders"
     // panel), this covers every status across any date range, paged, for reviewing today's or a past
     // day's business.
-    private static async Task<IResult> History(Guid branchId, DateTimeOffset? from, DateTimeOffset? to, OrderStatus? status, Guid? salesChannelId, int page, int pageSize, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    private static async Task<IResult> History(Guid branchId, DateTimeOffset? from, DateTimeOffset? to, OrderStatus? status, bool? paid, Guid? salesChannelId, int? page, int? pageSize, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
         if (!await CanOperate(db, user, branchId, ct)) return Forbidden();
         var now = DateTimeOffset.UtcNow;
@@ -111,14 +111,18 @@ public static class SprintFiveEndpoints
         var end = to ?? start.AddDays(1);
         IQueryable<Order> query = db.Orders.AsNoTracking().Where(x => x.BranchId == branchId && x.CreatedAt >= start && x.CreatedAt < end);
         if (status.HasValue) query = query.Where(x => x.Status == status.Value);
+        // paid=true: settled sales (a paid order keeps its kitchen status, so Status alone cannot tell).
+        if (paid == true) query = query.Where(x => x.PaidAt != null && x.Status != OrderStatus.Cancelled && x.Status != OrderStatus.Refunded);
+        else if (paid == false) query = query.Where(x => x.PaidAt == null);
         if (salesChannelId.HasValue) query = query.Where(x => x.SalesChannelId == salesChannelId.Value);
         var total = await query.CountAsync(ct);
-        var pageIndex = ReportingRules.NormalizePage(page);
-        var size = ReportingRules.NormalizePageSize(pageSize);
+        var grossTotal = await query.SumAsync(x => (decimal?)x.GrossAmount, ct) ?? 0m;
+        var pageIndex = ReportingRules.NormalizePage(page ?? 1);
+        var size = ReportingRules.NormalizePageSize(pageSize ?? 0);
         var items = await query.OrderByDescending(x => x.CreatedAt).Skip((pageIndex - 1) * size).Take(size)
             .Select(x => new { x.Id, x.Number, x.Status, x.Source, x.SalesChannelId, x.NetAmount, x.TaxAmount, x.GrossAmount, x.Note, x.CreatedAt, x.PaidAt, lineCount = x.Lines.Count })
             .ToListAsync(ct);
-        return Results.Ok(new { total, page = pageIndex, pageSize = size, items });
+        return Results.Ok(new { total, grossTotal, page = pageIndex, pageSize = size, items });
     }
 
     private static async Task<IResult> Get(Guid id, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)

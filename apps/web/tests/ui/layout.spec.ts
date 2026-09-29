@@ -382,6 +382,25 @@ test('cashier is warned when the kitchen does not acknowledge and can print the 
   await expect(alert).toHaveCount(0);
 });
 
+test('current orders lists orders in the kitchen too, and the unpaid tab holds the pay-later ones', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  const at = new Date().toISOString();
+  await openOrdersRoute(page, [
+    {id:'k1',number:31,status:'Preparing',salesChannelId:'c1',grossAmount:4,note:'',createdAt:at,table:null,paidAt:at},
+    {id:'k2',number:32,status:'SentToKitchen',salesChannelId:'c1',grossAmount:6,note:'VIP',createdAt:at,table:null,paidAt:null},
+    {id:'k3',number:33,status:'Ready',salesChannelId:'c2',grossAmount:3,note:'',createdAt:at,table:null,paidAt:at},
+    {id:'k4',number:34,status:'Completed',salesChannelId:'c2',grossAmount:2,note:'',createdAt:at,table:null,paidAt:at},
+  ]);
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Current orders/}).first().click();
+  const dialog = page.getByRole('dialog',{name:'Current orders'});
+  for (const n of ['#31','#32','#33','#34']) await expect(dialog.getByRole('button',{name:n,exact:true})).toBeVisible();
+  await dialog.getByRole('tab',{name:/Unpaid/}).click();
+  await expect(dialog.getByRole('button',{name:'#32',exact:true})).toBeVisible();
+  await expect(dialog.getByRole('button',{name:'#31',exact:true})).toHaveCount(0);
+  await expect(dialog.getByRole('button',{name:'Pay',exact:true})).toHaveCount(1);
+});
+
 async function openOrdersRoute(page: Page, orders: unknown[]) {
   await page.route('**/api/v1/orders?**', async route => {
     if (route.request().method() !== 'GET' || new URL(route.request().url()).pathname !== '/api/v1/orders') return route.fallback();

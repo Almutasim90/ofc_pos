@@ -17,6 +17,7 @@ import {
   Timer,
   UserRound,
   MonitorSmartphone,
+  Printer,
   X,
 } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
@@ -46,14 +47,6 @@ import {
 } from "@/lib/customer-display";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 
 type Language = "ar" | "en";
@@ -216,6 +209,19 @@ const words = {
     noHeld: "لا توجد طلبات حالية",
     heldSearch: "ابحث برقم الطلب أو الطاولة",
     heldNoMatch: "لا توجد طلبات مطابقة",
+    filterAll: "الكل",
+    filterUnpaid: "غير مدفوع",
+    filterKitchen: "في المطبخ",
+    filterReady: "جاهز",
+    filterDone: "مكتمل",
+    filterCancelled: "ملغى",
+    stageHeld: "معلّق",
+    stageNotSent: "لم يُرسل للمطبخ",
+    stageRefunded: "مسترجع",
+    paidBadge: "مدفوع",
+    unpaidBadge: "غير مدفوع",
+    sendKitchen: "للمطبخ",
+    payNow: "دفع",
     heldSince: "منذ",
     orderRef: "رقم الطلب",
     table: "الطاولة",
@@ -329,6 +335,19 @@ const words = {
     noHeld: "No current orders",
     heldSearch: "Search by order # or table",
     heldNoMatch: "No orders match",
+    filterAll: "All",
+    filterUnpaid: "Unpaid",
+    filterKitchen: "In kitchen",
+    filterReady: "Ready",
+    filterDone: "Completed",
+    filterCancelled: "Cancelled",
+    stageHeld: "Held",
+    stageNotSent: "Not sent to kitchen",
+    stageRefunded: "Refunded",
+    paidBadge: "Paid",
+    unpaidBadge: "Unpaid",
+    sendKitchen: "Kitchen",
+    payNow: "Pay",
     heldSince: "Held since",
     orderRef: "Order no.",
     table: "Table",
@@ -674,6 +693,9 @@ export function PosSection({
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [heldSearch, setHeldSearch] = useState("");
+  const [heldFilter, setHeldFilter] = useState<
+    "all" | "unpaid" | "kitchen" | "ready" | "done" | "cancelled"
+  >("all");
   const [detailOrderId, setDetailOrderId] = useState<string | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [salesSummary, setSalesSummary] = useState<{
@@ -851,12 +873,9 @@ export function PosSection({
         `/api/v1/orders?branchId=${branchId}&scope=shift`,
       );
       if (handleAuthFailure(response)) return;
-      if (response.ok)
-        setHeldOrders(
-          ((await response.json()) as HeldOrder[]).filter((o) =>
-            ["Draft", "Pending", "Confirmed", "Paid"].includes(o.status),
-          ),
-        );
+      // Every order of the shift, whatever its kitchen status — a paid order is in the kitchen right away,
+      // and a pay-later order is unpaid while it is there. Tabs in the screen narrow the list instead.
+      if (response.ok) setHeldOrders((await response.json()) as HeldOrder[]);
     } catch {
       setMessage(t.unavailable);
     }
@@ -871,7 +890,7 @@ export function PosSection({
       const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
       const params = new URLSearchParams({
         branchId,
-        status: "Paid",
+        paid: "true",
         pageSize: "200",
         from: startOfDay.toISOString(),
         to: endOfDay.toISOString(),
@@ -881,11 +900,15 @@ export function PosSection({
       if (!response.ok) return;
       const data = (await response.json()) as {
         total: number;
+        grossTotal?: number;
         items: Array<{ grossAmount: number }>;
       };
       setSalesSummary({
         count: data.total,
-        gross: data.items.reduce((sum, x) => sum + x.grossAmount, 0),
+        // The server's total covers every paid order of the day, not just the first page.
+        gross:
+          data.grossTotal ??
+          data.items.reduce((sum, x) => sum + x.grossAmount, 0),
       });
     } catch {
       /* Daily sales is a convenience widget; a failed refresh just leaves the last known total. */
@@ -1901,14 +1924,66 @@ export function PosSection({
     !!order.paidAt || order.status === "Paid";
   const canPay = (order: HeldOrder) =>
     !isPaid(order) && payableStatuses.includes(order.status);
-  const orderStateLabel = (order: HeldOrder) =>
-    isPaid(order)
-      ? statusLabels.Paid
-      : order.status === "Draft"
-        ? statusLabels.Draft
-        : language === "ar"
-          ? "غير مدفوع"
-          : "Unpaid";
+  // Where the order is in the kitchen, independent of whether it has been paid.
+  const orderStage = (
+    order: HeldOrder,
+  ): { label: string; group: typeof heldFilter; tone: string } => {
+    switch (order.status) {
+      case "Draft":
+        return { label: t.stageHeld, group: "all", tone: "bg-muted" };
+      case "SentToKitchen":
+      case "Preparing":
+        return {
+          label: t.filterKitchen,
+          group: "kitchen",
+          tone: "bg-warning/15 text-warning",
+        };
+      case "Ready":
+        return {
+          label: t.filterReady,
+          group: "ready",
+          tone: "bg-success/15 text-success",
+        };
+      case "Completed":
+        return { label: t.filterDone, group: "done", tone: "bg-muted" };
+      case "Refunded":
+      case "PartiallyRefunded":
+        return { label: t.stageRefunded, group: "done", tone: "bg-muted" };
+      case "Cancelled":
+      case "Rejected":
+        return {
+          label: t.filterCancelled,
+          group: "cancelled",
+          tone: "bg-destructive/15 text-destructive",
+        };
+      default:
+        return { label: t.stageNotSent, group: "all", tone: "bg-muted" };
+    }
+  };
+  const inHeldFilter = (order: HeldOrder, filter: typeof heldFilter) =>
+    filter === "all" ||
+    (filter === "unpaid" ? canPay(order) : orderStage(order).group === filter);
+  const orderChannel = (order: HeldOrder) =>
+    context?.channels.find((channel) => channel.id === order.salesChannelId);
+  // Same colours as the kitchen screen: green dine-in, orange takeaway, black delivery apps.
+  const channelTone = (channel: SalesChannel | undefined) => {
+    const kind = channel ? salesChannelKind(channel) : null;
+    return kind === "Takeaway"
+      ? "bg-warning text-warning-foreground"
+      : kind === "DineIn" || kind === "InStore"
+        ? "bg-success text-success-foreground"
+        : kind === "Electronic"
+          ? "bg-foreground text-background"
+          : "bg-primary text-primary-foreground";
+  };
+  // The toolbar count is what still needs the cashier: unpaid or not yet finished.
+  const openOrderCount = heldOrders.filter(
+    (order) =>
+      canPay(order) || !["done", "cancelled"].includes(orderStage(order).group),
+  ).length;
+  // Not yet in the kitchen: the cashier can still send it there.
+  const canSendToKitchen = (order: HeldOrder) =>
+    ["Draft", "Pending", "Confirmed", "Paid"].includes(order.status);
   function closeHeldOrders() {
     setHeldOpen(false);
     setDetailOrderId(null);
@@ -1916,6 +1991,7 @@ export function PosSection({
     setHeldSearch("");
   }
   const matchingHeldOrders = heldOrders.filter((order) => {
+    if (!inHeldFilter(order, heldFilter)) return false;
     const query = heldSearch.trim().toLowerCase();
     if (!query) return true;
     const table = order.table
@@ -1926,7 +2002,8 @@ export function PosSection({
       table,
       order.note ?? "",
       order.status,
-      statusLabels[order.status] ?? "",
+      orderStage(order).label,
+      orderChannel(order) ? name(orderChannel(order)!) : "",
       order.grossAmount.toFixed(3),
     ]
       .join(" ")
@@ -2057,6 +2134,44 @@ export function PosSection({
                   className="min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none outline-none focus-visible:ring-0"
                 />
               </label>
+              <div
+                role="tablist"
+                aria-label={t.heldOrders}
+                className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5"
+              >
+                {(
+                  [
+                    ["all", t.filterAll],
+                    ["unpaid", t.filterUnpaid],
+                    ["kitchen", t.filterKitchen],
+                    ["ready", t.filterReady],
+                    ["done", t.filterDone],
+                    ["cancelled", t.filterCancelled],
+                  ] as const
+                ).map(([filter, label]) => {
+                  const count = heldOrders.filter((order) =>
+                    inHeldFilter(order, filter),
+                  ).length;
+                  const selected = heldFilter === filter;
+                  return (
+                    <Button
+                      key={filter}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => setHeldFilter(filter)}
+                      className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold ${selected ? "bg-primary text-primary-foreground" : "border border-border bg-background"}`}
+                    >
+                      {label}
+                      <span
+                        className={`rounded-full px-1.5 text-xs ${selected ? "bg-black/20" : "bg-muted"} ${filter === "unpaid" && count > 0 && !selected ? "bg-warning text-warning-foreground" : ""}`}
+                      >
+                        {count}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               {heldOrders.length === 0 ? (
@@ -2068,207 +2183,116 @@ export function PosSection({
                   {t.heldNoMatch}
                 </p>
               ) : (
-                <>
-                  <div className="space-y-3 p-3 lg:hidden">
-                    {matchingHeldOrders.map((order) => (
-                      <article
+                <ul className="divide-y divide-border">
+                  {matchingHeldOrders.map((order) => {
+                    const channel = orderChannel(order);
+                    const stage = orderStage(order);
+                    const paid = isPaid(order);
+                    return (
+                      <li
                         key={order.id}
-                        className="rounded-2xl border border-border bg-card p-4"
+                        className="flex flex-wrap items-center gap-x-4 gap-y-3 px-3 py-3 sm:px-5"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <Button
-                              type="button"
-                              onClick={() => void openOrderDetail(order.id)}
-                              className="min-h-12 max-w-full justify-start truncate px-0 text-base font-bold text-primary hover:underline"
-                            >
-                              {orderLabel(order.number)}
-                            </Button>
-                            <p className="text-xs text-muted-foreground">
-                              {order.table ? name(order.table) : "—"} ·{" "}
-                              {new Date(order.createdAt).toLocaleTimeString(
-                                language,
-                              )}
-                            </p>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${isPaid(order) ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <Button
+                            type="button"
+                            onClick={() => void openOrderDetail(order.id)}
+                            className="min-h-12 shrink-0 px-0 text-lg font-black text-primary hover:underline"
                           >
-                            {orderStateLabel(order)}
-                          </span>
-                        </div>
-                        {order.note && (
-                          <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
-                            {order.note}
-                          </p>
-                        )}
-                        <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">
-                          <strong>OMR {order.grossAmount.toFixed(3)}</strong>
-                          <div className="flex gap-2">
-                            <Button
-                              disabled={busy}
-                              onClick={() => void resumeHeld(order, true)}
-                              className="min-h-12 rounded-xl border border-border px-3 text-xs font-semibold"
-                            >
-                              {language === "ar" ? "مطبخ" : "Kitchen"}
-                            </Button>
-                            <Button
-                              disabled={busy}
-                              onClick={() => void printForKitchen(order.id)}
-                              title={t.printKitchen}
-                              className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
-                            >
-                              {language === "ar" ? "طباعة" : "Print"}
-                            </Button>
-                            {(order.status === "Draft" ||
-                              order.status === "Pending") && (
-                              <Button
-                                disabled={busy}
-                                onClick={() => void startEdit(order)}
-                                className="min-h-12 rounded-xl border border-border px-3 text-xs font-semibold"
-                              >
-                                {t.editOrder}
-                              </Button>
-                            )}
-                            {isPaid(order) && (
-                              <Button
-                                disabled={busy}
-                                onClick={() => startAddOn(order)}
-                                className="min-h-12 rounded-xl border border-border px-3 text-xs font-semibold"
-                              >
-                                {t.addOnOrder}
-                              </Button>
-                            )}
-                            {canPay(order) && (
-                              <Button
-                                disabled={busy}
-                                onClick={() => void resumeHeld(order)}
-                                className="min-h-12 rounded-xl bg-primary px-4 text-xs font-semibold text-primary-foreground"
-                              >
-                                {t.send}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                  <Table className="hidden w-full min-w-[760px] text-sm lg:table">
-                    <TableHeader className="sticky top-0 bg-muted">
-                      <TableRow>
-                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                          {t.orderRef}
-                        </TableHead>
-                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                          {t.table}
-                        </TableHead>
-                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                          {language === "ar" ? "الحالة" : "Status"}
-                        </TableHead>
-                        <TableHead className="px-4 py-3 text-start font-semibold text-muted-foreground">
-                          {language === "ar" ? "الوقت" : "Time"}
-                        </TableHead>
-                        <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground">
-                          {t.total}
-                        </TableHead>
-                        <TableHead className="px-4 py-3 text-end font-semibold text-muted-foreground"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="divide-y divide-border">
-                      {matchingHeldOrders.map((order) => (
-                        <TableRow key={order.id} className="hover:bg-muted">
-                          <TableCell className="px-4 py-3">
-                            <Button
-                              type="button"
-                              onClick={() => void openOrderDetail(order.id)}
-                              className="font-semibold text-primary hover:underline"
-                            >
-                              {orderLabel(order.number)}
-                            </Button>
-                            {order.note && (
-                              <p
-                                className="mt-0.5 max-w-[16ch] truncate text-xs text-muted-foreground"
-                                title={order.note}
-                              >
-                                {order.note}
-                              </p>
-                            )}
-                          </TableCell>
-                          <TableCell className="px-4 py-3 text-muted-foreground">
-                            {order.table ? name(order.table) : "—"}
-                          </TableCell>
-                          <TableCell className="px-4 py-3">
-                            <span
-                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${isPaid(order) ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
-                            >
-                              {orderStateLabel(order)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="px-4 py-3 text-muted-foreground">
-                            {new Date(order.createdAt).toLocaleTimeString(
-                              language,
-                            )}
-                          </TableCell>
-                          <TableCell className="px-4 py-3 text-end font-medium">
-                            OMR {order.grossAmount.toFixed(3)}
-                          </TableCell>
-                          <TableCell className="px-4 py-3 text-end">
-                            <div className="flex justify-end gap-1.5">
-                              <Button
-                                disabled={busy}
-                                onClick={() => void resumeHeld(order, true)}
-                                title={
-                                  language === "ar"
-                                    ? "إرسال للمطبخ"
-                                    : "Send to kitchen"
-                                }
-                                className="min-h-12 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
-                              >
-                                {language === "ar" ? "مطبخ" : "Kitchen"}
-                              </Button>
-                              <Button
-                                disabled={busy}
-                                onClick={() => void printForKitchen(order.id)}
-                                title={t.printKitchen}
-                                className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold text-muted-foreground"
-                              >
-                                {language === "ar" ? "طباعة" : "Print"}
-                              </Button>
-                              {(order.status === "Draft" ||
-                                order.status === "Pending") && (
-                                <Button
-                                  disabled={busy}
-                                  onClick={() => void startEdit(order)}
-                                  className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold"
+                            {orderLabel(order.number)}
+                          </Button>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {channel && (
+                                <span
+                                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${channelTone(channel)}`}
                                 >
-                                  {t.editOrder}
-                                </Button>
+                                  {name(channel)}
+                                </span>
                               )}
-                              {isPaid(order) && (
-                                <Button
-                                  disabled={busy}
-                                  onClick={() => startAddOn(order)}
-                                  className="min-h-10 rounded-lg border border-border px-2.5 text-xs font-semibold"
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${stage.tone}`}
+                              >
+                                {stage.label}
+                              </span>
+                              {stage.group !== "cancelled" && (
+                                <span
+                                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${paid ? "bg-success/15 text-success" : "bg-warning text-warning-foreground"}`}
                                 >
-                                  {t.addOnOrder}
-                                </Button>
-                              )}
-                              {canPay(order) && (
-                                <Button
-                                  disabled={busy}
-                                  onClick={() => void resumeHeld(order)}
-                                  className="min-h-12 rounded-lg bg-primary px-2.5 text-xs font-semibold text-primary-foreground"
-                                >
-                                  {t.send}
-                                </Button>
+                                  {paid ? t.paidBadge : t.unpaidBadge}
+                                </span>
                               )}
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {new Date(order.createdAt).toLocaleTimeString(
+                                language,
+                                { hour: "2-digit", minute: "2-digit" },
+                              )}
+                              {order.table ? ` · ${name(order.table)}` : ""}
+                              {order.note ? ` · ${order.note}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <strong className="shrink-0 tabular-nums">
+                          OMR {order.grossAmount.toFixed(3)}
+                        </strong>
+                        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                          <Button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void printForKitchen(order.id)}
+                            title={t.printKitchen}
+                            aria-label={t.printKitchen}
+                            className="grid size-11 place-items-center rounded-lg border border-border"
+                          >
+                            <Printer size={17} />
+                          </Button>
+                          {canSendToKitchen(order) && (
+                            <Button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void resumeHeld(order, true)}
+                              className="min-h-11 rounded-lg border border-border px-3 text-xs font-semibold"
+                            >
+                              {t.sendKitchen}
+                            </Button>
+                          )}
+                          {(order.status === "Draft" ||
+                            order.status === "Pending") && (
+                            <Button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void startEdit(order)}
+                              className="min-h-11 rounded-lg border border-border px-3 text-xs font-semibold"
+                            >
+                              {t.editOrder}
+                            </Button>
+                          )}
+                          {paid && stage.group !== "cancelled" && (
+                            <Button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => startAddOn(order)}
+                              className="min-h-11 rounded-lg border border-border px-3 text-xs font-semibold"
+                            >
+                              {t.addOnOrder}
+                            </Button>
+                          )}
+                          {canPay(order) && (
+                            <Button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void resumeHeld(order)}
+                              className="min-h-11 rounded-lg bg-primary px-4 text-sm font-bold text-primary-foreground"
+                            >
+                              {t.payNow}
+                            </Button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
           </>
@@ -2554,7 +2578,7 @@ export function PosSection({
             onClick={() => setHeldOpen(true)}
             className="min-h-12 shrink-0 rounded-full border border-primary px-3 text-xs font-semibold text-primary"
           >
-            {t.heldOrders} ({heldOrders.length})
+            {t.heldOrders} ({openOrderCount})
           </Button>
           <Button
             onClick={() => {

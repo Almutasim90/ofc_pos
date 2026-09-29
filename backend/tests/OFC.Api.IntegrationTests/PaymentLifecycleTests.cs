@@ -62,6 +62,10 @@ public class PaymentLifecycleTests
         Assert.Equal(JsonValueKind.Null, order.GetProperty("paidAt").ValueKind);
         var sales = await client.GetFromJsonAsync<JsonElement>($"/api/v1/reports/sales?branchId={branchId}");
         Assert.Equal(0, sales.GetProperty("summary").GetProperty("orderCount").GetInt32());
+        var paidTodayResponse = await client.GetAsync($"/api/v1/orders/history?branchId={branchId}&paid=true");
+        Assert.True(paidTodayResponse.IsSuccessStatusCode, await paidTodayResponse.Content.ReadAsStringAsync());
+        var paidToday = await paidTodayResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, paidToday.GetProperty("total").GetInt32());
         var current = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?branchId={branchId}&scope=shift");
         Assert.Contains(current.EnumerateArray(), x => x.GetProperty("id").GetGuid() == orderId);
 
@@ -72,6 +76,10 @@ public class PaymentLifecycleTests
         Assert.NotEqual(JsonValueKind.Null, order.GetProperty("paidAt").ValueKind);
         sales = await client.GetFromJsonAsync<JsonElement>($"/api/v1/reports/sales?branchId={branchId}");
         Assert.Equal(1, sales.GetProperty("summary").GetProperty("orderCount").GetInt32());
+        // The POS "today's sales" counter: the paid order counts although its status is Ready, not Paid.
+        paidToday = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders/history?branchId={branchId}&paid=true");
+        Assert.Equal(1, paidToday.GetProperty("total").GetInt32());
+        Assert.Equal(5m, paidToday.GetProperty("grossTotal").GetDecimal());
         var again = await client.PostAsJsonAsync($"/api/v1/orders/{orderId}/payments", new { payments = new[] { new { clientRequestId = Guid.NewGuid(), paymentMethodId = cardMethodId, amount = 5m, tenderedAmount = 5m, status = "Captured", providerReference = "POS-TWICE" } } });
         Assert.Equal(HttpStatusCode.BadRequest, again.StatusCode);
         current = await client.GetFromJsonAsync<JsonElement>($"/api/v1/orders?branchId={branchId}&scope=shift");

@@ -66,5 +66,33 @@ public class BlindCloseTests
 
         var reopened = await admin.PostAsJsonAsync("/api/v1/shifts", new { branchId, openingCash = 25m });
         Assert.True(reopened.IsSuccessStatusCode, await reopened.Content.ReadAsStringAsync());
+        var secondId = (await reopened.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        // Counting notes and coins is optional: a cashier who only enters the cash total can still close.
+        var uncounted = await admin.PostAsJsonAsync($"/api/v1/shifts/{secondId}/blind-close", new { actualCash = 12.345m, actualCardTotal = 3m, denominations = Array.Empty<object>() });
+        Assert.True(uncounted.IsSuccessStatusCode, await uncounted.Content.ReadAsStringAsync());
+
+        // A count down to 5 and 10 baisa can match any amount, e.g. 12.345.
+        var third = await admin.PostAsJsonAsync("/api/v1/shifts", new { branchId, openingCash = 0m });
+        var thirdId = (await third.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var baisa = await admin.PostAsJsonAsync($"/api/v1/shifts/{thirdId}/blind-close", new { actualCash = 12.345m, actualCardTotal = 0m, denominations = new[] { new { denomination = 10m, count = 1 }, new { denomination = 1m, count = 2 }, new { denomination = 0.1m, count = 3 }, new { denomination = 0.025m, count = 1 }, new { denomination = 0.01m, count = 2 } } });
+        Assert.True(baisa.IsSuccessStatusCode, await baisa.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task A_count_that_does_not_match_the_cash_is_rejected_with_a_validation_error()
+    {
+        using var factory = new ApiFactory();
+        var admin = factory.AnonymousClient();
+        await admin.PostAsJsonAsync("/api/v1/auth/bootstrap", new { organizationNameAr = "منظمة", organizationNameEn = "Org", branchNameAr = "الفرع", branchNameEn = "Branch", username = "mismatch-admin", displayName = "Admin", password = "password1234" });
+        var adminLogin = await admin.PostAsJsonAsync("/api/v1/auth/login", new { username = "mismatch-admin", password = "password1234", branchId = (Guid?)null, deviceId = (Guid?)null });
+        admin.DefaultRequestHeaders.Authorization = new("Bearer", (await adminLogin.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString());
+        var branchId = (await (await admin.GetAsync("/api/v1/branches")).Content.ReadFromJsonAsync<JsonElement>())[0].GetProperty("id").GetGuid();
+        var shiftId = (await (await admin.PostAsJsonAsync("/api/v1/shifts", new { branchId, openingCash = 0m })).Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var mismatch = await admin.PostAsJsonAsync($"/api/v1/shifts/{shiftId}/blind-close", new { actualCash = 30m, actualCardTotal = 0m, denominations = new[] { new { denomination = 20m, count = 1 } } });
+        Assert.Equal(HttpStatusCode.BadRequest, mismatch.StatusCode);
+        var duplicate = await admin.PostAsJsonAsync($"/api/v1/shifts/{shiftId}/blind-close", new { actualCash = 40m, actualCardTotal = 0m, denominations = new[] { new { denomination = 20m, count = 1 }, new { denomination = 20m, count = 1 } } });
+        Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
     }
 }

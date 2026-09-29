@@ -85,10 +85,11 @@ public static class SprintEightEndpoints
         if (!await HasBranch(db, user, shift.BranchId, ct) || !(user.HasClaim("permission", "shifts.close") || user.HasClaim("permission", "shifts.manage") || UserId(user) == shift.OpenedByUserId)) return Forbidden();
         if (shift.Status != ShiftStatus.Open) return Validation("shift", "This shift is already closed.");
         if (request.ActualCash < 0m || request.ActualCardTotal < 0m) return Validation("cash", "Actual cash and card totals cannot be negative.");
-        if (request.Denominations is { Count: > ShiftRules.DenominationKindMax } || request.Denominations.Any(x => !ShiftRules.IsValidDenomination(x.Denomination) || x.Count is < 0 or > 10000)) return Validation("denominations", "Provide valid currency denominations and positive counts.");
+        if (request.Denominations is { Count: > ShiftRules.DenominationKindMax } || request.Denominations.Any(x => !ShiftRules.IsValidDenomination(x.Denomination) || x.Count is < 0 or > 10000) || request.Denominations.Select(x => x.Denomination).Distinct().Count() != request.Denominations.Count) return Validation("denominations", "Provide valid currency denominations and positive counts.");
         var actualCash = ShiftRules.RoundMoney(request.ActualCash);
         var denominationTotal = ShiftRules.DenominationTotal(request.Denominations.Select(x => (x.Denomination, x.Count)));
-        if (!ShiftRules.DenominationSumMatches(actualCash, request.Denominations.Select(x => (x.Denomination, x.Count)))) return Validation("denominations", "The cash denomination total must match the entered actual cash.");
+        // Counting notes and coins is optional; when the cashier does count them, the count must match the cash.
+        if (request.Denominations.Any(x => x.Count > 0) && !ShiftRules.DenominationSumMatches(actualCash, request.Denominations.Select(x => (x.Denomination, x.Count)))) return Validation("denominations", "The cash denomination total must match the entered actual cash.");
 
         var ledger = await LiveLedger(db, shift, ct);
         var cashIn = shift.Movements.Where(x => x.Type == ShiftMovementType.CashIn).Sum(x => x.Amount);

@@ -4,6 +4,12 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Current orders shows every order; shift close fixes (2026-09-29)
+
+- **Current orders** listed only Draft/Pending/Confirmed/Paid orders, so every order that had gone to the kitchen (almost all of them, since paying dispatches at once) disappeared — including unpaid pay-later orders. It now lists every order of the shift, with tabs (All, Unpaid, In kitchen, Ready, Completed, Cancelled), the order type in the kitchen's colours, the kitchen stage and a Paid/Unpaid badge on each order. The toolbar count shows what still needs the cashier. The list cap went from 100 to 300.
+- **Today's sales** on the POS never loaded: it called `/orders/history` without the required `page` parameter (now optional) and counted only orders whose status was exactly Paid. It now uses `paid=true` and the server's `grossTotal`.
+- **Shift close.** Errors appeared on the page behind the close dialog, so a rejected close looked like nothing happened; they now show inside the dialog, in the cashier's language. Counting notes and coins is optional; when counted, the actual cash is filled in from the count. Added 10 and 5 baisa so any amount can be counted. Duplicate denominations get a validation error instead of a server error.
+
 ### Pay later, redesigned kitchen screen (2026-09-28)
 
 - **Pay first or pay later.** Payment is now tracked apart from the kitchen status (`orders.PaidAt`). Pay first stays the default; the new POS "Pay later" button (e.g. for a VIP guest) sends the order to the kitchen unpaid, and it stays in Current Orders marked "Unpaid" until it is paid there — even across shifts. Paying an order already in the kitchen keeps its kitchen progress.

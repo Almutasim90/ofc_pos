@@ -53,7 +53,9 @@ type CloseResult = {
   closedAt: string;
 };
 
-const denominations = [50, 20, 10, 5, 1, 0.5, 0.1, 0.05, 0.025] as const;
+const denominations = [
+  50, 20, 10, 5, 1, 0.5, 0.1, 0.05, 0.025, 0.01, 0.005,
+] as const;
 
 const copy = {
   ar: {
@@ -108,7 +110,11 @@ const copy = {
     openAt: "وقت الفتح",
     closeAt: "وقت الإغلاق",
     needActualCashMatch: "مجموع الفئات يجب أن يطابق النقد الفعلي.",
-    denominationsHint: "أدخل عدد كل فئة. يجب أن يطابق المجموع النقدَ الفعلي.",
+    denominationsHint: "اختياري: إذا عددت الفئات يُحسب النقد الفعلي منها تلقائياً.",
+    alreadyOpen: "توجد وردية مفتوحة لهذا الفرع بالفعل.",
+    alreadyClosed: "هذه الوردية مغلقة بالفعل.",
+    noPermission: "ليس لديك صلاحية لهذه العملية. اطلب من المدير.",
+    cashRequired: "أدخل النقد الفعلي في الدرج.",
     dialogClose: "إغلاق",
   },
   en: {
@@ -166,7 +172,11 @@ const copy = {
     needActualCashMatch:
       "The denomination total must match the entered actual cash.",
     denominationsHint:
-      "Enter the count of each denomination. The total must equal the actual cash.",
+      "Optional: if you count the notes and coins, the actual cash is filled in from the count.",
+    alreadyOpen: "A shift is already open for this branch.",
+    alreadyClosed: "This shift is already closed.",
+    noPermission: "You do not have permission for this. Ask a manager.",
+    cashRequired: "Enter the actual cash in the drawer.",
     dialogClose: "Close",
   },
 } as const;
@@ -247,6 +257,25 @@ export function ShiftsSection({ language }: { language: Language }) {
     setMessage(value);
     setIsError(error);
   };
+  // The server answers in English; show the cashier what actually went wrong, in their language.
+  async function problemMessage(response: Response) {
+    if (response.status === 403) return t.noPermission;
+    const problem = await response.json().catch(() => null);
+    if (problem?.errors?.denominations) return t.needActualCashMatch;
+    const shift = String(problem?.errors?.shift?.[0] ?? "");
+    if (shift.includes("already open")) return t.alreadyOpen;
+    if (shift.includes("already closed")) return t.alreadyClosed;
+    return t.failed;
+  }
+  // Shown inside the open dialog, where the cashier is looking — not on the page behind it.
+  const dialogError = message && isError && (
+    <p
+      role="alert"
+      className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive"
+    >
+      {message}
+    </p>
+  );
 
   async function loadCurrent(id: string) {
     const [currentResponse, historyResponse] = await Promise.all([
@@ -304,7 +333,7 @@ export function ShiftsSection({ language }: { language: Language }) {
           openingCash: Number(openForm.openingCash) || 0,
         }),
       });
-      if (!response.ok) throw new Error(t.failed);
+      if (!response.ok) throw new Error(await problemMessage(response));
       setOpenForm({ openingCash: "" });
       setCloseResult(null);
       setDialog(null);
@@ -312,8 +341,10 @@ export function ShiftsSection({ language }: { language: Language }) {
       setDenom({});
       setMsg(t.openSuccess);
       await loadCurrent(branchId);
-    } catch {
-      setMsg(t.failed, true);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : t.failed, true);
+      // "Already open" means the screen is stale: show the shift that is actually open.
+      void loadCurrent(branchId);
     } finally {
       setLoading(false);
     }
@@ -346,10 +377,21 @@ export function ShiftsSection({ language }: { language: Language }) {
   }
 
   const denominationTotal = denominationCounts(denom);
+  // Counting notes and coins is optional; when counted, the count IS the actual cash, so the two can't disagree.
+  const counted = denominationTotal > 0;
+  const closingCash = counted
+    ? denominationTotal
+    : blind.actualCash === ""
+      ? null
+      : Number(blind.actualCash);
   async function blindClose(event: React.FormEvent) {
     event.preventDefault();
     if (!current) return;
     setMsg("");
+    if (closingCash === null || !Number.isFinite(closingCash)) {
+      setMsg(t.cashRequired, true);
+      return;
+    }
     setLoading(true);
     try {
       const counts = denominations
@@ -358,26 +400,20 @@ export function ShiftsSection({ language }: { language: Language }) {
       const response = await auth(`/api/v1/shifts/${current.id}/blind-close`, {
         method: "POST",
         body: JSON.stringify({
-          actualCash: Number(blind.actualCash),
+          actualCash: Math.round(closingCash * 1000) / 1000,
           actualCardTotal: Number(blind.cardTotal) || 0,
           denominations: counts,
         }),
       });
-      if (!response.ok) {
-        const problem = await response.json().catch(() => null);
-        throw new Error(
-          problem?.errors?.denominations?.[0] ??
-            problem?.errors?.cash?.[0] ??
-            problem?.errors?.shift?.[0] ??
-            t.failed,
-        );
-      }
+      if (!response.ok) throw new Error(await problemMessage(response));
       setCloseResult((await response.json()) as CloseResult);
       setDialog(null);
       setMsg(t.blindClose);
       await loadCurrent(branchId);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : t.failed, true);
+      // "Already closed" means the screen is stale: refresh it.
+      void loadCurrent(branchId);
     } finally {
       setLoading(false);
     }
@@ -513,7 +549,10 @@ export function ShiftsSection({ language }: { language: Language }) {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-semibold">{t.movements}</h3>
                   <Button
-                    onClick={() => setDialog("movement")}
+                    onClick={() => {
+                  setMsg("");
+                  setDialog("movement");
+                }}
                     className="min-h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"
                   >
                     {t.addMovement}
@@ -545,7 +584,10 @@ export function ShiftsSection({ language }: { language: Language }) {
               </div>
 
               <Button
-                onClick={() => setDialog("close")}
+                onClick={() => {
+                  setMsg("");
+                  setDialog("close");
+                }}
                 className="mt-5 min-h-11 rounded-lg border border-primary px-4 font-semibold text-primary hover:bg-accent"
               >
                 {t.blindClose}
@@ -560,7 +602,10 @@ export function ShiftsSection({ language }: { language: Language }) {
                 </span>
               </div>
               <Button
-                onClick={() => setDialog("open")}
+                onClick={() => {
+                  setMsg("");
+                  setDialog("open");
+                }}
                 className="mt-4 min-h-12 w-full rounded-lg bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary"
               >
                 {t.open}
@@ -680,6 +725,7 @@ export function ShiftsSection({ language }: { language: Language }) {
                 className="mt-2 min-h-12 w-full rounded-lg border border-border px-3"
               />
             </label>
+            {dialogError}
             <Button
               disabled={loading}
               className="mt-4 min-h-12 w-full rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-60"
@@ -749,6 +795,7 @@ export function ShiftsSection({ language }: { language: Language }) {
                 className="mt-2 min-h-11 w-full rounded-lg border border-border px-3"
               />
             </label>
+            <div className="sm:col-span-2">{dialogError}</div>
             <Button
               disabled={loading}
               className="min-h-11 justify-self-start rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-60"
@@ -769,21 +816,22 @@ export function ShiftsSection({ language }: { language: Language }) {
               <label className="block text-sm font-medium">
                 {t.actualCash}
                 <Input
-                  required
                   type="number"
                   min="0"
                   step="0.001"
-                  value={blind.actualCash}
+                  readOnly={counted}
+                  value={
+                    counted ? denominationTotal.toFixed(3) : blind.actualCash
+                  }
                   onChange={(e) =>
                     setBlind({ ...blind, actualCash: e.target.value })
                   }
-                  className="mt-2 min-h-11 w-full rounded-lg border border-border px-3"
+                  className={`mt-2 min-h-11 w-full rounded-lg border border-border px-3 ${counted ? "bg-muted font-semibold" : ""}`}
                 />
               </label>
               <label className="block text-sm font-medium">
                 {t.cardTotal}
                 <Input
-                  required
                   type="number"
                   min="0"
                   step="0.001"
@@ -823,13 +871,8 @@ export function ShiftsSection({ language }: { language: Language }) {
               <p className="mt-3 text-sm font-medium">
                 {t.counted}: {money(denominationTotal)}
               </p>
-              {Math.abs(denominationTotal - (Number(blind.actualCash) || 0)) >
-                0.0001 && (
-                <p className="mt-1 text-xs text-destructive">
-                  {t.needActualCashMatch}
-                </p>
-              )}
             </div>
+            {dialogError}
             <Button
               disabled={loading}
               className="mt-4 min-h-11 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-60"
@@ -844,10 +887,11 @@ export function ShiftsSection({ language }: { language: Language }) {
 }
 
 function denominationCounts(denom: Record<string, string>): number {
-  return denominations.reduce(
+  const total = denominations.reduce(
     (sum, d) => sum + (Number(denom[String(d)]) || 0) * d,
     0,
   );
+  return Math.round(total * 1000) / 1000;
 }
 
 function Metric({

@@ -72,7 +72,7 @@ public static class ShiftRules
     public const int DenominationKindMax = 30;
     public const decimal MoneyTolerance = 0.0001m;
 
-    public static readonly decimal[] SupportedDenominations = [50m, 20m, 10m, 5m, 1m, 0.5m, 0.1m, 0.05m, 0.025m];
+    public static readonly decimal[] SupportedDenominations = [50m, 20m, 10m, 5m, 1m, 0.5m, 0.1m, 0.05m, 0.025m, 0.01m, 0.005m];
 
     public static decimal RoundMoney(decimal value) => decimal.Round(value, 4, MidpointRounding.AwayFromZero);
 
