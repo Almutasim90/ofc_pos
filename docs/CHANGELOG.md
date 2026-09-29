@@ -4,6 +4,11 @@ All notable project changes are recorded in this file.
 
 ## Unreleased
 
+### Current orders as a sortable table; custom kitchen sound (2026-09-29)
+
+- Current orders is now a searchable, sortable table (order, type, status, payment, time, amount — click a header to sort, again to reverse). It opens on **Current** (unpaid or not yet finished); tabs switch to Unpaid, Ready, Completed, Cancelled or All. Summary cards show how many orders are unpaid and the amount still to collect, how many are current, and how many are ready to hand over. Unpaid rows are highlighted.
+- The kitchen screen plays `public/kds.mp3` for new orders when the file is present (decoded once the screen is tapped), and falls back to the generated bell otherwise. The sound file itself is not in the repository; put the restaurant's own licensed sound there on the server.
+
 ### Current orders shows every order; shift close fixes (2026-09-29)
 
 - **Current orders** listed only Draft/Pending/Confirmed/Paid orders, so every order that had gone to the kitchen (almost all of them, since paying dispatches at once) disappeared — including unpaid pay-later orders. It now lists every order of the shift, with tabs (All, Unpaid, In kitchen, Ready, Completed, Cancelled), the order type in the kitchen's colours, the kitchen stage and a Paid/Unpaid badge on each order. The toolbar count shows what still needs the cashier. The list cap went from 100 to 300.

@@ -394,11 +394,37 @@ test('current orders lists orders in the kitchen too, and the unpaid tab holds t
   await page.goto('/#/pos');
   await page.getByRole('button',{name:/Current orders/}).first().click();
   const dialog = page.getByRole('dialog',{name:'Current orders'});
-  for (const n of ['#31','#32','#33','#34']) await expect(dialog.getByRole('button',{name:n,exact:true})).toBeVisible();
+  // "Current" (the default) is everything still needing the cashier; a completed, paid order is under "All".
+  for (const n of ['#31','#32','#33']) await expect(dialog.getByRole('button',{name:n,exact:true})).toBeVisible();
+  await expect(dialog.getByRole('button',{name:'#34',exact:true})).toHaveCount(0);
+  await dialog.getByRole('tab',{name:/All/}).click();
+  await expect(dialog.getByRole('button',{name:'#34',exact:true})).toBeVisible();
+  // The unpaid summary shows how many and how much is still to collect.
+  await expect(dialog.getByRole('button',{name:/Unpaid\s*1\s*OMR 6\.000/})).toBeVisible();
   await dialog.getByRole('tab',{name:/Unpaid/}).click();
   await expect(dialog.getByRole('button',{name:'#32',exact:true})).toBeVisible();
   await expect(dialog.getByRole('button',{name:'#31',exact:true})).toHaveCount(0);
   await expect(dialog.getByRole('button',{name:'Pay',exact:true})).toHaveCount(1);
+});
+
+test('current orders table sorts by a column when its header is clicked', async ({page}) => {
+  await page.setViewportSize({width:1366,height:900}); await setup(page,'en','light');
+  const at = new Date().toISOString();
+  await openOrdersRoute(page, [
+    {id:'s1',number:51,status:'Preparing',salesChannelId:'c1',grossAmount:9,note:'',createdAt:at,table:null,paidAt:at},
+    {id:'s2',number:52,status:'Preparing',salesChannelId:'c1',grossAmount:2,note:'',createdAt:at,table:null,paidAt:at},
+    {id:'s3',number:53,status:'Preparing',salesChannelId:'c1',grossAmount:5,note:'',createdAt:at,table:null,paidAt:at},
+  ]);
+  await page.goto('/#/pos');
+  await page.getByRole('button',{name:/Current orders/}).first().click();
+  const dialog = page.getByRole('dialog',{name:'Current orders'});
+  const numbers = () => dialog.locator('tbody tr td:first-child button').allTextContents();
+  await dialog.getByRole('button',{name:'Amount',exact:true}).click();
+  await expect.poll(numbers).toEqual(['#51','#53','#52']);
+  await dialog.getByRole('button',{name:'Amount',exact:true}).click();
+  await expect.poll(numbers).toEqual(['#52','#53','#51']);
+  await dialog.getByRole('button',{name:'Order',exact:true}).click();
+  await expect.poll(numbers).toEqual(['#51','#52','#53']);
 });
 
 async function openOrdersRoute(page: Page, orders: unknown[]) {

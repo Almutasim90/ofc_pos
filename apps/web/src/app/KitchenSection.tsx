@@ -644,13 +644,49 @@ async function unlockAudio() {
   const context = audioContext();
   if (context && context.state !== "running")
     await context.resume().catch(() => undefined);
+  void loadOrderSound();
 }
 
-// A bright fast-food style order bell (ding-ding-DING, twice), generated in the browser so no audio
-// file ships with the app. Each strike stacks bell-like partials that ring out and decay.
+// The restaurant's own order sound (public/kds.mp3); swap the file to change it. Without it the
+// generated bell below plays instead.
+const orderSoundUrl = "/kds.mp3";
+let orderSound: AudioBuffer | null = null;
+let orderSoundLoading: Promise<void> | null = null;
+function loadOrderSound() {
+  const context = audioContext();
+  if (!context || orderSound) return Promise.resolve();
+  orderSoundLoading ??= fetch(orderSoundUrl)
+    .then((response) => {
+      if (!response.ok) throw new Error();
+      return response.arrayBuffer();
+    })
+    .then((data) => context.decodeAudioData(data))
+    .then((buffer) => {
+      orderSound = buffer;
+    })
+    .catch(() => {
+      orderSoundLoading = null;
+    });
+  return orderSoundLoading;
+}
+
 function playKitchenBell() {
   const context = audioContext();
   if (!context || context.state !== "running") return;
+  if (orderSound) {
+    const source = context.createBufferSource();
+    source.buffer = orderSound;
+    source.connect(context.destination);
+    source.start();
+    return;
+  }
+  void loadOrderSound();
+  playGeneratedBell(context);
+}
+
+// Fallback order bell (ding-ding-DING, twice), generated in the browser. Each strike stacks bell-like
+// partials that ring out and decay.
+function playGeneratedBell(context: AudioContext) {
   const strike = (at: number, frequency: number) => {
     for (const [ratio, level] of [
       [1, 0.32],
