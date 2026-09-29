@@ -36,6 +36,14 @@ export function useQrOrdersLive(
   reviewedRef.current = onReviewed;
   const synchronizedRef = useRef(onSynchronized);
   synchronizedRef.current = onSynchronized;
+  const changeTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (changeTimerRef.current !== null)
+        window.clearTimeout(changeTimerRef.current);
+    },
+    [],
+  );
 
   const live = useReliableBranchHub(
     "/hubs/orders",
@@ -46,6 +54,16 @@ export function useQrOrdersLive(
       });
       connection.on("qrOrderReviewed", (payload: QrOrderReviewedEvent) => {
         if (payload.branchId === branchId) reviewedRef.current?.(payload);
+      });
+      // Any order in the branch was created, paid or moved on (from any till or the kitchen). One user
+      // action can save several times, so bursts collapse into a single refresh.
+      connection.on("orderChanged", (payload: { branchId: string }) => {
+        if (payload.branchId !== branchId || changeTimerRef.current !== null)
+          return;
+        changeTimerRef.current = window.setTimeout(() => {
+          changeTimerRef.current = null;
+          synchronizedRef.current?.();
+        }, 300);
       });
     },
     () => synchronizedRef.current?.(),

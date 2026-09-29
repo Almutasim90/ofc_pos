@@ -21,6 +21,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IKitchenBroadcaster, KitchenBroadcaster>();
 builder.Services.AddSingleton<KitchenPresence>();
 builder.Services.AddSingleton<IOrdersBroadcaster, OrdersBroadcaster>();
+builder.Services.AddSingleton<Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor, OrderChangeNotifier>();
 builder.Services.AddHostedService<KitchenFallbackWatcher>();
 builder.Services.AddHostedService<EInvoiceWorker>();
 // The QR customer endpoints (/api/v1/qr/{code}...) are the only anonymous, unauthenticated routes in

@@ -24,7 +24,9 @@ public static class DependencyInjection
         }
         else
         {
-            services.AddDbContext<OFCDbContext>(options => options.UseNpgsql(connectionString));
+            // Interceptors registered by the host (e.g. realtime order notifications) run on every save.
+            services.AddDbContext<OFCDbContext>((sp, options) => options.UseNpgsql(connectionString)
+                .AddInterceptors(sp.GetServices<Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor>()));
         }
 
         services.AddScoped<IdentityService>();
