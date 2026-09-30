@@ -2,35 +2,9 @@
 
 @custom-variant dark (&:is([data-theme="dark"] *));
 
-@font-face {
-  font-family: "Thmanyah Sans";
-  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Regular.woff2")
-    format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Thmanyah Sans";
-  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Medium.woff2") format("woff2");
-  font-weight: 500 600;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Thmanyah Sans";
-  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Bold.woff2") format("woff2");
-  font-weight: 700 800;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Thmanyah Sans";
-  src: url("../thmanyah-fonts/woff2/thmanyah-sans-Black.woff2") format("woff2");
-  font-weight: 900;
-  font-display: swap;
-}
-
 @theme {
   --font-sans:
-    "Thmanyah Sans", "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+    "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
 }
 
 @theme inline {
