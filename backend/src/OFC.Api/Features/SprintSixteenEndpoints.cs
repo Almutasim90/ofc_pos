@@ -22,7 +22,7 @@ public static class SprintSixteenEndpoints
         api.MapGet("/{code}", ResolveContext).RequireRateLimiting("qr-anonymous");
         api.MapGet("/{code}/menu", CustomerMenu).RequireRateLimiting("qr-anonymous");
         api.MapPost("/{code}/orders", SubmitOrder).RequireRateLimiting("qr-anonymous");
-        api.MapGet("/{code}/orders/{clientRequestId:guid}", TrackOrder).RequireRateLimiting("qr-anonymous");
+        api.MapGet("/{code}/orders/{clientRequestId:guid}", TrackOrder).RequireRateLimiting("qr-tracking");
         api.MapGet("/contexts", ListContexts).RequireAuthorization();
         api.MapPost("/contexts", CreateContext).RequireAuthorization();
         api.MapPost("/contexts/{id:guid}/toggle", ToggleContext).RequireAuthorization();

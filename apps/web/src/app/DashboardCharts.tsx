@@ -342,7 +342,7 @@ export function LineChart({
   formatAxis: (v: number) => string;
   label: string;
 }) {
-  const [active, setActive] = useState<number | null>(null);
+  const [hovered, setActive] = useState<number | null>(null);
   const max = niceMax(Math.max(...points.map((p) => p.value), 0));
   const ticks = [max, max / 2, 0];
   const every = Math.max(1, Math.ceil(points.length / 8));
@@ -354,8 +354,12 @@ export function LineChart({
     .map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.value)}`)
     .join(" ");
   const area = `${line} L${x(last)},100 L${x(0)},100 Z`;
+  // A hovered index can outlive the points it pointed at (the range changed to fewer days).
+  const active =
+    hovered !== null && hovered >= 0 && hovered <= last ? hovered : null;
   const pick = (e: React.PointerEvent<HTMLDivElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
+    if (!box.width) return;
     const ratio = (e.clientX - box.left) / box.width;
     setActive(Math.max(0, Math.min(last, Math.round(ratio * last))));
   };

@@ -35,12 +35,17 @@ builder.Services.AddRateLimiter(options =>
     // guesser but a determined attacker spreading requests across many IPs can still get around it.
     // Closing that fully would mean either dropping short custom codes or adding per-code lockout state.
     options.AddPolicy("qr-anonymous", httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 15, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        ClientAddress.Of(httpContext),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    // Order tracking needs the unguessable client request id, so it is no enumeration risk; it gets room
+    // for the 6-second polling fallback of several guests sharing the restaurant Wi-Fi address.
+    options.AddPolicy("qr-tracking", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        ClientAddress.Of(httpContext),
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     // Login is the other anonymous route; without this it has no protection against
     // brute-force/credential-stuffing (security review finding M1).
     options.AddPolicy("login", httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        ClientAddress.Of(httpContext),
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
