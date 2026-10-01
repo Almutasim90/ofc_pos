@@ -3,8 +3,7 @@
 @custom-variant dark (&:is([data-theme="dark"] *));
 
 @theme {
-  --font-sans:
-    "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-sans: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
 }
 
 @theme inline {
@@ -3346,17 +3345,6 @@
 }
 
 /* Meter (ratio against limits) */
-.viz-meter-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.viz-meter-head strong {
-  font-size: 28px;
-  font-weight: 800;
-}
 .viz-meter-state {
   display: inline-flex;
   align-items: center;
@@ -3382,22 +3370,6 @@
 .viz-meter-danger {
   --viz-meter-color: var(--app-danger);
 }
-.viz-meter-track {
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(
-    in srgb,
-    var(--viz-meter-color) 16%,
-    var(--app-surface)
-  );
-}
-.viz-meter-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--viz-meter-color);
-}
-
 /* Table view */
 .viz-table {
   margin-top: 12px;
@@ -3568,44 +3540,60 @@
   }
 }
 
-/* Gauge (value against a target) */
+/* Gauge (speedometer: value against a target) */
 .viz-gauge {
   display: grid;
   justify-items: center;
 }
 .viz-gauge-dial {
-  position: relative;
-  width: min(100%, 260px);
+  width: min(100%, 280px);
 }
 .viz-gauge-dial svg {
   display: block;
   width: 100%;
   overflow: visible;
 }
-.viz-gauge-track,
-.viz-gauge-fill {
+.viz-gauge-zone {
   fill: none;
-  stroke-width: 10;
-  stroke-linecap: round;
+  stroke-width: 9;
+  opacity: 0.28;
 }
-.viz-gauge-track {
-  stroke: color-mix(in srgb, var(--viz-meter-color) 16%, var(--app-surface));
+.viz-gauge-zone.is-active {
+  opacity: 1;
 }
-.viz-gauge-fill {
-  stroke: var(--viz-meter-color);
+.viz-gauge-zone-good {
+  stroke: var(--app-success);
 }
-.viz-gauge-target {
-  stroke: var(--app-text);
+.viz-gauge-zone-warn {
+  stroke: var(--app-warning);
+}
+.viz-gauge-zone-danger {
+  stroke: var(--app-danger);
+}
+.viz-gauge-tick line {
+  stroke: var(--app-muted);
+  stroke-width: 0.8;
+}
+.viz-gauge-tick text {
+  fill: var(--app-muted);
+  font-size: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.viz-gauge-needle {
+  fill: var(--app-text);
+  transform-origin: 50px 50px;
+  transform-box: view-box;
+}
+.viz-gauge-hub {
+  fill: var(--app-text);
+  stroke: var(--app-surface);
   stroke-width: 1.5;
-  stroke-linecap: round;
 }
 .viz-gauge-center {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
   display: grid;
   justify-items: center;
   gap: 2px;
+  margin-top: 6px;
 }
 .viz-gauge-center strong {
   font-size: 26px;
@@ -3613,8 +3601,157 @@
   line-height: 1.1;
 }
 .viz-gauge-caption {
-  margin-top: 10px;
+  margin-top: 8px;
   text-align: center;
+}
+
+/* Thermometer (rate against warning / critical limits) */
+.viz-thermo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+}
+.viz-thermo-figure {
+  display: flex;
+  gap: 8px;
+}
+.viz-thermo-scale {
+  position: relative;
+  width: 36px;
+  height: 150px;
+  margin-top: 4px;
+}
+.viz-thermo-scale span {
+  position: absolute;
+  right: 0;
+  color: var(--app-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(50%);
+}
+.viz-thermo-body {
+  display: grid;
+  justify-items: center;
+}
+.viz-thermo-tube {
+  position: relative;
+  width: 20px;
+  height: 158px;
+  margin-bottom: -6px;
+  overflow: hidden;
+  border: 2px solid var(--app-border);
+  border-bottom: 0;
+  border-radius: 999px 999px 0 0;
+  background: color-mix(
+    in srgb,
+    var(--viz-meter-color) 12%,
+    var(--app-surface)
+  );
+}
+.viz-thermo-fill {
+  position: absolute;
+  inset-inline: 3px;
+  bottom: 0;
+  min-height: 6px;
+  border-radius: 999px 999px 0 0;
+  background: var(--viz-meter-color);
+}
+.viz-thermo-limit {
+  position: absolute;
+  inset-inline: 0;
+  height: 1.5px;
+  background: color-mix(in srgb, var(--app-text) 45%, transparent);
+}
+.viz-thermo-bulb {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--viz-meter-color);
+  box-shadow: inset 0 0 0 3px var(--app-surface);
+}
+.viz-thermo-readout {
+  display: grid;
+  gap: 6px;
+}
+.viz-thermo-readout strong {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.viz-thermo-readout p {
+  font-size: 13px;
+}
+
+/* Funnel (ranked items narrowing with the value) */
+.viz-funnel {
+  position: relative;
+  display: grid;
+  gap: 3px;
+}
+.viz-funnel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.viz-funnel-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.viz-funnel-label b {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--app-hover);
+  color: var(--app-muted);
+  font-size: 11px;
+}
+.viz-funnel-track {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 36px;
+}
+.viz-funnel-stage {
+  position: absolute;
+  inset: 0;
+  background: color-mix(
+    in srgb,
+    var(--viz-cat-1) var(--step, 100%),
+    var(--app-surface)
+  );
+  outline: none;
+  cursor: default;
+  transition: filter 0.12s ease;
+}
+.viz-funnel-stage:hover,
+.viz-funnel-stage:focus-visible {
+  filter: brightness(1.12);
+}
+.viz-funnel-value {
+  position: relative;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+}
+@media (max-width: 480px) {
+  .viz-funnel-row {
+    grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
+  }
 }
 
 /* Entrance animations: marks grow from their baseline, lines draw in, arcs sweep; staggered by --i.
@@ -3722,19 +3859,34 @@
   animation-delay: calc(150ms + var(--i, 0) * 120ms);
 }
 .viz-donut-center,
-.viz-gauge-center,
-.viz-meter-head {
+.viz-gauge-center {
   animation: viz-fade-up 400ms ease-out 350ms both;
 }
-.viz-gauge-fill {
-  animation: viz-sweep 1000ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+@keyframes viz-needle {
+  from {
+    transform: rotate(0deg);
+  }
 }
-.viz-meter-fill {
-  transform-origin: left;
-  animation: viz-grow-x 900ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+.viz-gauge-zone.is-active {
+  animation: viz-fade 500ms ease-out 200ms both;
 }
-[dir="rtl"] .viz-meter-fill {
-  transform-origin: right;
+.viz-gauge-needle {
+  animation: viz-needle 1100ms cubic-bezier(0.34, 1.3, 0.5, 1) 200ms both;
+}
+.viz-thermo-fill {
+  transform-origin: bottom;
+  animation: viz-grow-y 1000ms cubic-bezier(0.22, 1, 0.36, 1) 250ms both;
+}
+.viz-thermo-readout {
+  animation: viz-fade-up 400ms ease-out 350ms both;
+}
+.viz-funnel-stage {
+  transform-origin: center;
+  animation: viz-grow-x 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(150ms + var(--i, 0) * 90ms);
+}
+.viz-funnel-value {
+  animation: viz-fade 300ms ease-out 700ms both;
 }
 @media (prefers-reduced-motion: reduce) {
   .viz-card,

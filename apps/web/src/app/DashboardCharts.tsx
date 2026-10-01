@@ -287,48 +287,6 @@ export function ShareBar({
   );
 }
 
-// A single ratio against limits: the fill carries severity, the track is a lighter step of the same hue.
-export function Meter({
-  value,
-  warnAt,
-  dangerAt,
-  label,
-  states,
-}: {
-  value: number;
-  warnAt: number;
-  dangerAt: number;
-  label: string;
-  states: { good: string; warn: string; danger: string };
-}) {
-  const id = useId();
-  const level =
-    value >= dangerAt ? "danger" : value >= warnAt ? "warn" : "good";
-  const shown = Math.min(1, value / Math.max(dangerAt * 2, 0.0001));
-  return (
-    <div className={`viz-meter viz-meter-${level}`}>
-      <div className="viz-meter-head">
-        <strong id={id}>{`${(value * 100).toFixed(1)}%`}</strong>
-        <span className="viz-meter-state">
-          <i aria-hidden="true" />
-          {states[level]}
-        </span>
-      </div>
-      <div
-        className="viz-meter-track"
-        role="meter"
-        aria-labelledby={id}
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(value * 1000) / 10}
-      >
-        <div className="viz-meter-fill" style={{ width: `${shown * 100}%` }} />
-      </div>
-    </div>
-  );
-}
-
 // Trend: one series as a 2px line over a ~10% area wash. A crosshair snaps to the nearest point under the
 // pointer (or the arrow keys), so the reader aims at a time, never at the thin line.
 export function LineChart({
@@ -533,8 +491,9 @@ export function DonutChart({
   );
 }
 
-// One value against a target on a half-circle dial: the arc fills with the status colour, the track is a
-// lighter step of the same hue, a tick marks the target, and the state is also written out.
+// One value against a target on a speedometer dial: the arc is split into good / near / over zones (the
+// zone holding the value at full strength, the others recessive), a needle points at the value, the scale
+// is labelled at 0, the target (with a tick) and the maximum, and the state is also written out.
 export function Gauge({
   value,
   max,
@@ -553,51 +512,192 @@ export function Gauge({
   states: { good: string; warn: string; danger: string };
 }) {
   const level = value <= target ? "good" : value <= warnAt ? "warn" : "danger";
-  const ratio = Math.max(0, Math.min(1, value / max));
-  const targetAngle = Math.PI * (1 - Math.max(0, Math.min(1, target / max)));
-  // Semicircle of radius 40 centred at (50,50).
-  const arc = "M10,50 A40,40 0 0 1 90,50";
-  const length = Math.PI * 40;
-  const at = (radius: number) => ({
-    x: 50 + radius * Math.cos(targetAngle),
-    y: 50 - radius * Math.sin(targetAngle),
+  const clamp = (v: number) => Math.max(0, Math.min(1, v / max));
+  const ratio = clamp(value);
+  // Ratio 0 is the left end of the dial, 1 the right end; centre (50,50).
+  const at = (radius: number, r: number) => ({
+    x: 50 - radius * Math.cos(Math.PI * r),
+    y: 50 - radius * Math.sin(Math.PI * r),
   });
-  const inner = at(32);
-  const outer = at(48);
+  const band = (from: number, to: number) => {
+    const a = at(40, from);
+    const b = at(40, to);
+    return `M${a.x},${a.y} A40,40 0 0 1 ${b.x},${b.y}`;
+  };
+  const zones = [
+    { key: "good", from: 0, to: clamp(target) },
+    { key: "warn", from: clamp(target), to: clamp(warnAt) },
+    { key: "danger", from: clamp(warnAt), to: 1 },
+  ].filter((z) => z.to > z.from);
+  const ticks = [0, target, max];
   return (
     <div className={`viz-gauge viz-meter-${level}`}>
       <div className="viz-gauge-dial" dir="ltr">
         <svg
-          viewBox="0 0 100 56"
+          viewBox="-2 2 104 54"
           role="meter"
           aria-valuemin={0}
           aria-valuemax={max}
           aria-valuenow={value}
           aria-label={`${display} · ${caption}`}
         >
-          <path d={arc} className="viz-gauge-track" />
-          <path
-            d={arc}
-            className="viz-gauge-fill"
-            strokeDasharray={`${ratio * length} ${length}`}
-          />
-          <line
-            x1={inner.x}
-            y1={inner.y}
-            x2={outer.x}
-            y2={outer.y}
-            className="viz-gauge-target"
-          />
+          {zones.map((zone) => (
+            <path
+              key={zone.key}
+              d={band(zone.from, zone.to)}
+              className={`viz-gauge-zone viz-gauge-zone-${zone.key} ${zone.key === level ? "is-active" : ""}`}
+            />
+          ))}
+          {ticks.map((tick) => {
+            const r = clamp(tick);
+            const inner = at(31, r);
+            const outer = at(34, r);
+            const text = at(26, r);
+            return (
+              <g key={tick} className="viz-gauge-tick">
+                {tick === target && (
+                  <line x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} />
+                )}
+                <text
+                  x={text.x}
+                  y={text.y}
+                  textAnchor={r < 0.25 ? "start" : r > 0.75 ? "end" : "middle"}
+                  dominantBaseline="middle"
+                >
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+          <g
+            className="viz-gauge-needle"
+            style={{ transform: `rotate(${ratio * 180}deg)` }}
+          >
+            <path d="M50,47.8 L14,50 L50,52.2 Z" />
+          </g>
+          <circle cx="50" cy="50" r="4" className="viz-gauge-hub" />
         </svg>
-        <div className="viz-gauge-center">
-          <strong>{display}</strong>
-          <span className="viz-meter-state">
-            <i aria-hidden="true" />
-            {states[level]}
-          </span>
-        </div>
+      </div>
+      <div className="viz-gauge-center">
+        <strong>{display}</strong>
+        <span className="viz-meter-state">
+          <i aria-hidden="true" />
+          {states[level]}
+        </span>
       </div>
       <p className="viz-muted viz-gauge-caption">{caption}</p>
+    </div>
+  );
+}
+
+// A rate against warning / critical limits as a thermometer: the column rises from the bulb in the status
+// colour, the scale runs to twice the critical limit, and both limits are marked across the tube.
+export function Thermometer({
+  value,
+  warnAt,
+  dangerAt,
+  label,
+  states,
+  children,
+}: {
+  value: number;
+  warnAt: number;
+  dangerAt: number;
+  label: string;
+  states: { good: string; warn: string; danger: string };
+  children?: ReactNode;
+}) {
+  const id = useId();
+  const level =
+    value >= dangerAt ? "danger" : value >= warnAt ? "warn" : "good";
+  const max = Math.max(dangerAt * 2, 0.0001);
+  const pos = (v: number) => `${Math.max(0, Math.min(1, v / max)) * 100}%`;
+  const pct = (v: number) => `${Math.round(v * 1000) / 10}%`;
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((s) => s * max);
+  return (
+    <div className={`viz-thermo viz-meter-${level}`}>
+      <div className="viz-thermo-figure" dir="ltr">
+        <div className="viz-thermo-scale" aria-hidden="true">
+          {ticks.map((tick) => (
+            <span key={tick} style={{ bottom: pos(tick) }}>
+              {pct(tick)}
+            </span>
+          ))}
+        </div>
+        <div className="viz-thermo-body">
+          <div
+            className="viz-thermo-tube"
+            role="meter"
+            aria-labelledby={id}
+            aria-label={label}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(value * 1000) / 10}
+          >
+            <div className="viz-thermo-fill" style={{ height: pos(value) }} />
+            <i className="viz-thermo-limit" style={{ bottom: pos(warnAt) }} />
+            <i className="viz-thermo-limit" style={{ bottom: pos(dangerAt) }} />
+          </div>
+          <div className="viz-thermo-bulb" />
+        </div>
+      </div>
+      <div className="viz-thermo-readout">
+        <strong id={id}>{pct(value)}</strong>
+        <span className="viz-meter-state">
+          <i aria-hidden="true" />
+          {states[level]}
+        </span>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Ranked items as a funnel: centred stages narrowing with the value (the leader is the full width), each
+// stage tapering into the next, the value inside the stage and the name beside it.
+export function FunnelChart({
+  items,
+  format,
+}: {
+  items: Array<{ key: string; label: string; value: number }>;
+  format: (v: number) => string;
+}) {
+  const { frame, show, hide, node } = useTooltip();
+  const max = Math.max(...items.map((x) => x.value), 0) || 1;
+  // Stages never shrink below 38% so the value inside stays readable.
+  const width = (v: number) => 38 + 62 * (v / max);
+  const inset = (w: number) => (100 - w) / 2;
+  return (
+    <div className="viz-funnel" ref={frame}>
+      {items.map((item, i) => {
+        const top = width(item.value);
+        const next = items[i + 1];
+        const bottom = next ? width(next.value) : top * 0.88;
+        const shape = `polygon(${inset(top)}% 0, ${100 - inset(top)}% 0, ${100 - inset(bottom)}% 100%, ${inset(bottom)}% 100%)`;
+        return (
+          <div key={item.key} className="viz-funnel-row">
+            <span className="viz-funnel-label" title={item.label}>
+              <b>{i + 1}</b>
+              {item.label}
+            </span>
+            <div className="viz-funnel-track">
+              <div
+                className="viz-funnel-stage"
+                style={
+                  {
+                    clipPath: shape,
+                    "--i": i,
+                    "--step": `${100 - i * 6}%`,
+                  } as React.CSSProperties
+                }
+                {...markHandlers(show, hide, format(item.value), item.label)}
+              />
+              <span className="viz-funnel-value">{format(item.value)}</span>
+            </div>
+          </div>
+        );
+      })}
+      {node}
     </div>
   );
 }

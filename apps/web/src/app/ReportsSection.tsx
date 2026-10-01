@@ -11,10 +11,11 @@ import {
   ColumnChart,
   DonutChart,
   EmptyChart,
+  FunnelChart,
   Gauge,
   LineChart,
-  Meter,
   ShareBar,
+  Thermometer,
 } from "@/app/DashboardCharts";
 import { Input } from "@/components/ui/input";
 import {
@@ -1168,7 +1169,7 @@ function DashboardCharts({
         subtitle={t.cancelMeterNote}
         tableLabel={t.showTable}
       >
-        <Meter
+        <Thermometer
           value={data.cancellations?.rate ?? 0}
           warnAt={0.05}
           dangerAt={0.1}
@@ -1178,11 +1179,12 @@ function DashboardCharts({
             warn: t.meterWarn,
             danger: t.meterDanger,
           }}
-        />
-        <p className="viz-muted mt-3">
-          {num(data.cancellations?.count)} {t.cancelled} ·{" "}
-          {money(data.cancellations?.amount)}
-        </p>
+        >
+          <p className="viz-muted">
+            {num(data.cancellations?.count)} {t.cancelled}
+          </p>
+          <p className="viz-muted">{money(data.cancellations?.amount)}</p>
+        </Thermometer>
       </ChartCard>
       <ChartCard
         title={t.topProducts}
@@ -1194,7 +1196,10 @@ function DashboardCharts({
         }}
       >
         {products.length ? (
-          <BarList items={products} format={(v) => `${num(v)} ${t.pieces}`} />
+          <FunnelChart
+            items={products}
+            format={(v) => `${num(v)} ${t.pieces}`}
+          />
         ) : (
           <EmptyChart text={t.noChartData} />
         )}
