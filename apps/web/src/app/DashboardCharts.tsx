@@ -58,9 +58,12 @@ export function ChartCard({
   table,
   tableLabel,
   wide,
+  span,
   children,
 }: {
   wide?: boolean;
+  // On wide screens the grid has four tracks: a card takes two, `wide` all four, `span` an exact share.
+  span?: 1 | 3;
   title: string;
   subtitle?: string;
   table?: { head: string[]; rows: string[][] };
@@ -68,7 +71,9 @@ export function ChartCard({
   children: ReactNode;
 }) {
   return (
-    <section className={`viz-card ${wide ? "viz-span-2" : ""}`}>
+    <section
+      className={`viz-card ${wide ? "viz-span-2" : ""} ${span ? `viz-span-of-4-${span}` : ""}`}
+    >
       <header>
         <h3>{title}</h3>
         {subtitle && <p>{subtitle}</p>}
@@ -241,52 +246,6 @@ export function BarList({
   );
 }
 
-// Part-to-whole: one 100% bar with a 2px surface gap between segments, legend carrying name, value, share.
-export function ShareBar({
-  items,
-  format,
-}: {
-  items: Array<{ key: string; label: string; value: number }>;
-  format: (v: number) => string;
-}) {
-  const { frame, show, hide, node } = useTooltip();
-  const total = items.reduce((sum, x) => sum + x.value, 0) || 1;
-  const pct = (v: number) => `${Math.round((v / total) * 100)}%`;
-  return (
-    <div ref={frame} className="viz-share">
-      <div className="viz-share-bar">
-        {items.map((item, i) => (
-          <div
-            key={item.key}
-            className={`viz-share-segment ${slotClass(item.key, i)}`}
-            style={{ flexGrow: item.value, "--i": i } as React.CSSProperties}
-            {...markHandlers(
-              show,
-              hide,
-              `${format(item.value)} · ${pct(item.value)}`,
-              item.label,
-            )}
-          />
-        ))}
-      </div>
-      <ul className="viz-legend">
-        {items.map((item, i) => (
-          <li key={item.key}>
-            <i
-              className={`viz-swatch ${slotClass(item.key, i)}`}
-              aria-hidden="true"
-            />
-            <span>{item.label}</span>
-            <strong>{format(item.value)}</strong>
-            <span className="viz-muted">{pct(item.value)}</span>
-          </li>
-        ))}
-      </ul>
-      {node}
-    </div>
-  );
-}
-
 // Trend: one series as a 2px line over a ~10% area wash. A crosshair snaps to the nearest point under the
 // pointer (or the arrow keys), so the reader aims at a time, never at the thin line.
 export function LineChart({
@@ -427,10 +386,13 @@ export function DonutChart({
   items,
   format,
   centerLabel,
+  stacked = false,
 }: {
   items: Array<{ key: string; label: string; value: number }>;
   format: (v: number) => string;
   centerLabel: string;
+  // Legend under the ring instead of beside it, for narrow cards.
+  stacked?: boolean;
 }) {
   const { frame, show, hide, node } = useTooltip();
   const total = items.reduce((sum, x) => sum + x.value, 0) || 1;
@@ -439,7 +401,10 @@ export function DonutChart({
   const gap = items.length > 1 ? 0.8 : 0;
   let offset = 0;
   return (
-    <div className="viz-donut" ref={frame}>
+    <div
+      className={`viz-donut ${stacked ? "viz-donut-stacked" : ""}`}
+      ref={frame}
+    >
       <div className="viz-donut-figure">
         <svg viewBox="0 0 42 42" role="img" aria-label={centerLabel}>
           <circle cx="21" cy="21" r="15.9155" className="viz-donut-track" />

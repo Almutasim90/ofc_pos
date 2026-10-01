@@ -3061,12 +3061,22 @@
   gap: 16px;
   margin-top: 16px;
 }
+/* Four tracks on wide screens: a card takes half, .viz-span-2 the full row, and a row can split 3:1. */
 @media (min-width: 1024px) {
   .viz-grid-layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .viz-span-2 {
+  .viz-grid-layout > .viz-card {
     grid-column: span 2;
+  }
+  .viz-grid-layout > .viz-span-2 {
+    grid-column: span 4;
+  }
+  .viz-grid-layout > .viz-span-of-4-3 {
+    grid-column: span 3;
+  }
+  .viz-grid-layout > .viz-span-of-4-1 {
+    grid-column: span 1;
   }
 }
 .viz-card {
@@ -3179,9 +3189,7 @@
 .viz-column:hover,
 .viz-column:focus-visible,
 .viz-bar:hover,
-.viz-bar:focus-visible,
-.viz-share-segment:hover,
-.viz-share-segment:focus-visible {
+.viz-bar:focus-visible {
   filter: brightness(1.12);
 }
 .viz-peak {
@@ -3277,20 +3285,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Share (part-to-whole) */
-.viz-share {
-  position: relative;
-}
-.viz-share-bar {
-  display: flex;
-  gap: 2px;
-  height: 20px;
-  overflow: hidden;
-  border-radius: 4px;
-}
-.viz-share-segment {
-  min-width: 4px;
-}
 /* A mark's colour: categorical slots set --viz-c; single-series marks fall back to the accent. */
 .viz-cat-1 {
   --viz-c: var(--viz-cat-1);
@@ -3319,7 +3313,6 @@
 .viz-cat-other {
   --viz-c: var(--viz-cat-other);
 }
-.viz-share-segment,
 .viz-swatch {
   background: var(--viz-c, var(--viz-accent));
 }
@@ -3530,6 +3523,16 @@
   color: var(--app-muted);
   font-size: 11.5px;
 }
+.viz-donut-stacked {
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+.viz-donut-stacked .viz-legend {
+  width: 100%;
+}
+.viz-donut-stacked .viz-donut-center strong {
+  font-size: 14px;
+}
 @media (max-width: 480px) {
   .viz-donut {
     grid-template-columns: 1fr;
@@ -3690,6 +3693,8 @@
   position: relative;
   display: grid;
   gap: 3px;
+  max-width: 820px;
+  margin-inline: auto;
 }
 .viz-funnel-row {
   display: grid;
@@ -3721,7 +3726,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  height: 36px;
+  height: clamp(36px, 5vw, 64px);
 }
 .viz-funnel-stage {
   position: absolute;
@@ -3832,14 +3837,6 @@
   animation-delay: calc(150ms + var(--i, 0) * 70ms);
 }
 [dir="rtl"] .viz-bar {
-  transform-origin: right;
-}
-.viz-share-segment {
-  transform-origin: left;
-  animation: viz-grow-x 550ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(150ms + var(--i, 0) * 90ms);
-}
-[dir="rtl"] .viz-share-segment {
   transform-origin: right;
 }
 .viz-legend li {

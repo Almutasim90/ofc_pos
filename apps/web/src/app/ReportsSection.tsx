@@ -14,7 +14,6 @@ import {
   FunnelChart,
   Gauge,
   LineChart,
-  ShareBar,
   Thermometer,
 } from "@/app/DashboardCharts";
 import { Input } from "@/components/ui/input";
@@ -94,9 +93,10 @@ const copy = {
     category: "التصنيف",
     salesByCategoryNote: "إجمالي المبيعات لكل تصنيف في القائمة",
     topProducts: "الأصناف الأكثر مبيعاً",
-    topProductsNote: "أعلى 5 أصناف بعدد القطع",
+    topProductsNote: "أعلى 3 أصناف بعدد القطع",
     paymentMix: "طرق الدفع",
     paymentMixNote: "نسبة المبالغ المحصلة",
+    collected: "المحصّل",
     cancelMeter: "نسبة الإلغاء",
     cancelMeterNote: "تنبيه عند 5% وخطر عند 10%",
     meterGood: "طبيعية",
@@ -227,9 +227,10 @@ const copy = {
     category: "Category",
     salesByCategoryNote: "Gross sales per menu category",
     topProducts: "Top-selling items",
-    topProductsNote: "Top 5 items by quantity",
+    topProductsNote: "Top 3 items by quantity",
     paymentMix: "Payment methods",
     paymentMixNote: "Share of collected amounts",
+    collected: "Collected",
     cancelMeter: "Cancellation rate",
     cancelMeterNote: "Warning at 5%, critical at 10%",
     meterGood: "Normal",
@@ -1014,7 +1015,7 @@ function DashboardCharts({
       : categoryRows;
   const products = [...(sales?.byProduct ?? [])]
     .sort((a: any, b: any) => b.quantity - a.quantity)
-    .slice(0, 5)
+    .slice(0, 3)
     .map((row: any) => ({
       key: String(row.productId),
       label: name(row.nameAr, row.nameEn),
@@ -1187,6 +1188,7 @@ function DashboardCharts({
         </Thermometer>
       </ChartCard>
       <ChartCard
+        span={3}
         title={t.topProducts}
         subtitle={t.topProductsNote}
         tableLabel={t.showTable}
@@ -1205,6 +1207,7 @@ function DashboardCharts({
         )}
       </ChartCard>
       <ChartCard
+        span={1}
         title={t.paymentMix}
         subtitle={t.paymentMixNote}
         tableLabel={t.showTable}
@@ -1214,7 +1217,12 @@ function DashboardCharts({
         }}
       >
         {payments.length ? (
-          <ShareBar items={payments} format={amount} />
+          <DonutChart
+            items={payments}
+            format={amount}
+            centerLabel={t.collected}
+            stacked
+          />
         ) : (
           <EmptyChart text={t.noChartData} />
         )}
