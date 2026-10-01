@@ -93,7 +93,7 @@ const copy = {
     category: "التصنيف",
     salesByCategoryNote: "إجمالي المبيعات لكل تصنيف في القائمة",
     topProducts: "الأصناف الأكثر مبيعاً",
-    topProductsNote: "أعلى 3 أصناف بعدد القطع",
+    topProductsNote: "أعلى 5 أصناف بعدد القطع",
     paymentMix: "طرق الدفع",
     paymentMixNote: "نسبة المبالغ المحصلة",
     collected: "المحصّل",
@@ -227,7 +227,7 @@ const copy = {
     category: "Category",
     salesByCategoryNote: "Gross sales per menu category",
     topProducts: "Top-selling items",
-    topProductsNote: "Top 3 items by quantity",
+    topProductsNote: "Top 5 items by quantity",
     paymentMix: "Payment methods",
     paymentMixNote: "Share of collected amounts",
     collected: "Collected",
@@ -1015,7 +1015,7 @@ function DashboardCharts({
       : categoryRows;
   const products = [...(sales?.byProduct ?? [])]
     .sort((a: any, b: any) => b.quantity - a.quantity)
-    .slice(0, 3)
+    .slice(0, 5)
     .map((row: any) => ({
       key: String(row.productId),
       label: name(row.nameAr, row.nameEn),

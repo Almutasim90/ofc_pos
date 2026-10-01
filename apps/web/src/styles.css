@@ -3698,22 +3698,32 @@
 }
 .viz-funnel-row {
   display: grid;
-  grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 28px;
+}
+/* Rank, name and value: the value right-aligned to the column end, beside the shapes. */
+.viz-funnel-label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-}
-.viz-funnel-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
+  padding-block: 6px;
+  border-bottom: 1px dashed var(--app-border);
   font-size: 13px;
+}
+.viz-funnel-label span {
+  overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.viz-funnel-label strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .viz-funnel-label b {
   display: inline-grid;
-  flex: none;
   place-items: center;
   width: 20px;
   height: 20px;
@@ -3744,18 +3754,10 @@
 .viz-funnel-stage:focus-visible {
   filter: brightness(1.12);
 }
-.viz-funnel-value {
-  position: relative;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  text-shadow: 0 1px 2px rgb(0 0 0 / 35%);
-}
 @media (max-width: 480px) {
   .viz-funnel-row {
-    grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+    gap: 16px;
   }
 }
 
@@ -3882,7 +3884,7 @@
   animation: viz-grow-x 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(150ms + var(--i, 0) * 90ms);
 }
-.viz-funnel-value {
+.viz-funnel-label strong {
   animation: viz-fade 300ms ease-out 700ms both;
 }
 @media (prefers-reduced-motion: reduce) {

@@ -619,7 +619,7 @@ export function Thermometer({
 }
 
 // Ranked items as a funnel: centred stages narrowing with the value (the leader is the full width), each
-// stage tapering into the next, the value inside the stage and the name beside it.
+// stage tapering into the next; rank, name and value sit in their own column, clear of the shapes.
 export function FunnelChart({
   items,
   format,
@@ -641,10 +641,11 @@ export function FunnelChart({
         const shape = `polygon(${inset(top)}% 0, ${100 - inset(top)}% 0, ${100 - inset(bottom)}% 100%, ${inset(bottom)}% 100%)`;
         return (
           <div key={item.key} className="viz-funnel-row">
-            <span className="viz-funnel-label" title={item.label}>
+            <div className="viz-funnel-label">
               <b>{i + 1}</b>
-              {item.label}
-            </span>
+              <span title={item.label}>{item.label}</span>
+              <strong>{format(item.value)}</strong>
+            </div>
             <div className="viz-funnel-track">
               <div
                 className="viz-funnel-stage"
@@ -657,7 +658,6 @@ export function FunnelChart({
                 }
                 {...markHandlers(show, hide, format(item.value), item.label)}
               />
-              <span className="viz-funnel-value">{format(item.value)}</span>
             </div>
           </div>
         );
