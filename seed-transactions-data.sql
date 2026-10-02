@@ -220,7 +220,7 @@ BEGIN
           v_pm_id := NULL;
           IF v_r < 0.45 THEN SELECT "Id" INTO v_pm_id FROM ofc.payment_methods WHERE "BranchId" = v_branch."Id" AND "Code" = 'CASH';
           ELSIF v_r < 0.90 THEN SELECT "Id" INTO v_pm_id FROM ofc.payment_methods WHERE "BranchId" = v_branch."Id" AND "Code" = 'CARD';
-          ELSE SELECT "Id" INTO v_pm_id FROM ofc.payment_methods WHERE "BranchId" = v_branch."Id" AND "Code" = 'APPLEPAY';
+          ELSE SELECT "Id" INTO v_pm_id FROM ofc.payment_methods WHERE "BranchId" = v_branch."Id" AND "Code" = 'EXTERNAL';
           END IF;
           SELECT "Kind" INTO v_pm_kind FROM ofc.payment_methods WHERE "Id" = v_pm_id;
 

@@ -2368,6 +2368,104 @@
   background: var(--app-surface-raised);
 }
 
+.login-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: clamp(8px, 2.5vh, 24px) clamp(8px, 2vw, 24px);
+}
+.login-card {
+  height: min(620px, 100%);
+  min-height: 0;
+}
+.login-form-panel {
+  min-height: 0;
+  padding: clamp(14px, 4vh, 34px) clamp(18px, 4vw, 52px)
+    clamp(12px, 3vh, 28px);
+}
+
+@media (max-width: 800px) {
+  .login-card {
+    height: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-shell {
+    padding: 0;
+  }
+}
+
+@media (max-height: 700px) {
+  .login-heading {
+    margin-block-end: clamp(8px, 2vh, 20px);
+  }
+  .login-mobile-brand {
+    margin-block-end: clamp(4px, 1vh, 10px);
+  }
+  .login-field {
+    margin-block-end: clamp(8px, 1.6vh, 14px);
+  }
+  .login-field > span:first-child {
+    margin-block-end: 5px;
+  }
+  .login-field input {
+    min-height: clamp(40px, 7vh, 48px);
+  }
+  .login-submit {
+    min-height: clamp(42px, 7vh, 48px);
+  }
+}
+
+@media (max-height: 560px) {
+  .login-card {
+    max-width: 520px;
+    grid-template-columns: 1fr;
+  }
+  .login-showcase {
+    display: none;
+  }
+  .login-mobile-brand {
+    display: block;
+  }
+}
+
+@media (max-height: 420px) {
+  .login-form-panel {
+    padding-block: 6px;
+  }
+  .login-icon-button,
+  .login-language {
+    min-height: 36px;
+  }
+  .login-mobile-brand {
+    display: none;
+  }
+  .login-heading {
+    margin-block-end: 6px;
+  }
+  .login-heading h1 {
+    font-size: 22px;
+  }
+  .login-heading p {
+    margin-block-start: 4px;
+    font-size: 12px;
+  }
+  .login-field {
+    margin-block-end: 6px;
+  }
+  .login-field input {
+    min-height: 38px;
+  }
+  .login-submit {
+    min-height: 40px;
+  }
+  .login-footer {
+    display: none;
+  }
+}
+
 :where(
     .app-shell,
     [data-slot="dialog-content"],
