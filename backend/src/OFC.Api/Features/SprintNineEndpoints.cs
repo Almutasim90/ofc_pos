@@ -22,6 +22,8 @@ public static class SprintNineEndpoints
         api.MapGet("/print/templates", ListTemplates).RequireAuthorization();
         api.MapPost("/print/templates", CreateTemplate).RequireAuthorization();
         api.MapPut("/print/templates/{id:guid}", UpdateTemplate).RequireAuthorization();
+        api.MapGet("/print/receipt-layout", GetReceiptLayout).RequireAuthorization();
+        api.MapPut("/print/receipt-layout", SaveReceiptLayout).RequireAuthorization();
         api.MapGet("/print/routes", ListRoutes).RequireAuthorization();
         api.MapPost("/print/routes", CreateRoute).RequireAuthorization();
         api.MapPut("/print/routes/{id:guid}", UpdateRoute).RequireAuthorization();
@@ -126,6 +128,45 @@ public static class SprintNineEndpoints
         await db.SaveChangesAsync(ct);
         return Results.Ok(TemplateResponse(template));
     }
+
+    // Any staff member at the branch can read the layout: the cashier's browser needs it to print receipts.
+    private static async Task<IResult> GetReceiptLayout(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (!await CanPrintAt(db, user, branchId, ct)) return Forbidden();
+        var layout = await db.ReceiptLayouts.AsNoTracking().SingleOrDefaultAsync(x => x.BranchId == branchId, ct);
+        return Results.Ok(ReceiptLayoutResponse(branchId, layout));
+    }
+
+    private static async Task<IResult> SaveReceiptLayout(Guid branchId, ReceiptLayoutRequest request, OFCDbContext db, IdentityService identity, ClaimsPrincipal user, HttpContext context, CancellationToken ct)
+    {
+        if (!await CanPrintAt(db, user, branchId, ct) || !user.HasClaim("permission", "printing.templates.manage")) return Forbidden();
+        var headerText = Blank(request.HeaderText);
+        var footerText = Blank(request.FooterText);
+        var headerImage = Blank(request.HeaderImage);
+        var footerImage = Blank(request.FooterImage);
+        if (headerText?.Length > PrintingRules.ReceiptTextMax || footerText?.Length > PrintingRules.ReceiptTextMax) return Validation("text", "The header and footer text must each be at most 1000 characters.");
+        if (!ValidReceiptImage(headerImage) || !ValidReceiptImage(footerImage)) return Validation("image", "Images must be PNG, JPEG or WebP and small enough to print (about 300 KB).");
+        if (!await db.Branches.AnyAsync(x => x.Id == branchId, ct)) return Results.NotFound();
+        var layout = await db.ReceiptLayouts.SingleOrDefaultAsync(x => x.BranchId == branchId, ct);
+        if (layout is null)
+        {
+            layout = new ReceiptLayout { BranchId = branchId };
+            db.ReceiptLayouts.Add(layout);
+        }
+        layout.HeaderText = headerText;
+        layout.HeaderImage = headerImage;
+        layout.FooterText = footerText;
+        layout.FooterImage = footerImage;
+        layout.UpdatedAt = DateTimeOffset.UtcNow;
+        identity.Audit(UserId(user), branchId, DeviceId(user), "printing.receipt_layout.update", "receipt_layout", layout.Id.ToString(), context.TraceIdentifier, newValue: JsonSerializer.Serialize(new { layout.HeaderText, layout.FooterText, hasHeaderImage = layout.HeaderImage is not null, hasFooterImage = layout.FooterImage is not null }));
+        await db.SaveChangesAsync(ct);
+        return Results.Ok(ReceiptLayoutResponse(branchId, layout));
+    }
+
+    private static object ReceiptLayoutResponse(Guid branchId, ReceiptLayout? layout) => new { branchId, headerText = layout?.HeaderText, headerImage = layout?.HeaderImage, footerText = layout?.FooterText, footerImage = layout?.FooterImage, updatedAt = layout?.UpdatedAt };
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static bool ValidReceiptImage(string? image) => image is null
+        || (image.Length <= PrintingRules.ReceiptImageMax && (image.StartsWith("data:image/png;base64,", StringComparison.Ordinal) || image.StartsWith("data:image/jpeg;base64,", StringComparison.Ordinal) || image.StartsWith("data:image/webp;base64,", StringComparison.Ordinal)));
 
     private static async Task<IResult> ListRoutes(Guid branchId, OFCDbContext db, ClaimsPrincipal user, CancellationToken ct)
     {
@@ -296,6 +337,7 @@ public static class SprintNineEndpoints
     private sealed record ConfigUpdateRequest(string? NameAr, string? NameEn, PrinterKind? Kind, string? DeviceName, int? SortOrder, bool? IsActive);
     private sealed record TemplateRequest(string Code, string NameAr, string NameEn, PrinterKind Kind, int? WidthChars, string Content, bool? IsActive);
     private sealed record TemplateUpdateRequest(string? NameAr, string? NameEn, PrinterKind? Kind, int? WidthChars, string? Content, bool? IsActive);
+    private sealed record ReceiptLayoutRequest(string? HeaderText, string? HeaderImage, string? FooterText, string? FooterImage);
     private sealed record RouteRequest(Guid BranchId, Guid? PreparationStationId, Guid PrinterConfigurationId, Guid PrintTemplateId, int? Priority, bool? IsActive);
     private sealed record RouteUpdateRequest(Guid? PreparationStationId, Guid? PrinterConfigurationId, Guid? PrintTemplateId, int? Priority, bool? IsActive);
     private sealed record EnqueueRequest(Guid BranchId, Guid? OrderId, Guid ClientRequestId, PrintJobKind Kind, Guid? PreparationStationId, string? TemplateCode, JsonElement? Payload);

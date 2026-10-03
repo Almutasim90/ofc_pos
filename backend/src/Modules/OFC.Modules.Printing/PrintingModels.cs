@@ -37,6 +37,19 @@ public sealed class PrintTemplate
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
+// The customer receipt's free-form header and footer for one branch, printed from the cashier's browser.
+// Each part is an optional block of text (shop name, phone, VAT number…) and an optional image (a data URL).
+public sealed class ReceiptLayout
+{
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public Guid BranchId { get; set; }
+    public string? HeaderText { get; set; }
+    public string? HeaderImage { get; set; }
+    public string? FooterText { get; set; }
+    public string? FooterImage { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
 public sealed class PrinterRoute
 {
     public Guid Id { get; set; } = Guid.CreateVersion7();
@@ -78,6 +91,9 @@ public static class PrintingRules
     public const int NameMax = 160;
     public const int DeviceNameMax = 100;
     public const int TemplateContentMax = 4000;
+    public const int ReceiptTextMax = 1000;
+    // An image is stored inline as a data URL; the editor downsizes it to receipt width before upload.
+    public const int ReceiptImageMax = 400_000;
     public const int JobErrorMax = 500;
     public const int TemplateWidthMin = 20;
     public const int TemplateWidthMax = 120;

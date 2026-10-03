@@ -43,6 +43,7 @@ import { ProductPhoto } from "@/app/ProductPhoto";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { FormDialog } from "@/app/FormDialog";
 import { printKitchenSlips, snapshotChoices } from "@/lib/kitchen-slip";
+import { printOrderReceipt } from "@/lib/receipt";
 import {
   openCustomerDisplayWindow,
   openDisplayChannel,
@@ -1901,6 +1902,7 @@ export function PosSection({
       }
       setCartOpen(false);
       announcePaid(order.grossAmount);
+      void printOrderReceipt(auth, branchId, order.id, language);
       await dispatchOrder(order.id);
       setPayCash("");
       setPayCard("");

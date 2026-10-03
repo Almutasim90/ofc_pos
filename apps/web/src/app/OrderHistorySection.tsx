@@ -3,6 +3,7 @@ import { FormDialog } from "@/app/FormDialog";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { store } from "@/lib/local-store";
 import { paymentMethodName } from "@/lib/payment-method";
+import { printOrderReceipt } from "@/lib/receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -103,6 +104,8 @@ const copy = {
     note: "ملاحظة",
     payments: "المدفوعات",
     noPayments: "لا توجد مدفوعات مسجلة.",
+    printReceipt: "طباعة الفاتورة",
+    printFailed: "تعذر طباعة الفاتورة.",
     statuses: {
       Draft: "معلّق",
       Pending: "بانتظار الدفع",
@@ -152,6 +155,8 @@ const copy = {
     note: "Note",
     payments: "Payments",
     noPayments: "No payments recorded.",
+    printReceipt: "Print receipt",
+    printFailed: "Could not print the receipt.",
     statuses: {
       Draft: "Held",
       Pending: "Awaiting payment",
@@ -194,6 +199,7 @@ export function OrderHistorySection({ language }: { language: Language }) {
   const [result, setResult] = useState<HistoryResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [printFailed, setPrintFailed] = useState(false);
   const [selected, setSelected] = useState<{
     order: OrderDetail;
     payments: PaymentRow[];
@@ -255,6 +261,7 @@ export function OrderHistorySection({ language }: { language: Language }) {
   }, [branchId, from, to, status, channelId, page]);
 
   async function open(id: string) {
+    setPrintFailed(false);
     const [orderResponse, paymentResponse] = await Promise.all([
       auth(`/api/v1/orders/${id}`),
       auth(`/api/v1/orders/${id}/payments`),
@@ -522,6 +529,31 @@ export function OrderHistorySection({ language }: { language: Language }) {
                 </ul>
               )}
             </div>
+            {selected.payments.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={async () => {
+                    setPrintFailed(false);
+                    const printed = await printOrderReceipt(
+                      auth,
+                      branchId,
+                      selected.order.id,
+                      language,
+                    );
+                    setPrintFailed(!printed);
+                  }}
+                  className="min-h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"
+                >
+                  {t.printReceipt}
+                </Button>
+                {printFailed && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {t.printFailed}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </FormDialog>
       )}

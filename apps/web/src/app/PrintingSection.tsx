@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Printer, RefreshCw, ShieldCheck } from "lucide-react";
 import { FormDialog } from "@/app/FormDialog";
+import { ReceiptDesigner } from "@/app/ReceiptDesigner";
 import { SearchableSelect } from "@/app/SearchableSelect";
 import { createId, store } from "@/lib/local-store";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ const copy = {
     templates: "القوالب",
     routes: "توجيه الطابعات",
     queue: "طابور الطباعة",
+    receipt: "تصميم الفاتورة",
     addConfig: "إضافة إعداد طابعة",
     code: "الرمز",
     nameAr: "الاسم بالعربية",
@@ -143,6 +145,7 @@ const copy = {
     templates: "Templates",
     routes: "Printer routes",
     queue: "Print queue",
+    receipt: "Receipt design",
     addConfig: "Add printer config",
     code: "Code",
     nameAr: "Arabic name",
@@ -231,9 +234,9 @@ export function PrintingSection({ language }: { language: Language }) {
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState("");
-  const [tab, setTab] = useState<"configs" | "templates" | "routes" | "queue">(
-    "configs",
-  );
+  const [tab, setTab] = useState<
+    "receipt" | "configs" | "templates" | "routes" | "queue"
+  >("receipt");
   const [stations, setStations] = useState<Station[]>([]);
   const [configs, setConfigs] = useState<Config[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -484,7 +487,10 @@ export function PrintingSection({ language }: { language: Language }) {
     await load(branchId);
   }
 
-  const tabs: Array<["configs" | "templates" | "routes" | "queue", string]> = [
+  const tabs: Array<
+    ["receipt" | "configs" | "templates" | "routes" | "queue", string]
+  > = [
+    ["receipt", t.receipt],
     ["configs", t.configs],
     ["templates", t.templates],
     ["routes", t.routes],
@@ -546,6 +552,10 @@ export function PrintingSection({ language }: { language: Language }) {
           <RefreshCw className="animate-spin" size={20} />
           {t.loading}
         </div>
+      )}
+
+      {tab === "receipt" && branchId && (
+        <ReceiptDesigner branchId={branchId} language={language} auth={auth} />
       )}
 
       {!loading && tab === "configs" && (

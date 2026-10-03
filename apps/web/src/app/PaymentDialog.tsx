@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Banknote, CreditCard, X } from "lucide-react";
 import { createId, store } from "@/lib/local-store";
+import { printOrderReceipt } from "@/lib/receipt";
 import {
   normalizeMoneyInput,
   roundMoney,
@@ -230,6 +231,7 @@ export function PaymentDialog({
       }
       setMessage(t.paid);
       setPaid(true);
+      void printOrderReceipt(auth, branchId, orderId, language);
       try {
         if (onPaid) await onPaid();
         else {
