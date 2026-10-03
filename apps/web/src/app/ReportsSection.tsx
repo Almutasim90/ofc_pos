@@ -1025,7 +1025,8 @@ function DashboardCharts({
   const methods = [...(sales?.byPayment ?? [])]
     .sort((a: any, b: any) => b.amount - a.amount)
     .map((row: any) => ({
-      key: String(row.paymentMethodId),
+      // External payments come back one row per sales channel, so the method id alone isn't unique.
+      key: `${row.paymentMethodId}:${row.channelId ?? ""}`,
       label: name(row.nameAr, row.nameEn),
       value: row.amount,
     }));

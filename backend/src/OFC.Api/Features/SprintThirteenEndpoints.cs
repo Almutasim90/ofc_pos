@@ -104,7 +104,8 @@ public static class SprintThirteenEndpoints
         var byChannel = salesOrders.GroupBy(x => x.SalesChannelId).Select(g => new { channelId = g.Key, channelNameAr = channels.TryGetValue(g.Key, out var c) ? c.NameAr : null, channelNameEn = channels.TryGetValue(g.Key, out var c2) ? c2.NameEn : null, orderCount = g.Count(), grossSales = Round(g.Sum(x => x.GrossAmount)) });
         var byProduct = lines.GroupBy(x => x.ProductId).Select(g => new { productId = g.Key, sku = products.TryGetValue(g.Key, out var p) ? p.Sku : null, nameAr = products.TryGetValue(g.Key, out var p2) ? p2.NameAr : null, nameEn = products.TryGetValue(g.Key, out var p3) ? p3.NameEn : null, quantity = g.Sum(EffectiveQty), netSales = Round(g.Sum(x => x.UnitNetAmount * EffectiveQty(x))), taxAmount = Round(g.Sum(x => x.UnitTaxAmount * EffectiveQty(x))), grossSales = Round(g.Sum(x => x.UnitGrossAmount * EffectiveQty(x))), discountAmount = Round(g.Sum(x => x.UnitDiscountAmount * EffectiveQty(x))) }).OrderByDescending(x => x.grossSales);
         var byCategory = lines.GroupBy(x => products.TryGetValue(x.ProductId, out var p) ? p.CategoryId : Guid.Empty).Select(g => new { categoryId = g.Key, categoryNameAr = categories.TryGetValue(g.Key, out var c) ? c.NameAr : null, categoryNameEn = categories.TryGetValue(g.Key, out var c2) ? c2.NameEn : null, quantity = g.Sum(EffectiveQty), grossSales = Round(g.Sum(x => x.UnitGrossAmount * EffectiveQty(x))) }).OrderByDescending(x => x.grossSales);
-        var byPayment = payments.Where(x => x.Status is PaymentStatus.Captured or PaymentStatus.Authorized).GroupBy(x => x.PaymentMethodId).Select(g => new { paymentMethodId = g.Key, nameAr = methods.TryGetValue(g.Key, out var m) ? m.NameAr : null, nameEn = methods.TryGetValue(g.Key, out var m2) ? m2.NameEn : null, count = g.Count(), amount = Round(g.Sum(x => x.Amount)) }).OrderByDescending(x => x.amount);
+        var orderChannels = salesOrders.ToDictionary(x => x.Id, x => x.SalesChannelId);
+        var byPayment = payments.Where(x => x.Status is PaymentStatus.Captured or PaymentStatus.Authorized).GroupBy(x => PaymentSource(x, methods, orderChannels)).Select(g => new { paymentMethodId = g.Key.MethodId, channelId = g.Key.ChannelId, nameAr = PaymentSourceName(methods, channels, g.Key, arabic: true), nameEn = PaymentSourceName(methods, channels, g.Key, arabic: false), count = g.Count(), amount = Round(g.Sum(x => x.Amount)) }).OrderByDescending(x => x.amount);
 
         return Results.Ok(new
         {
@@ -125,7 +126,12 @@ public static class SprintThirteenEndpoints
         var methods = methodIds.Count == 0 ? new Dictionary<Guid, PaymentMethod>() : await db.PaymentMethods.AsNoTracking().Where(x => methodIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
         var captured = payments.Where(x => x.Status is PaymentStatus.Captured or PaymentStatus.Authorized).Sum(x => x.Amount);
         var rejected = payments.Where(x => x.Status is PaymentStatus.Failed or PaymentStatus.Cancelled).Sum(x => x.Amount);
-        var byMethod = payments.GroupBy(x => x.PaymentMethodId).Select(g => new { paymentMethodId = g.Key, nameAr = methods.TryGetValue(g.Key, out var m) ? m.NameAr : null, nameEn = methods.TryGetValue(g.Key, out var m2) ? m2.NameEn : null, count = g.Count(), captured = Round(g.Where(x => x.Status is PaymentStatus.Captured or PaymentStatus.Authorized).Sum(x => x.Amount)), refunded = Round(g.Where(x => x.Status is PaymentStatus.Reversed).Sum(x => x.Amount)) }).OrderByDescending(x => x.captured);
+        var externalMethodIds = methods.Values.Where(x => x.Kind == PaymentMethodKind.External).Select(x => x.Id).ToHashSet();
+        var externalOrderIds = payments.Where(x => externalMethodIds.Contains(x.PaymentMethodId)).Select(x => x.OrderId).Distinct().ToList();
+        var orderChannels = externalOrderIds.Count == 0 ? new Dictionary<Guid, Guid>() : await db.Orders.AsNoTracking().Where(x => externalOrderIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.SalesChannelId, ct);
+        var channelIds = orderChannels.Values.Distinct().ToList();
+        var channels = channelIds.Count == 0 ? new Dictionary<Guid, SalesChannel>() : await db.SalesChannels.AsNoTracking().Where(x => channelIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x, ct);
+        var byMethod = payments.GroupBy(x => PaymentSource(x, methods, orderChannels)).Select(g => new { paymentMethodId = g.Key.MethodId, channelId = g.Key.ChannelId, nameAr = PaymentSourceName(methods, channels, g.Key, arabic: true), nameEn = PaymentSourceName(methods, channels, g.Key, arabic: false), count = g.Count(), captured = Round(g.Where(x => x.Status is PaymentStatus.Captured or PaymentStatus.Authorized).Sum(x => x.Amount)), refunded = Round(g.Where(x => x.Status is PaymentStatus.Reversed).Sum(x => x.Amount)) }).OrderByDescending(x => x.captured);
         var byStatus = payments.GroupBy(x => x.Status).Select(g => new { status = g.Key.ToString(), count = g.Count(), amount = Round(g.Sum(x => x.Amount)) }).OrderByDescending(x => x.amount);
         return Results.Ok(new { summary = new { totalCaptured = Round(captured), rejected = Round(rejected), paymentCount = payments.Count, refundsAmount = Round(refunds.Sum(x => x.Amount)), refundsCount = refunds.Count }, byMethod, byStatus });
     }
@@ -398,6 +404,18 @@ public static class SprintThirteenEndpoints
     private static int EffectiveQty(OrderLine line) => Math.Max(line.Quantity - line.VoidedQuantity, 0);
 
     private static decimal Round(decimal value) => ReportingRules.RoundMoney(value);
+
+    // External (delivery-app) payments are split by the order's sales channel so each app's takings show separately.
+    private static (Guid MethodId, Guid? ChannelId) PaymentSource(Payment payment, IReadOnlyDictionary<Guid, PaymentMethod> methods, IReadOnlyDictionary<Guid, Guid> orderChannels) =>
+        (payment.PaymentMethodId,
+            methods.TryGetValue(payment.PaymentMethodId, out var method) && method.Kind == PaymentMethodKind.External && orderChannels.TryGetValue(payment.OrderId, out var channelId) ? channelId : null);
+
+    private static string? PaymentSourceName(IReadOnlyDictionary<Guid, PaymentMethod> methods, IReadOnlyDictionary<Guid, SalesChannel> channels, (Guid MethodId, Guid? ChannelId) source, bool arabic)
+    {
+        var methodName = methods.TryGetValue(source.MethodId, out var m) ? (arabic ? m.NameAr : m.NameEn) : null;
+        if (source.ChannelId is not { } channelId || !channels.TryGetValue(channelId, out var c)) return methodName;
+        return $"{methodName} — {(arabic ? c.NameAr : c.NameEn)}";
+    }
 
     private static (DateTimeOffset From, DateTimeOffset To) ResolveRange(DateTimeOffset? from, DateTimeOffset? to)
     {
