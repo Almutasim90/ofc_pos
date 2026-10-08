@@ -100,6 +100,25 @@ async function noOverflow(page: Page) {
   expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
 }
 
+test('login page stays within the viewport without scrolling', async ({page}) => {
+  await page.goto('/');
+  for (const viewport of [
+    {width:1920,height:1080},
+    {width:1366,height:768},
+    {width:800,height:600},
+    {width:390,height:844},
+    {width:320,height:568},
+    {width:667,height:375},
+    {width:320,height:320},
+  ]) {
+    await page.setViewportSize(viewport);
+    expect(await page.evaluate(() =>
+      document.documentElement.scrollHeight <= window.innerHeight &&
+      document.documentElement.scrollWidth <= window.innerWidth
+    )).toBeTruthy();
+  }
+});
+
 test('register bounds a 500-line receipt and keeps totals pinned at 1080p', async ({page}, info) => {
   await page.setViewportSize({width:1920,height:1080});
   await setup(page,'en','light');

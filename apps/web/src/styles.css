@@ -2376,8 +2376,10 @@
   padding: clamp(8px, 2.5vh, 24px) clamp(8px, 2vw, 24px);
 }
 .login-card {
+  width: min(520px, 100%);
   height: min(620px, 100%);
   min-height: 0;
+  grid-template-columns: 1fr;
 }
 .login-form-panel {
   min-height: 0;
@@ -2418,19 +2420,6 @@
   }
 }
 
-@media (max-height: 560px) {
-  .login-card {
-    max-width: 520px;
-    grid-template-columns: 1fr;
-  }
-  .login-showcase {
-    display: none;
-  }
-  .login-mobile-brand {
-    display: block;
-  }
-}
-
 @media (max-height: 420px) {
   .login-form-panel {
     padding-block: 6px;
@@ -2438,9 +2427,6 @@
   .login-icon-button,
   .login-language {
     min-height: 36px;
-  }
-  .login-mobile-brand {
-    display: none;
   }
   .login-heading {
     margin-block-end: 6px;
@@ -2460,9 +2446,6 @@
   }
   .login-submit {
     min-height: 40px;
-  }
-  .login-footer {
-    display: none;
   }
 }
 

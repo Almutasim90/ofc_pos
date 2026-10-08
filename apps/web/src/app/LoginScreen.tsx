@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Moon, ShieldCheck, Sun } from "lucide-react";
+import { Eye, EyeOff, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,34 +41,6 @@ export function LoginScreen({
   return (
     <main className="login-shell">
       <section className="login-card" aria-labelledby="login-title">
-        <aside className="login-showcase">
-          <div className="login-brand">
-            <span className="login-brand-mark">O</span>
-            <span>OFC</span>
-          </div>
-          <div className="login-showcase-copy">
-            <span className="login-kicker">
-              {tr("إدارة المطعم", "Restaurant operations")}
-            </span>
-            <h2>
-              {tr(
-                "كل عمليات مطعمك في مكان واحد.",
-                "Your restaurant, all in one place.",
-              )}
-            </h2>
-            <p>
-              {tr(
-                "تابع الطلبات والمبيعات والمخزون بسلاسة من منصة واحدة مصممة لفريقك.",
-                "Run orders, sales, and inventory smoothly from one workspace built for your team.",
-              )}
-            </p>
-          </div>
-          <div className="login-trust">
-            <ShieldCheck size={19} />
-            <span>{tr("دخول آمن ومحمي", "Secure, protected access")}</span>
-          </div>
-        </aside>
-
         <div className="login-form-panel">
           <div className="login-toolbar">
             <Button
