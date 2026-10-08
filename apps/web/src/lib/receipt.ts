@@ -3,6 +3,7 @@
 // Sized for 80mm thermal paper; Chrome started with --kiosk-printing prints it without a dialog.
 import { escapeHtml, printHtml, snapshotChoices } from "@/lib/kitchen-slip";
 import { paymentMethodName } from "@/lib/payment-method";
+import { store } from "@/lib/local-store";
 
 type Language = "ar" | "en";
 
@@ -174,20 +175,43 @@ export function sampleReceipt(language: Language): Receipt {
 
 type Auth = (path: string, init?: RequestInit) => Promise<Response>;
 
-const layoutCache = new Map<string, ReceiptLayout>();
+// The layout (images included) is kept in memory for a few minutes so each sale doesn't refetch it, and
+// in local storage so a receipt still prints with the branch's design while the register is offline.
+const layoutTtlMs = 5 * 60_000;
+const layoutCache = new Map<string, { layout: ReceiptLayout; at: number }>();
+const storageKey = (branchId: string) => `receipt-layout:${branchId}`;
 
-export async function loadReceiptLayout(auth: Auth, branchId: string) {
-  const response = await auth(
-    `/api/v1/print/receipt-layout?branchId=${branchId}`,
-  );
-  if (!response.ok) throw new Error("receipt-layout");
-  const layout = (await response.json()) as ReceiptLayout;
-  layoutCache.set(branchId, layout);
-  return layout;
+export function rememberReceiptLayout(branchId: string, layout: ReceiptLayout) {
+  layoutCache.set(branchId, { layout, at: Date.now() });
+  store.set(storageKey(branchId), layout);
 }
 
-export function forgetReceiptLayout(branchId: string) {
-  layoutCache.delete(branchId);
+export function storedReceiptLayout(branchId: string) {
+  return (
+    layoutCache.get(branchId)?.layout ??
+    store.get<ReceiptLayout>(storageKey(branchId)) ??
+    emptyReceiptLayout
+  );
+}
+
+export async function getReceiptLayout(auth: Auth, branchId: string) {
+  const cached = layoutCache.get(branchId);
+  if (cached && Date.now() - cached.at < layoutTtlMs) return cached.layout;
+  try {
+    const response = await auth(
+      `/api/v1/print/receipt-layout?branchId=${branchId}`,
+    );
+    if (!response.ok) throw new Error("receipt-layout");
+    const layout = (await response.json()) as ReceiptLayout;
+    rememberReceiptLayout(branchId, layout);
+    return layout;
+  } catch {
+    return storedReceiptLayout(branchId);
+  }
+}
+
+export function printReceipt(layout: ReceiptLayout, receipt: Receipt) {
+  return printHtml(receiptHtml(layout, receipt));
 }
 
 type OrderResponse = {
@@ -227,7 +251,7 @@ export async function printOrderReceipt(
     const [orderResponse, paymentsResponse, layout] = await Promise.all([
       auth(`/api/v1/orders/${orderId}`),
       auth(`/api/v1/orders/${orderId}/payments`),
-      layoutCache.get(branchId) ?? loadReceiptLayout(auth, branchId),
+      getReceiptLayout(auth, branchId),
     ]);
     if (!orderResponse.ok || !paymentsResponse.ok) return false;
     const order = (await orderResponse.json()) as OrderResponse;

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { printHtml } from "@/lib/kitchen-slip";
 import {
   emptyReceiptLayout,
-  forgetReceiptLayout,
+  rememberReceiptLayout,
   receiptHtml,
   sampleReceipt,
   type ReceiptLayout,
@@ -160,9 +160,10 @@ export function ReceiptDesigner({
         const errors = problem?.errors as Record<string, string[]> | undefined;
         throw new Error((errors && Object.values(errors)[0]?.[0]) ?? t.failed);
       }
-      setLayout((await response.json()) as ReceiptLayout);
-      // The POS caches the layout per branch; drop it so the next receipt uses the new design.
-      forgetReceiptLayout(branchId);
+      const saved = (await response.json()) as ReceiptLayout;
+      setLayout(saved);
+      // Refresh this device's cached copy so its next receipt uses the new design.
+      rememberReceiptLayout(branchId, saved);
       setMessage(t.saved);
       setIsError(false);
     } catch (error) {

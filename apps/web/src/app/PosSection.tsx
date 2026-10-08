@@ -43,7 +43,12 @@ import { ProductPhoto } from "@/app/ProductPhoto";
 import { PaymentDialog } from "@/app/PaymentDialog";
 import { FormDialog } from "@/app/FormDialog";
 import { printKitchenSlips, snapshotChoices } from "@/lib/kitchen-slip";
-import { printOrderReceipt } from "@/lib/receipt";
+import {
+  getReceiptLayout,
+  printOrderReceipt,
+  printReceipt,
+  storedReceiptLayout,
+} from "@/lib/receipt";
 import {
   openCustomerDisplayWindow,
   openDisplayChannel,
@@ -1204,6 +1209,10 @@ export function PosSection({
       clearInterval(timer);
     };
   }, [branchId, online]);
+  // Keep the branch's receipt design on this device so offline sales still print with it.
+  useEffect(() => {
+    if (branchId && online) void getReceiptLayout(auth, branchId);
+  }, [branchId, online]);
   const kdsOfflineSince =
     kdsPresence &&
     kdsPresence.screens === 0 &&
@@ -1844,6 +1853,7 @@ export function PosSection({
               : "Order saved, but its external payment could not be recorded.",
           );
         announcePaid(order.grossAmount);
+        void printOrderReceipt(auth, branchId, order.id, language);
         await dispatchOrder(order.id);
         setDiscountOpen(false);
         setDiscountValue("");
@@ -1953,6 +1963,33 @@ export function PosSection({
       setBusy(false);
     }
     announcePaid(total);
+    // No order number exists until the sale syncs, so the receipt is built from the cart itself.
+    const net = roundMoney(amounts.net);
+    printReceipt(storedReceiptLayout(branchId), {
+      language,
+      reference: "—",
+      createdAt: new Date().toISOString(),
+      lines: cart.map((line) => ({
+        quantity: line.quantity,
+        name: language === "ar" ? line.product.nameAr : line.product.nameEn,
+        choices: lineChoiceNames(line, language),
+        total: roundMoney(
+          resolveOfflinePricing(line.product.pricing, lineAdjustment(line))
+            .gross * line.quantity,
+        ),
+      })),
+      discountAmount: 0,
+      netAmount: net,
+      taxAmount: roundMoney(total - net),
+      grossAmount: total,
+      payments: [
+        {
+          name: paymentMethodName(language, method),
+          amount: total,
+          change: isCash ? roundMoney(tendered - total) : 0,
+        },
+      ],
+    });
     setCart([]);
     setOfflinePay(null);
     setMessage(t.offline);

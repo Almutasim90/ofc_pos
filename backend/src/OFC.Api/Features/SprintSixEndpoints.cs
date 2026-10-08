@@ -187,20 +187,21 @@ public static class SprintSixEndpoints
 
     // Auto-prints the customer receipt the moment an order becomes fully paid, mirroring how a kitchen
     // ticket auto-enqueues its own print job (SprintTenEndpoints) — the cashier never has to remember to
-    // print. Falls back to no printer/template (still enqueued, rendered as a plain key/value dump by the
-    // print agent) when the branch hasn't configured a Receipt route yet, so nothing is silently lost.
+    // print. Only for a branch that routed receipts to a Local Print Agent printer: otherwise the cashier's
+    // browser prints the receipt with the branch's own layout, and a second agent copy would be a duplicate.
     private static async Task EnqueueReceiptPrintJob(OFCDbContext db, Order order, List<Payment> capturedPayments, Guid userId, Guid? deviceId, CancellationToken ct)
     {
         if (await db.PrintJobs.AnyAsync(x => x.OrderId == order.Id && x.Kind == PrintJobKind.Receipt, ct)) return;
+        var routes = await db.PrinterRoutes.AsNoTracking().Where(x => x.BranchId == order.BranchId && x.IsActive).ToListAsync(ct);
+        var receiptTemplates = await db.PrintTemplates.AsNoTracking().Where(x => x.BranchId == order.BranchId && x.Kind == PrinterKind.Receipt).ToListAsync(ct);
+        var route = PrintingRules.PickRoute(routes.Where(x => receiptTemplates.Any(t => t.Id == x.PrintTemplateId)), null);
+        if (route is null) return;
+        var template = receiptTemplates.SingleOrDefault(t => t.Id == route.PrintTemplateId);
         var branch = await db.Branches.AsNoTracking().SingleOrDefaultAsync(x => x.Id == order.BranchId, ct);
         if (branch is null) return;
         var lines = await db.OrderLines.AsNoTracking().Where(x => x.OrderId == order.Id).ToListAsync(ct);
         var methodIds = capturedPayments.Select(x => x.PaymentMethodId).Distinct().ToList();
         var methods = methodIds.Count == 0 ? [] : await db.PaymentMethods.AsNoTracking().Where(x => methodIds.Contains(x.Id)).ToListAsync(ct);
-        var routes = await db.PrinterRoutes.AsNoTracking().Where(x => x.BranchId == order.BranchId && x.IsActive).ToListAsync(ct);
-        var receiptTemplates = await db.PrintTemplates.AsNoTracking().Where(x => x.BranchId == order.BranchId && x.Kind == PrinterKind.Receipt).ToListAsync(ct);
-        var route = PrintingRules.PickRoute(routes.Where(x => receiptTemplates.Any(t => t.Id == x.PrintTemplateId)), null);
-        var template = route is null ? null : receiptTemplates.SingleOrDefault(t => t.Id == route.PrintTemplateId);
         var payload = new
         {
             marker = "RECEIPT",
@@ -216,7 +217,7 @@ public static class SprintSixEndpoints
             items = lines.Select(x => new { x.ProductNameAr, x.ProductNameEn, x.Quantity, unitPrice = x.UnitGrossAmount, lineTotal = PaymentRules.RoundMoney(x.UnitGrossAmount * x.Quantity), x.Note }),
             payments = capturedPayments.Select(p => new { methodNameAr = methods.FirstOrDefault(m => m.Id == p.PaymentMethodId)?.NameAr, methodNameEn = methods.FirstOrDefault(m => m.Id == p.PaymentMethodId)?.NameEn, p.Amount, p.TenderedAmount, p.ChangeAmount })
         };
-        db.PrintJobs.Add(new PrintJob { BranchId = order.BranchId, DeviceId = deviceId, OrderId = order.Id, ClientRequestId = order.Id, Kind = PrintJobKind.Receipt, Status = PrintJobStatus.Pending, PrinterConfigurationId = route?.PrinterConfigurationId, TemplateCode = template?.Code, Payload = JsonSerializer.Serialize(payload), CreatedByUserId = userId });
+        db.PrintJobs.Add(new PrintJob { BranchId = order.BranchId, DeviceId = deviceId, OrderId = order.Id, ClientRequestId = order.Id, Kind = PrintJobKind.Receipt, Status = PrintJobStatus.Pending, PrinterConfigurationId = route.PrinterConfigurationId, TemplateCode = template?.Code, Payload = JsonSerializer.Serialize(payload), CreatedByUserId = userId });
     }
 
     private static object PaymentResponse(IEnumerable<Payment> payments) => new { payments = payments.Select(x => new { x.Id, x.PaymentMethodId, x.Amount, x.TenderedAmount, x.ChangeAmount, x.Status, x.ProviderReference, x.CreatedAt }), changeAmount = payments.Sum(x => x.ChangeAmount) };
